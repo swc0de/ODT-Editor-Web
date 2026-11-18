@@ -5,8 +5,8 @@ The memory between sessions. Statuses: `todo`, `in progress`, `awaiting approval
 | Milestone | Status |
 |---|---|
 | M0 — Scaffold, build, test harness | approved |
-| M1 — App shell and complete ribbon UI (visual match) | awaiting approval |
-| M2 — Document model and ODT open/save | todo |
+| M1 — App shell and complete ribbon UI (visual match) | approved |
+| M2 — Document model and ODT open/save | in progress |
 | M3 — Print Layout: pagination, rulers, status bar, zoom | todo |
 | M4 — Home tab: character and paragraph formatting, styles, lists, find | todo |
 | M5 — Layout and Design tabs, headers/footers, sections | todo |
@@ -48,7 +48,7 @@ Known issues / not applicable yet:
 - No reference screenshots to compare against.
 - Typing-latency performance check is not applicable until editing exists (M2/M3); the 50/100-page fixtures are ready for it.
 
-## M1 — App shell and complete ribbon UI (awaiting approval)
+## M1 — App shell and complete ribbon UI (approved)
 
 Built:
 - Tab bar with all 13 tabs in screenshot order (**Zotero** added because the screenshots show it), accent text + underline on the active tab, Comments / Editing ▾ / Share on the right.
