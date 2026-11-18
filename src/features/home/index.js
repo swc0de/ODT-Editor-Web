@@ -5,14 +5,14 @@ const speechSupported = () => typeof window !== 'undefined' && !!(window.SpeechR
 
 export const commands = defineCommands('home', {
   // Clipboard
-  paste: { icon: 'paste', shortcutHint: 'Mod-v' },
+  paste: { icon: 'paste', shortcutHint: 'Mod-v', run: (ctx) => ctx.clipboard.paste() },
   pasteKeepSource: { icon: 'paste-keep' },
   pasteMerge: { icon: 'paste-merge' },
   pasteTextOnly: { icon: 'paste-text' },
   pasteSpecial: {},
   setDefaultPaste: {},
-  cut: { icon: 'cut', shortcutHint: 'Mod-x', isEnabled: (ctx) => ctx.state.hasSelection },
-  copy: { icon: 'copy', shortcutHint: 'Mod-c' },
+  cut: { icon: 'cut', shortcutHint: 'Mod-x', isEnabled: (ctx) => ctx.state.hasSelection, run: (ctx) => ctx.clipboard.cut() },
+  copy: { icon: 'copy', shortcutHint: 'Mod-c', run: (ctx) => ctx.clipboard.copy() },
   formatPainter: { icon: 'format-painter', shortcut: 'Mod-Shift-c' },
   clipboardPane: { icon: 'clipboard' },
   // Font
@@ -116,7 +116,7 @@ export const commands = defineCommands('home', {
   goTo: { shortcut: 'Mod-g' },
   replace: { icon: 'replace', shortcut: 'Mod-h' },
   select: { icon: 'draw-select' },
-  selectAll: { shortcutHint: 'Mod-a' },
+  selectAll: { shortcutHint: 'Mod-a', run: (ctx) => { ctx.editor.selectAll(); ctx.editor.focus(); } },
   selectObjects: {},
   selectSimilar: {},
   // Voice & Editor

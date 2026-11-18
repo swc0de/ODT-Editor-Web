@@ -6,7 +6,7 @@ const APP_NAME = readFileSync('src/config.js', 'utf8').match(/export const APP_N
 
 test('loads from file:// with no errors and no network requests', async ({ page }) => {
   const problems = await openApp(page);
-  await expect(page).toHaveTitle(APP_NAME);
+  await expect(page).toHaveTitle(new RegExp(`^Document1 - ${APP_NAME}$`));
   await expect(page.locator('.page')).toBeVisible();
   // Let any late async work (fonts, timers) settle.
   await page.waitForTimeout(300);
@@ -29,7 +29,7 @@ test('works with the network fully offline', async ({ page, context }) => {
   const problems = await openApp(page);
   expect(problems.consoleErrors).toEqual([]);
   expect(problems.pageErrors).toEqual([]);
-  await expect(page).toHaveTitle(APP_NAME);
+  await expect(page).toHaveTitle(new RegExp(`^Document1 - ${APP_NAME}$`));
 });
 
 test('bundled fonts are embedded and load', async ({ page }) => {

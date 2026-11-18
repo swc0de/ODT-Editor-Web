@@ -5,11 +5,26 @@ browser from **one self-contained HTML file**: `dist/odt-editor.html`.
 No server, no uploads, no analytics — open the file (even from `file://`, even
 offline) and everything happens locally.
 
-> **Status: milestone M1 (app shell).** The complete ribbon UI (all tabs and
-> controls), Backstage, rulers, status bar, KeyTips and Alt+Q command search
-> are in place around a blank A4 page. Editing and ODT open/save arrive in M2 —
-> see [MILESTONES.md](MILESTONES.md) and [PROGRESS.md](PROGRESS.md). Controls
-> for features that aren't built yet are dimmed with a "Coming soon" tooltip.
+> **Status: milestone M2 (open, edit, save).** Open .odt/.ott files, edit
+> text (continuous view), paste from other apps, and save — with autosave and
+> crash recovery. Formatting commands, pagination and the other ribbon
+> features arrive in later milestones — see [MILESTONES.md](MILESTONES.md) and
+> [PROGRESS.md](PROGRESS.md). Controls for features that aren't built yet are
+> dimmed with a "Coming soon" tooltip.
+
+## Working with files
+
+- **Open**: Ctrl+O, drag an `.odt` onto the window, or File ▸ Open / Recent.
+  Opening a template (`.ott`) starts a new document from it.
+- **Save**: Ctrl+S. In Chromium-based browsers (Chrome, Edge) the file you
+  opened is updated in place; elsewhere the document is downloaded.
+  Save As: F12 or File ▸ Save As.
+- **Never lose work**: the document is autosaved in this browser every 30
+  seconds and whenever you switch away; File ▸ Recover brings back anything
+  that wasn't saved. You are asked before unsaved changes are discarded.
+- **Fidelity**: anything the editor doesn't understand yet (tables of
+  contents, text boxes, tracked changes, unknown elements…) is kept and
+  written back unchanged.
 
 ## Using it
 
@@ -28,7 +43,7 @@ interoperability checks.
 npm install
 npm run build        # → dist/odt-editor.html (minified, everything inlined)
 npm run watch        # rebuild on change (unminified, inline source maps)
-npm test             # unit tests (node:test) + e2e tests (Playwright, Chromium)
+npm test             # unit tests (node:test) + e2e tests (Playwright, Chromium), incl. round-trips
 npm run fixtures     # regenerate tests/fixtures/*.odt (+ LibreOffice exports if soffice exists)
 npm run screenshots  # compare against reference/*.png → reference/compare/
 ```
@@ -44,7 +59,8 @@ src/
   index.html           page template (CSP, inline CSS/JS/fonts slots)
   config.js            app name, version, defaults — the name lives only here
   main.js              entry point
-  core/                command registry, settings; later: schema, ODT I/O, styles, autosave
+  core/                command registry, settings, schema, editor, session (open/save/autosave),
+                       storage (IndexedDB), clipboard; odt/ = import, export, styles, CSS, package
   layout/              units, fonts; later: pagination, rulers, measurement
   ui/                  theme, icons, logo; later: ribbon, backstage, dialogs, panes, status bar
   features/<tab>/      one folder per ribbon tab (file, home, insert, draw, design, layout,
@@ -94,9 +110,16 @@ UI inspired by the open-source WordCraft project (MIT/Apache-2.0).
 - **F6 / Shift+F6**: move between the tab bar, ribbon, document and status bar.
 - Arrow keys move between tabs and between ribbon controls; menus support ↑ ↓ → ← Home End and type-ahead.
 
-## Known limitations (M1)
+## Known limitations (M2)
 
-- No document editing, opening or saving yet (M2). Every unbuilt command is
-  dimmed with a "Coming soon" tooltip; its dropdown menu still opens.
-- Rulers and the zoom slider are static (M3).
-- Backstage pages other than Home are placeholders.
+- Continuous view: no pagination yet, headers and footers aren't shown (they
+  are kept in the file). Rulers and the zoom slider are static (M3).
+- Formatting commands (bold, styles, lists…) aren't wired up yet (M4); pasted
+  and opened formatting is shown and kept.
+- Numbered lists don't yet render continue/restart numbering across separate
+  lists (kept in the file).
+- Footnotes, comments, text boxes, tables of contents and tracked changes are
+  kept and displayed but not editable yet.
+- Content inside merged-away table cells (rare) is not kept.
+- Password-protected ODT files can't be opened.
+- Backstage Info, Print, Export and Options are placeholders.

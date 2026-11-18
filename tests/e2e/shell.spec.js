@@ -124,9 +124,13 @@ test.describe('app shell', () => {
     await expect(page.locator('.keytip').filter({ hasText: /^H$/ })).toBeVisible();
     await page.keyboard.press('Escape');
     await expect(page.locator('.keytip')).toHaveCount(0);
-    // Alt, W (View), then the Interface Theme control's tip opens its menu.
+    // Alt, W (View), then the Interface Theme control's tip opens its menu
+    // (a wide window, so no View group is folded away).
+    await page.setViewportSize({ width: 2400, height: 900 });
     await page.keyboard.press('Alt');
     await page.keyboard.press('w');
+    // Control letters appear on the next frame.
+    await expect.poll(() => page.locator('.keytip').count()).toBeGreaterThan(15);
     const tip = await page.evaluate(() => {
       const el = document.querySelector('.ribbon-panel [data-command="view.interfaceTheme"]');
       const r = el.getBoundingClientRect();
@@ -213,7 +217,8 @@ test.describe('app shell', () => {
   });
 
   test('app shortcuts never trigger browser defaults', async ({ page }) => {
-    await page.keyboard.press('Control+s');
-    await expect(page.locator('.toast')).toContainText('Save — coming soon');
+    // Ctrl+P would open the browser's print dialog; printing arrives in M13.
+    await page.keyboard.press('Control+p');
+    await expect(page.locator('.toast')).toContainText('Print — coming soon');
   });
 });

@@ -24,6 +24,8 @@ export const NS = {
   script: 'urn:oasis:names:tc:opendocument:xmlns:script:1.0',
   config: 'urn:oasis:names:tc:opendocument:xmlns:config:1.0',
   loext: 'urn:org:documentfoundation:names:experimental:office:xmlns:loext:1.0',
+  ooo: 'http://openoffice.org/2004/office',
+  ooow: 'http://openoffice.org/2004/writer',
 };
 
 export const nsAttrs = (...names) => names.map((n) => `xmlns:${n}="${NS[n]}"`).join(' ');

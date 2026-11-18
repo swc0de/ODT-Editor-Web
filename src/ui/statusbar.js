@@ -41,7 +41,7 @@ export function createStatusBar({ registry, store, toast }) {
   function update() {
     const s = store.get();
     pageEl.textContent = t('status.pageOf', { page: 1, pages: 1 });
-    wordsEl.textContent = t('status.words', { count: 0 });
+    wordsEl.textContent = t('status.words', { count: s.words || 0 });
     langEl.textContent = t(`lang.${getLocale()}`);
     zoomPct.textContent = `${s.zoom}%`;
     slider.setAttribute('aria-valuenow', String(s.zoom));

@@ -1,0 +1,315 @@
+/**
+ * The open document's lifecycle: New, Open (picker, drag & drop, Recent),
+ * Save (File System Access write-back where available, otherwise download),
+ * Save As, Close; the dirty flag and window title; autosave to IndexedDB with
+ * crash recovery; unsaved-change prompts and the beforeunload guard.
+ */
+import { APP_NAME, AUTOSAVE_INTERVAL_MS } from '../config.js';
+import { t } from '../i18n/index.js';
+import { importOdt } from './odt/import.js';
+import { exportOdt } from './odt/export.js';
+import { renderThumbnail } from './odt/thumbnail.js';
+import { buildStyleIndex } from './odt/styles.js';
+import { createBlankState, stateToJSON, stateFromJSON } from './document.js';
+import { storage, addRecent, recentBytes, listRecent } from './storage.js';
+import { getSetting } from './settings.js';
+import { showDialog, alertDialog } from '../ui/dialog.js';
+
+const SESSION_ID = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+const uid = () => (crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`);
+const ODT_TYPES = [{ description: 'OpenDocument Text', accept: { 'application/vnd.oasis.opendocument.text': ['.odt'], 'application/vnd.oasis.opendocument.text-template': ['.ott'] } }];
+
+export function createSession({ editor, onLoad, onChange, toast }) {
+  let untitledCounter = 0;
+  const s = {
+    docId: uid(),
+    state: null, // DocumentState minus the live doc (the editor holds it)
+    name: '',
+    handle: null,
+    dirty: false,
+    autosaveDirty: false,
+  };
+
+  const fsAccess = () => getSetting('fileSystemAccess') !== false && typeof window.showSaveFilePicker === 'function';
+
+  function currentState() { return { ...s.state, doc: editor.getDoc() }; }
+
+  function updateTitle() {
+    document.title = `${s.dirty ? '● ' : ''}${s.name} - ${APP_NAME}`;
+    onChange?.(info());
+  }
+
+  function info() { return { name: s.name, dirty: s.dirty, hasHandle: !!s.handle, mime: s.state?.mime }; }
+
+  function load(state, { name, handle = null, dirty = false, docId = uid() }) {
+    s.state = state;
+    s.name = name;
+    s.handle = handle;
+    s.docId = docId;
+    s.dirty = dirty;
+    s.autosaveDirty = dirty;
+    onLoad?.(state); // before rendering: styles and picture URLs must be ready
+    editor.setDoc(state.doc);
+    updateTitle();
+    editor.focus();
+  }
+
+  function markDirty() {
+    if (!s.dirty) { s.dirty = true; updateTitle(); }
+    s.autosaveDirty = true;
+  }
+
+  // ------------------------------------------------------------ guards
+
+  /** Asks to save unsaved changes. Resolves false if the user cancels. */
+  async function confirmDiscard() {
+    if (!s.dirty) return true;
+    const choice = await showDialog({
+      title: APP_NAME,
+      message: t('file.saveChangesPrompt', { name: s.name }),
+      buttons: [{ label: t('file.save'), value: 'save', primary: true }, { label: t('file.dontSave'), value: 'discard' }, { label: t('common.cancel'), value: 'cancel' }],
+      cancelValue: 'cancel',
+    });
+    if (choice === 'cancel') return false;
+    if (choice === 'save') return save();
+    return true;
+  }
+
+  addEventListener('beforeunload', (e) => {
+    if (!s.dirty) return;
+    autosaveNow();
+    e.preventDefault();
+    e.returnValue = '';
+  });
+
+  // ------------------------------------------------------------ new / open
+
+  function untitledName() { untitledCounter++; return `${t('app.untitled').replace(/\d+$/, '')}${untitledCounter}`; }
+
+  async function newDocument({ doc = null, skipGuard = false } = {}) {
+    if (!skipGuard && !(await confirmDiscard())) return false;
+    await discardAutosave();
+    load(createBlankState({ doc }), { name: untitledName() });
+    return true;
+  }
+
+  /** Opens bytes as a document. Templates (.ott) open as a new untitled document. */
+  async function openBytes(bytes, { name, handle = null, skipGuard = false, remember = true }) {
+    let state;
+    try {
+      state = importOdt(bytes);
+    } catch (e) {
+      console.warn('Open failed:', e);
+      await alertDialog(t('file.openFailedTitle'), t('file.openFailed', { name, reason: e.message }));
+      return false;
+    }
+    if (!skipGuard && !(await confirmDiscard())) return false;
+    await discardAutosave();
+    const isTemplate = state.mime === 'template' || /\.ott$/i.test(name);
+    if (isTemplate) {
+      state.mime = 'text';
+      load(state, { name: untitledName() });
+    } else {
+      load(state, { name: name.replace(/\.odt$/i, ''), handle });
+      s.fileName = name;
+    }
+    if (remember) addRecent({ name, bytes, handle }).then(() => onChange?.(info()));
+    return true;
+  }
+
+  async function openFile(file, handle = null) {
+    const bytes = new Uint8Array(await file.arrayBuffer());
+    return openBytes(bytes, { name: file.name, handle });
+  }
+
+  async function openDialog() {
+    if (getSetting('fileSystemAccess') !== false && typeof window.showOpenFilePicker === 'function') {
+      try {
+        const [handle] = await window.showOpenFilePicker({ types: ODT_TYPES, multiple: false });
+        return openFile(await handle.getFile(), handle);
+      } catch (e) {
+        if (e.name !== 'AbortError') console.warn(e);
+        return false;
+      }
+    }
+    return new Promise((resolve) => {
+      const input = Object.assign(document.createElement('input'), { type: 'file', accept: '.odt,.ott,application/vnd.oasis.opendocument.text,application/vnd.oasis.opendocument.text-template' });
+      input.addEventListener('change', () => resolve(input.files[0] ? openFile(input.files[0]) : false));
+      input.addEventListener('cancel', () => resolve(false));
+      input.click();
+    });
+  }
+
+  async function openRecent(entry) {
+    if (entry.handle) {
+      try {
+        let perm = await entry.handle.queryPermission?.({ mode: 'read' });
+        if (perm !== 'granted') perm = await entry.handle.requestPermission?.({ mode: 'read' });
+        if (perm === 'granted') return openFile(await entry.handle.getFile(), entry.handle);
+      } catch (e) { console.warn('Recent handle failed:', e); }
+    }
+    const bytes = await recentBytes(entry.id);
+    if (!bytes) { await alertDialog(t('file.openFailedTitle'), t('file.recentMissing', { name: entry.name })); return false; }
+    return openBytes(bytes, { name: entry.name });
+  }
+
+  // ------------------------------------------------------------ save
+
+  async function serialize({ asTemplate = false } = {}) {
+    const state = currentState();
+    let thumbnail;
+    try { thumbnail = await renderThumbnail(state, buildStyleIndex(state)); } catch (e) { console.warn('Thumbnail failed:', e); }
+    return exportOdt(state, { thumbnail, asTemplate }).bytes;
+  }
+
+  function download(bytes, fileName) {
+    const blob = new Blob([bytes], { type: 'application/vnd.oasis.opendocument.text' });
+    const url = URL.createObjectURL(blob);
+    const a = Object.assign(document.createElement('a'), { href: url, download: fileName });
+    document.body.append(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 30_000);
+  }
+
+  async function writeHandle(handle, bytes) {
+    let perm = await handle.queryPermission?.({ mode: 'readwrite' });
+    if (perm !== 'granted') perm = await handle.requestPermission?.({ mode: 'readwrite' });
+    if (perm && perm !== 'granted') throw new Error('Permission denied');
+    const w = await handle.createWritable();
+    await w.write(bytes);
+    await w.close();
+  }
+
+  function markSaved(name) {
+    s.dirty = false;
+    s.autosaveDirty = false;
+    if (name) s.name = name.replace(/\.odt$/i, '');
+    updateTitle();
+    discardAutosave();
+  }
+
+  async function save() {
+    if (s.handle && s.handle.createWritable) {
+      try {
+        const bytes = await serialize();
+        await writeHandle(s.handle, bytes);
+        markSaved();
+        addRecent({ name: s.handle.name, bytes, handle: s.handle });
+        toast?.(t('file.saved', { name: s.handle.name }));
+        return true;
+      } catch (e) {
+        console.warn('Write-back failed, falling back to Save As:', e);
+      }
+    }
+    return saveAs();
+  }
+
+  async function saveAs({ asTemplate = false, forceDownload = false } = {}) {
+    const ext = asTemplate ? '.ott' : '.odt';
+    const suggested = `${s.name || 'Document'}${ext}`;
+    const bytes = await serialize({ asTemplate });
+    if (!forceDownload && fsAccess()) {
+      try {
+        const handle = await window.showSaveFilePicker({ suggestedName: suggested, types: ODT_TYPES });
+        await writeHandle(handle, bytes);
+        if (!asTemplate) { s.handle = handle; markSaved(handle.name); }
+        addRecent({ name: handle.name, bytes, handle });
+        toast?.(t('file.saved', { name: handle.name }));
+        return true;
+      } catch (e) {
+        if (e.name === 'AbortError') return false;
+        console.warn('Save picker failed, downloading instead:', e);
+      }
+    }
+    download(bytes, suggested);
+    if (!asTemplate) markSaved(suggested);
+    addRecent({ name: suggested, bytes });
+    toast?.(t('file.downloaded', { name: suggested }));
+    return true;
+  }
+
+  /** Downloads a copy without changing the document's name or file. */
+  async function downloadCopy() {
+    const name = `${s.name || 'Document'}.odt`;
+    download(await serialize(), name);
+    toast?.(t('file.downloaded', { name }));
+    return true;
+  }
+
+  async function close() {
+    if (!(await confirmDiscard())) return false;
+    await discardAutosave();
+    load(createBlankState(), { name: untitledName() });
+    return true;
+  }
+
+  // ------------------------------------------------------------ autosave
+
+  async function autosaveNow() {
+    if (!s.autosaveDirty || !s.state) return;
+    s.autosaveDirty = false;
+    const json = stateToJSON(currentState());
+    await storage.put('autosave', { id: s.docId, sessionId: SESSION_ID, name: s.name, savedAt: Date.now(), json });
+  }
+
+  async function discardAutosave() { await storage.delete('autosave', s.docId); }
+
+  let timer = null;
+  function startAutosave() {
+    clearInterval(timer);
+    timer = setInterval(autosaveNow, getSetting('autosaveIntervalMs') || AUTOSAVE_INTERVAL_MS);
+  }
+  addEventListener('blur', autosaveNow);
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') autosaveNow(); });
+
+  /** Autosaved documents left by earlier sessions (crashes, closed tabs). */
+  async function recoverable() {
+    const all = await storage.getAll('autosave');
+    return all.filter((e) => e.id !== s.docId).sort((a, b) => b.savedAt - a.savedAt);
+  }
+
+  async function recover(id) {
+    const entry = await storage.get('autosave', id);
+    if (!entry) return false;
+    if (!(await confirmDiscard())) return false;
+    await discardAutosave();
+    let state;
+    try { state = stateFromJSON(entry.json); } catch (e) {
+      await alertDialog(t('file.openFailedTitle'), e.message);
+      return false;
+    }
+    load(state, { name: entry.name, dirty: true, docId: entry.id });
+    await storage.put('autosave', { ...entry, sessionId: SESSION_ID });
+    return true;
+  }
+
+  async function deleteRecovered(id) { await storage.delete('autosave', id); }
+
+  startAutosave();
+
+  return {
+    get info() { return info(); },
+    get state() { return s.state; },
+    currentState,
+    newDocument,
+    openDialog,
+    openFile,
+    openBytes,
+    openRecent,
+    listRecent,
+    save,
+    saveAs,
+    downloadCopy,
+    close,
+    serialize,
+    markDirty,
+    autosaveNow,
+    recoverable,
+    recover,
+    deleteRecovered,
+    confirmDiscard,
+    load,
+    sessionId: SESSION_ID,
+  };
+}

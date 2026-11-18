@@ -10,7 +10,7 @@
  *   rf red fill          yf yellow fill     pf pink fill        gf green stroke
  */
 import {
-  CirclePlus, CircleMinus,
+  CirclePlus, CircleMinus, Pin,
   AArrowDown, AArrowUp, Accessibility, AlignCenter, AlignHorizontalJustifyStart, AlignJustify, AlignLeft, AlignRight,
   ArrowDownAZ, ArrowLeft, ArrowRight, ArrowRightLeft, BadgeCheck, BookA, BookOpen, BookOpenText, Bookmark, Box,
   Braces, BringToFront, CalendarClock, CalendarDays, Captions, CaseSensitive, ChevronDown, ChevronFirst, ChevronLast,
@@ -210,7 +210,7 @@ const LUCIDE = {
   'finish-merge': MailCheck, spelling: SpellCheck, thesaurus: BookA, 'read-aloud': Speech, accessibility: Accessibility,
   translate: Languages, language: Globe, 'delete-comment': MessageSquareX, 'show-comments': MessagesSquare,
   'reviewing-pane': PanelRight, accept: FileCheck, reject: FileX, compare: FileDiff, restrict: LockKeyhole,
-  ruler: Ruler, 'circle-plus': CirclePlus, 'circle-minus': CircleMinus, 'zoom-in': ZoomIn, 'zoom-out': ZoomOut, 'cc-rich-text': LetterText, 'cc-plain-text': Type,
+  pin: Pin, ruler: Ruler, 'circle-plus': CirclePlus, 'circle-minus': CircleMinus, 'zoom-in': ZoomIn, 'zoom-out': ZoomOut, 'cc-rich-text': LetterText, 'cc-plain-text': Type,
   'cc-picture': ImagePlus, 'cc-checkbox': SquareCheck, 'cc-dropdown': SquareChevronDown, 'cc-date': CalendarDays,
   properties: Settings2, 'zotero-note': StickyNote, refresh: RefreshCw, preferences: Settings, unlink: Unlink,
   help: CircleHelp, feedback: MessageSquareHeart, 'whats-new': Gift, about: Info, file: File, back: ChevronLeft,

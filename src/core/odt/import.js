@@ -1,0 +1,434 @@
+/**
+ * ODT import: package → DocumentState (see core/document.js).
+ *
+ * Paragraph and text automatic styles are resolved into the model (named
+ * style + `auto` formatting); every other automatic style is kept verbatim.
+ * Elements the editor doesn't model become opaque nodes holding their XML.
+ */
+import { schema } from '../schema.js';
+import { readPackage, strFromU8, PackageError } from './package.js';
+import { parseXml, toTree, qname, attrsOf, createNsContext, elementToXml, treeText } from './xml.js';
+import { autoFromTree, mergeAuto, buildStyleIndex, listIsOrdered } from './styles.js';
+import { createBlankState } from '../document.js';
+
+const MIME_TEXT = 'application/vnd.oasis.opendocument.text';
+const MIME_TEMPLATE = 'application/vnd.oasis.opendocument.text-template';
+
+/** Elements that may open office:text before the body content. */
+const PRELUDE = new Set([
+  'office:forms', 'text:tracked-changes', 'text:variable-decls', 'text:sequence-decls', 'text:user-field-decls',
+  'text:dde-connection-decls', 'text:alphabetical-index-auto-mark-file', 'table:calculation-settings',
+  'table:content-validations', 'table:label-ranges',
+]);
+
+/** Inline elements with structure the importer handles explicitly. */
+const STRUCTURAL_INLINE = new Set([
+  'text:span', 'text:a', 'text:s', 'text:tab', 'text:line-break', 'text:note', 'text:soft-page-break', 'text:number',
+  'text:bookmark', 'text:bookmark-start', 'text:bookmark-end', 'text:reference-mark', 'text:reference-mark-start',
+  'text:reference-mark-end', 'text:change', 'text:change-start', 'text:change-end', 'text:ruby', 'text:meta',
+  'text:meta-field', 'text:toc-mark', 'text:toc-mark-start', 'text:toc-mark-end', 'text:alphabetical-index-mark',
+  'text:alphabetical-index-mark-start', 'text:alphabetical-index-mark-end', 'text:user-index-mark',
+  'text:user-index-mark-start', 'text:user-index-mark-end', 'text:bibliography-mark',
+]);
+
+const BLOCK_LABELS = {
+  'text:table-of-content': 'Table of Contents', 'text:illustration-index': 'Table of Figures', 'text:table-index': 'Table of Tables',
+  'text:alphabetical-index': 'Index', 'text:bibliography': 'Bibliography', 'text:user-index': 'User Index', 'text:object-index': 'Table of Objects',
+  'text:numbered-paragraph': 'Numbered paragraph', 'draw:frame': 'Frame',
+};
+
+export class ImportError extends Error {}
+
+const without = (obj, ...keys) => {
+  const out = {};
+  for (const k in obj) if (!keys.includes(k)) out[k] = obj[k];
+  return Object.keys(out).length ? out : null;
+};
+
+/**
+ * @param {Uint8Array|ArrayBuffer} bytes
+ * @returns {object} DocumentState
+ */
+export function importOdt(bytes) {
+  const pkg = readPackage(bytes);
+  if (pkg.mimetype && pkg.mimetype !== MIME_TEXT && pkg.mimetype !== MIME_TEMPLATE) {
+    throw new PackageError(`This is not a text document (${pkg.mimetype}).`, 'wrong-type');
+  }
+  if (!pkg.files.has('content.xml')) throw new PackageError('This file has no content.xml, so it is not a valid ODT document.', 'no-content');
+  const ns = createNsContext();
+  const text = (path) => (pkg.files.has(path) ? strFromU8(pkg.files.get(path)) : null);
+
+  const content = parseXml(text('content.xml')).documentElement;
+  const stylesXml = text('styles.xml');
+  const blank = createBlankState();
+  const stylesRoot = stylesXml ? parseXml(stylesXml).documentElement : null;
+  const metaXml = text('meta.xml');
+  const metaRoot = metaXml ? parseXml(metaXml).documentElement : null;
+
+  const child = (root, name) => (root ? [...root.children].find((c) => qname(c, ns) === name) : null);
+  const treeOf = (root, name) => { const el = child(root, name); return el ? toTree(el, ns) : null; };
+
+  // Fonts: union of both parts.
+  const fontFaces = [];
+  const seenFonts = new Set();
+  for (const root of [stylesRoot, content]) {
+    const decls = treeOf(root, 'office:font-face-decls');
+    for (const f of decls?.c || []) {
+      if (typeof f === 'string' || seenFonts.has(f.a['style:name'])) continue;
+      seenFonts.add(f.a['style:name']);
+      fontFaces.push(f);
+    }
+  }
+
+  const contentAutoStyles = (treeOf(content, 'office:automatic-styles')?.c || []).filter((t) => typeof t !== 'string');
+  const state = {
+    ...blank,
+    fontFaces: fontFaces.length ? fontFaces : blank.fontFaces,
+    commonStyles: stylesRoot ? (treeOf(stylesRoot, 'office:styles') || { n: 'office:styles', a: {} }) : blank.commonStyles,
+    stylesAutoStyles: stylesRoot ? (treeOf(stylesRoot, 'office:automatic-styles') || { n: 'office:automatic-styles', a: {} }) : blank.stylesAutoStyles,
+    masterStyles: stylesRoot ? (treeOf(stylesRoot, 'office:master-styles') || { n: 'office:master-styles', a: {} }) : blank.masterStyles,
+    contentAutoStyles,
+    scripts: treeOf(content, 'office:scripts'),
+    meta: metaRoot ? (treeOf(metaRoot, 'office:meta') || { n: 'office:meta', a: {} }) : blank.meta,
+    settingsXml: text('settings.xml'),
+    pictures: {},
+    extraFiles: {},
+    extraManifest: [],
+    contentRootAttrs: attrsOf(content, ns),
+    stylesRootAttrs: stylesRoot ? attrsOf(stylesRoot, ns) : blank.stylesRootAttrs,
+    mime: pkg.mimetype === MIME_TEMPLATE ? 'template' : 'text',
+    prelude: [],
+  };
+
+  // Package files.
+  const mediaTypes = new Map(pkg.manifest.map((e) => [e.path, e.mediaType]));
+  const OWN = new Set(['mimetype', 'META-INF/manifest.xml', 'content.xml', 'styles.xml', 'meta.xml', 'settings.xml', 'Thumbnails/thumbnail.png']);
+  for (const [path, bytesOf] of pkg.files) {
+    if (OWN.has(path)) continue;
+    const entry = { bytes: bytesOf, mediaType: mediaTypes.get(path) || '' };
+    if (path.startsWith('Pictures/')) state.pictures[path] = entry;
+    else state.extraFiles[path] = entry;
+  }
+  state.extraManifest = pkg.manifest.filter((e) => e.path && e.path !== '/' && e.path.endsWith('/'));
+
+  // Auto style lookup for paragraphs/text.
+  const autoIndex = new Map();
+  for (const t of contentAutoStyles) if (t.n === 'style:style') autoIndex.set(`${t.a['style:family']}:${t.a['style:name']}`, t);
+  const styleIndex = buildStyleIndex(state);
+
+  // Body.
+  const body = child(content, 'office:body');
+  const officeText = body && child(body, 'office:text');
+  if (!officeText) throw new PackageError('This document has no text body.', 'no-body');
+  state.officeTextAttrs = attrsOf(officeText, ns);
+
+  const conv = createConverter({ ns, autoIndex, styleIndex });
+  const blocks = [];
+  let inPrelude = true;
+  for (const el of officeText.children) {
+    const name = qname(el, ns);
+    if (inPrelude && PRELUDE.has(name)) { state.prelude.push(toTree(el, ns)); continue; }
+    inPrelude = false;
+    blocks.push(...conv.block(el));
+  }
+  if (!blocks.length) blocks.push({ type: 'paragraph', attrs: { styleName: 'Standard' } });
+  state.doc = schema.nodeFromJSON({ type: 'doc', content: blocks });
+  state.nsExtra = { ...ns.extra };
+  return state;
+}
+
+/** Converts ODF body XML into ProseMirror JSON. */
+export function createConverter({ ns, autoIndex, styleIndex }) {
+  const q = (el) => qname(el, ns);
+
+  /** Resolves a paragraph style reference → { styleName, auto }. */
+  function paraStyle(name, fallback = 'Standard') {
+    if (!name) return { styleName: fallback, auto: null };
+    const t = autoIndex.get(`paragraph:${name}`);
+    if (!t) return { styleName: name, auto: null };
+    const { parent, auto } = autoFromTree(t);
+    return { styleName: parent || fallback, auto };
+  }
+
+  function block(el) {
+    const name = q(el);
+    switch (name) {
+      case 'text:p': return [paragraph(el)];
+      case 'text:h': return [heading(el)];
+      case 'text:list': return [list(el)];
+      case 'table:table': return [table(el)];
+      case 'text:section': return [section(el)];
+      case 'text:soft-page-break': return [];
+      default: return [opaqueBlock(el)];
+    }
+  }
+
+  const blocks = (el, accept) => {
+    const out = [];
+    for (const c of el.children) out.push(...block(c));
+    return accept ? out.filter(accept) : out;
+  };
+
+  function opaqueBlock(el) {
+    const name = q(el);
+    const label = BLOCK_LABELS[name] || name;
+    let text = '';
+    const indexBody = [...el.children].find((c) => q(c) === 'text:index-body');
+    const src = indexBody || el;
+    const plain = (n) => [...n.childNodes].map((c) => {
+      if (c.nodeType !== 1) return c.nodeType === 3 ? c.data.replace(/\s+/g, ' ') : '';
+      if (c.localName === 'tab') return '\t';
+      if (c.localName === 's') return ' '.repeat(Number(c.getAttribute('text:c')) || 1);
+      if (c.localName === 'line-break') return '\n';
+      return plain(c);
+    }).join('');
+    text = [...src.querySelectorAll('*')].filter((n) => ['p', 'h'].includes(n.localName)).map((n) => plain(n).trim()).join('\n') || src.textContent.replace(/\s+/g, ' ').trim();
+    return { type: 'opaque_block', attrs: { xml: elementToXml(el, ns), label, text: text.slice(0, 4000) } };
+  }
+
+  function paragraph(el) {
+    const a = attrsOf(el, ns);
+    const { styleName, auto } = paraStyle(a['text:style-name']);
+    const content = inlines(el);
+    return { type: 'paragraph', attrs: { styleName, auto, extra: without(a, 'text:style-name') }, ...(content.length ? { content } : {}) };
+  }
+
+  function heading(el) {
+    const a = attrsOf(el, ns);
+    const { styleName, auto } = paraStyle(a['text:style-name'], null);
+    const level = Number(a['text:outline-level']) || 1;
+    const content = inlines(el);
+    return { type: 'heading', attrs: { styleName, auto, level, extra: without(a, 'text:style-name', 'text:outline-level') }, ...(content.length ? { content } : {}) };
+  }
+
+  function list(el, inheritedStyle = null) {
+    const a = attrsOf(el, ns);
+    const styleName = a['text:style-name'] || null;
+    const effective = styleName || inheritedStyle;
+    const items = [];
+    for (const c of el.children) {
+      const n = q(c);
+      if (n !== 'text:list-item' && n !== 'text:list-header') continue;
+      const content = [];
+      for (const b of c.children) {
+        const bn = q(b);
+        if (bn === 'text:list') content.push(list(b, effective));
+        else if (bn === 'text:soft-page-break' || bn === 'text:number') continue;
+        else content.push(...block(b));
+      }
+      if (!content.length) content.push({ type: 'paragraph', attrs: { styleName: 'Standard' } });
+      items.push({ type: 'list_item', attrs: { header: n === 'text:list-header', extra: without(attrsOf(c, ns)) }, content: content.map(asListChild) });
+    }
+    if (!items.length) items.push({ type: 'list_item', attrs: { header: true, extra: null }, content: [{ type: 'paragraph', attrs: { styleName: 'Standard' } }] });
+    return { type: 'list', attrs: { styleName, extra: without(a, 'text:style-name'), ordered: effective ? listIsOrdered(styleIndex, effective) : false }, content: items };
+  }
+
+  // List items may only hold paragraphs, headings, lists and opaque blocks.
+  const asListChild = (n) => (['paragraph', 'heading', 'list', 'opaque_block'].includes(n.type) ? n : { type: 'opaque_block', attrs: { xml: '', label: n.type, text: '' } });
+
+  function table(el) {
+    const a = attrsOf(el, ns);
+    const columns = [];
+    const rows = [];
+    const visit = (node, header) => {
+      for (const c of node.children) {
+        const n = q(c);
+        if (n === 'table:table-column') {
+          const ca = attrsOf(c, ns);
+          const styleName = ca['table:style-name'] || null;
+          const colStyle = styleName && autoIndex.get(`table-column:${styleName}`);
+          const width = colStyle ? (colStyle.c || []).find((p) => p.n === 'style:table-column-properties')?.a?.['style:column-width'] || null : null;
+          columns.push({
+            styleName, repeat: Number(ca['table:number-columns-repeated']) || 1,
+            defaultCellStyle: ca['table:default-cell-style-name'] || null,
+            extra: without(ca, 'table:style-name', 'table:number-columns-repeated', 'table:default-cell-style-name'), width,
+          });
+        } else if (['table:table-columns', 'table:table-header-columns', 'table:table-column-group'].includes(n)) visit(c, header);
+        else if (n === 'table:table-header-rows') visit(c, true);
+        else if (n === 'table:table-rows' || n === 'table:table-row-group') visit(c, header);
+        else if (n === 'table:table-row') {
+          const ra = attrsOf(c, ns);
+          const repeat = Math.min(Number(ra['table:number-rows-repeated']) || 1, 1000);
+          const cells = [];
+          for (const cell of c.children) {
+            const cn = q(cell);
+            if (cn !== 'table:table-cell') continue; // covered cells are regenerated from spans
+            const ca = attrsOf(cell, ns);
+            const rep = Math.min(Number(ca['table:number-columns-repeated']) || 1, 1024);
+            let content = blocks(cell);
+            if (!content.length) content = [{ type: 'paragraph', attrs: { styleName: 'Standard' } }];
+            for (let i = 0; i < rep; i++) {
+              cells.push({
+                type: 'table_cell',
+                attrs: {
+                  styleName: ca['table:style-name'] || null,
+                  colspan: Number(ca['table:number-columns-spanned']) || 1,
+                  rowspan: Number(ca['table:number-rows-spanned']) || 1,
+                  colwidth: null,
+                  extra: without(ca, 'table:style-name', 'table:number-columns-spanned', 'table:number-rows-spanned', 'table:number-columns-repeated'),
+                },
+                content: structuredClone(content),
+              });
+            }
+          }
+          if (!cells.length) cells.push({ type: 'table_cell', attrs: {}, content: [{ type: 'paragraph', attrs: { styleName: 'Standard' } }] });
+          for (let i = 0; i < repeat; i++) {
+            rows.push({ type: 'table_row', attrs: { styleName: ra['table:style-name'] || null, header: !!header, extra: without(ra, 'table:style-name', 'table:number-rows-repeated') }, content: structuredClone(cells) });
+          }
+        }
+      }
+    };
+    visit(el, false);
+    if (!rows.length) return opaqueBlock(el);
+    return { type: 'table', attrs: { styleName: a['table:style-name'] || null, columns, extra: without(a, 'table:style-name') }, content: rows };
+  }
+
+  function section(el) {
+    const a = attrsOf(el, ns);
+    const extra = without(a, 'text:name', 'text:style-name') || {};
+    const content = [];
+    const other = [];
+    for (const c of el.children) {
+      const n = q(c);
+      if (n === 'text:section-source' || n === 'office:dde-source') other.push(elementToXml(c, ns));
+      else content.push(...block(c));
+    }
+    if (other.length) extra['#xml'] = other.join('');
+    if (!content.length) content.push({ type: 'paragraph', attrs: { styleName: 'Standard' } });
+    return { type: 'section', attrs: { name: a['text:name'] || '', styleName: a['text:style-name'] || null, extra: Object.keys(extra).length ? extra : null }, content };
+  }
+
+  // ------------------------------------------------------------ inline
+
+  /** Marks for a text:span style reference, inheriting from the enclosing span. */
+  function spanMarks(styleRef, outer) {
+    const outerChar = outer.find((m) => m.type === 'charStyle');
+    const outerProps = outer.find((m) => m.type === 'textProps');
+    const rest = outer.filter((m) => m.type !== 'charStyle' && m.type !== 'textProps');
+    let charName = outerChar?.attrs.name || null;
+    let auto = outerProps?.attrs.auto || null;
+    const t = styleRef && autoIndex.get(`text:${styleRef}`);
+    if (t) {
+      const r = autoFromTree(t);
+      if (r.parent) charName = r.parent;
+      auto = mergeAuto(auto, r.auto);
+    } else if (styleRef) charName = styleRef;
+    const marks = [...rest];
+    if (charName) marks.push({ type: 'charStyle', attrs: { name: charName } });
+    if (auto) marks.push({ type: 'textProps', attrs: { auto } });
+    return marks;
+  }
+
+  /**
+   * Converts the inline content of a paragraph. Applies ODF white-space
+   * rules: runs of space/tab/newline collapse to one space, and leading
+   * white space of the paragraph is dropped. Invisible anchors (bookmarks,
+   * change marks) don't break a run of white space.
+   */
+  function inlines(el) {
+    const out = [];
+    const st = { lastSpace: true };
+    const pushText = (text, marks) => {
+      if (!text) return;
+      const prev = out[out.length - 1];
+      if (prev && prev.type === 'text' && JSON.stringify(prev.marks || []) === JSON.stringify(marks)) prev.text += text;
+      else out.push(marks.length ? { type: 'text', text, marks } : { type: 'text', text });
+    };
+    const atom = (node, visible = true) => { out.push(node); if (visible) st.lastSpace = false; };
+
+    const walk = (parent, marks) => {
+      for (const node of parent.childNodes) {
+        if (node.nodeType === 3 || node.nodeType === 4) {
+          let t = node.data.replace(/[ \t\n\r]+/g, ' ');
+          if (st.lastSpace && t.startsWith(' ')) t = t.slice(1);
+          if (!t) continue;
+          pushText(t, marks);
+          st.lastSpace = t.endsWith(' ');
+          continue;
+        }
+        if (node.nodeType !== 1) continue;
+        const name = q(node);
+        const a = attrsOf(node, ns);
+        switch (name) {
+          case 'text:s': pushText(' '.repeat(Math.max(1, Number(a['text:c']) || 1)), marks); st.lastSpace = true; break;
+          case 'text:tab': atom({ type: 'tab' }); break;
+          case 'text:line-break': atom({ type: 'hard_break' }); break;
+          case 'text:span': walk(node, spanMarks(a['text:style-name'], marks)); break;
+          case 'text:a': {
+            const link = { type: 'link', attrs: { href: a['xlink:href'] || '', extra: without(a, 'xlink:href', 'xlink:type') } };
+            walk(node, [...marks.filter((m) => m.type !== 'link'), link]);
+            break;
+          }
+          case 'text:soft-page-break': case 'text:number': break;
+          case 'text:note': atom({ type: 'note', attrs: note(node, a) }); break;
+          case 'office:annotation': atom({ type: 'annotation', attrs: annotation(node, a) }, false); break;
+          case 'office:annotation-end': atom({ type: 'annotation_end', attrs: { name: a['office:name'] || '' } }, false); break;
+          case 'text:bookmark': case 'text:bookmark-start': case 'text:bookmark-end':
+          case 'text:reference-mark': case 'text:reference-mark-start': case 'text:reference-mark-end':
+            atom({ type: 'bookmark', attrs: { element: name, name: a['text:name'] || '', extra: without(a, 'text:name') } }, false);
+            break;
+          case 'text:change-start': case 'text:change-end': case 'text:change':
+            atom({ type: 'change_marker', attrs: { kind: name.slice(12) || 'point', changeId: a['text:change-id'] || '' } }, false);
+            break;
+          case 'draw:frame': atom({ type: 'frame', attrs: frame(node, a) }); break;
+          default: {
+            const onlyText = [...node.childNodes].every((c) => c.nodeType === 3 || c.nodeType === 4);
+            if (name.startsWith('text:') && !STRUCTURAL_INLINE.has(name) && onlyText) {
+              atom({ type: 'field', attrs: { element: name, fieldAttrs: a, text: node.textContent } });
+            } else {
+              atom({ type: 'opaque_inline', attrs: { xml: elementToXml(node, ns), text: node.textContent.replace(/\s+/g, ' ').trim().slice(0, 200) } });
+            }
+          }
+        }
+      }
+    };
+    walk(el, []);
+    // Marks on atoms (inline nodes inside spans/links) are dropped: ODF keeps them outside styling.
+    return out;
+  }
+
+  function note(el, a) {
+    let citation = '';
+    let label = null;
+    let body = [];
+    for (const c of el.children) {
+      const n = q(c);
+      if (n === 'text:note-citation') { citation = c.textContent; label = c.getAttribute('text:label') ?? attrsOf(c, ns)['text:label'] ?? null; }
+      if (n === 'text:note-body') body = blocks(c);
+    }
+    return { noteClass: a['text:note-class'] || 'footnote', citation, label, body, extra: without(a, 'text:note-class') };
+  }
+
+  function annotation(el, a) {
+    let creator = '';
+    let date = '';
+    let initials = '';
+    const extra = without(a, 'office:name') || {};
+    const body = [];
+    for (const c of el.children) {
+      const n = q(c);
+      if (n === 'dc:creator') creator = c.textContent;
+      else if (n === 'dc:date') date = c.textContent;
+      else if (n === 'meta:creator-initials' || n === 'loext:sender-initials') { initials = c.textContent; extra['#initialsEl'] = n; }
+      else body.push(...block(c));
+    }
+    return { name: a['office:name'] || null, creator, date, initials, body, extra: Object.keys(extra).length ? extra : null };
+  }
+
+  function frame(el, a) {
+    let kind = 'other';
+    let href = '';
+    let txt = '';
+    const first = [...el.children].find((c) => !['svg:title', 'svg:desc'].includes(q(c)));
+    const fn = first ? q(first) : '';
+    if (fn === 'draw:image') { kind = 'image'; href = first.getAttribute('xlink:href') || attrsOf(first, ns)['xlink:href'] || ''; }
+    else if (fn === 'draw:text-box') { kind = 'textbox'; txt = first.textContent.replace(/\s+/g, ' ').trim().slice(0, 400); }
+    else if (fn === 'draw:object' || fn === 'draw:object-ole') { kind = 'object'; href = attrsOf(first, ns)['xlink:href'] || ''; }
+    const innerXml = [...el.children].map((c) => elementToXml(c, ns)).join('');
+    return { frameAttrs: a, innerXml, kind, href, text: txt };
+  }
+
+  return { block, blocks, inlines };
+}
+
+export { treeText };

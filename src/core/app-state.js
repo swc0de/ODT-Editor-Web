@@ -39,4 +39,6 @@ export const INITIAL_APP_STATE = Object.freeze({
   objectSelected: false,
   showRuler: true,
   docTitle: null,
+  dirty: false,
+  words: 0,
 });

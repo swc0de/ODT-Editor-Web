@@ -36,7 +36,10 @@ export function rulerTicks(lengthPx, startPx, endPx = lengthPx, scale = 1) {
   return out;
 }
 
-function drawTicks(container, ticks, vertical) {
+/** Redraws ticks only when the geometry changed (scrolling just moves the ruler). */
+function drawTicks(container, ticks, vertical, key) {
+  if (container._key === key) return;
+  container._key = key;
   const frag = document.createDocumentFragment();
   for (const tk of ticks) {
     const el = tk.kind === 'num'
@@ -82,7 +85,7 @@ export function createRulers({ store }) {
    * @param {HTMLElement} page
    * @param {{left:number,right:number,top:number,bottom:number}} marginsPx
    */
-  function update(page, marginsPx) {
+  function update(page, marginsPx, pageHeightPx = null) {
     if (!page) return;
     const pr = page.getBoundingClientRect();
     const sr = hstrip.getBoundingClientRect();
@@ -95,18 +98,20 @@ export function createRulers({ store }) {
     hruler.querySelector('.hruler-margin.right').style.width = `${m.right}px`;
     hBody.style.left = `${m.left}px`;
     hBody.style.right = `${m.right}px`;
-    drawTicks(hTicks, rulerTicks(pr.width, m.left, pr.width - m.right, scale), false);
+    drawTicks(hTicks, rulerTicks(pr.width, m.left, pr.width - m.right, scale), false, `${pr.width}|${m.left}|${m.right}|${scale}`);
     for (const mk of [firstLine, hanging, leftIndent]) mk.style.left = `${m.left}px`;
     rightIndent.style.left = `${pr.width - m.right}px`;
-    // Vertical: follows the page as it scrolls.
+    // Vertical: one page tall, following the page as it scrolls. (In the
+    // continuous view the page can be very long; M3 gives each page its own.)
     const vr = vstrip.getBoundingClientRect();
+    const height = Math.min(pr.height, (pageHeightPx || pr.height) * scale);
     vruler.style.top = `${pr.top - vr.top}px`;
-    vruler.style.height = `${pr.height}px`;
+    vruler.style.height = `${height}px`;
     vruler.querySelector('.vruler-margin.top').style.height = `${m.top}px`;
     vruler.querySelector('.vruler-margin.bottom').style.height = `${m.bottom}px`;
     vBody.style.top = `${m.top}px`;
     vBody.style.bottom = `${m.bottom}px`;
-    drawTicks(vTicks, rulerTicks(pr.height, m.top, pr.height - m.bottom, scale), true);
+    drawTicks(vTicks, rulerTicks(height, m.top, height - m.bottom, scale), true, `${height}|${m.top}|${m.bottom}|${scale}`);
   }
 
   function setVisible(show) {

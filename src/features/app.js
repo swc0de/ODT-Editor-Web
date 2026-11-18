@@ -19,6 +19,7 @@ export const commands = defineCommands('app', {
   goBack: { shortcut: 'Shift-F5' },
   extendSelection: { shortcut: 'F8' },
   statusWordCount: { label: 'cmd.review.wordCount', hidden: true },
+  recover: { icon: 'recover', label: 'cmd.file.recoverPage', hidden: true, run: (ctx) => ctx.store.set({ backstageOpen: true, backstagePage: 'recover' }) },
 });
 
 export function register(registry) { registry.register(commands); }

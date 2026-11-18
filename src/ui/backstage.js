@@ -7,7 +7,8 @@
 import { h } from './dom.js';
 import { iconSvg } from './icons.js';
 import { t } from '../i18n/index.js';
-import { TEMPLATES } from '../features/file/templates.js';
+import { setPinned, removeRecent } from '../core/storage.js';
+import { TEMPLATES, templateDoc } from '../features/file/templates.js';
 
 const NAV = [
   { id: 'home', icon: 'home', label: 'backstage.home' },
@@ -24,7 +25,7 @@ const NAV = [
 ];
 
 /** Milestone in which each placeholder page is built. */
-const PLANNED = { new: 'M2', open: 'M2', recover: 'M2', saveAs: 'M2', info: 'M13', print: 'M13', export: 'M13', options: 'M13', about: 'M13' };
+const PLANNED = { info: 'M13', print: 'M13', export: 'M13', options: 'M13', about: 'M13' };
 
 export function greetingKey(date = new Date()) {
   const hr = date.getHours();
@@ -33,7 +34,7 @@ export function greetingKey(date = new Date()) {
   return 'backstage.goodEvening';
 }
 
-export function createBackstage({ registry, store, toast }) {
+export function createBackstage({ registry, store, toast, session }) {
   const navButtons = new Map();
   const back = h('button', { type: 'button', class: 'bs-back', 'aria-label': t('backstage.back'), 'data-tip': t('backstage.back'), html: iconSvg('chevron-left', { size: 18 }) });
   back.addEventListener('click', () => registry.run('file.closeBackstage'));
@@ -77,12 +78,34 @@ export function createBackstage({ registry, store, toast }) {
     const card = h('button', { type: 'button', class: 'tp-card', 'data-template': tpl.id, 'data-command': tpl.id === 'blank' ? null : 'file.new' },
       thumb, h('span', { class: 'tp-caption' }, t(tpl.name)));
     card.setAttribute('aria-label', t(tpl.name));
-    card.addEventListener('click', () => {
-      // The current document is already blank, so "Blank document" returns to it.
-      if (tpl.id === 'blank') { registry.run('file.closeBackstage'); return; }
-      if (!registry.run('file.new')) toast(t('toast.comingSoon', { name: t(tpl.name) }), card);
+    card.removeAttribute('data-command');
+    card.addEventListener('click', async () => {
+      const ok = await session.newDocument({ doc: templateDoc(tpl.id) });
+      if (ok) store.set({ backstageOpen: false });
     });
     return card;
+  }
+
+  const fmtWhen = (ms) => new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(ms));
+
+  /** Recent documents (IndexedDB), pinned first, with pin and remove. */
+  function recentList() {
+    const list = h('div', { class: 'bs-recent', role: 'list' }, h('p', { class: 'bs-empty' }, t('backstage.recentEmpty')));
+    session.listRecent().then((items) => {
+      if (!items.length) return;
+      list.replaceChildren(...items.map((e) => {
+        const open = h('button', { type: 'button', class: 'bs-recent-open', role: 'listitem' },
+          h('span', { class: 'bs-recent-icon', html: iconSvg('file-text', { size: 20 }) }),
+          h('span', { class: 'bs-recent-text' }, h('span', { class: 'bs-recent-name' }, e.name), h('span', { class: 'bs-recent-when' }, t('backstage.openedAt', { when: fmtWhen(e.openedAt) }))));
+        open.addEventListener('click', async () => { if (await session.openRecent(e)) store.set({ backstageOpen: false }); });
+        const pin = h('button', { type: 'button', class: `bs-icon-btn${e.pinned ? ' is-on' : ''}`, 'aria-label': t(e.pinned ? 'backstage.unpin' : 'backstage.pin'), 'data-tip': t(e.pinned ? 'backstage.unpin' : 'backstage.pin'), 'aria-pressed': String(e.pinned), html: iconSvg('pin', { size: 14 }) });
+        pin.addEventListener('click', async () => { await setPinned(e.id, !e.pinned); refreshPage(); });
+        const remove = h('button', { type: 'button', class: 'bs-icon-btn', 'aria-label': t('backstage.remove'), 'data-tip': t('backstage.remove'), html: iconSvg('close', { size: 14 }) });
+        remove.addEventListener('click', async () => { await removeRecent(e.id); refreshPage(); });
+        return h('div', { class: 'bs-recent-row' }, open, pin, remove);
+      }));
+    });
+    return list;
   }
 
   function renderHome() {
@@ -91,7 +114,46 @@ export function createBackstage({ registry, store, toast }) {
       h('div', { class: 'tp-row' }, TEMPLATES.map(templateCard)),
       h('button', { type: 'button', class: 'bs-link', onclick: () => store.set({ backstagePage: 'new' }) }, t('backstage.moreTemplates'), h('span', { class: 'bs-link-arrow', html: iconSvg('arrow-right', { size: 13, strokeWidth: 2 }) })),
       h('h2', { class: 'bs-h2' }, t('backstage.recent')),
-      h('p', { class: 'bs-empty' }, t('backstage.recentEmpty')));
+      recentList());
+  }
+
+  function renderNew() {
+    return h('div', { class: 'bs-home' }, h('h1', { class: 'bs-title' }, t('backstage.newTitle')), h('div', { class: 'tp-row wrap' }, TEMPLATES.map(templateCard)));
+  }
+
+  function renderOpen() {
+    const browse = h('button', { type: 'button', class: 'bs-big-btn' }, h('span', { html: iconSvg('open', { size: 20 }) }), t('backstage.browse'));
+    browse.addEventListener('click', () => registry.run('file.open'));
+    return h('div', { class: 'bs-home' },
+      h('h1', { class: 'bs-title' }, t('backstage.open')),
+      browse, h('p', { class: 'bs-empty bs-gap' }, t('backstage.openHint')),
+      h('h2', { class: 'bs-h2' }, t('backstage.recent')), recentList());
+  }
+
+  function renderSaveAs() {
+    const saveAs = h('button', { type: 'button', class: 'bs-big-btn' }, h('span', { html: iconSvg('save-as', { size: 20 }) }), t('backstage.saveAsOdt'));
+    saveAs.addEventListener('click', async () => { if (await session.saveAs()) store.set({ backstageOpen: false }); });
+    const copy = h('button', { type: 'button', class: 'bs-big-btn' }, h('span', { html: iconSvg('download', { size: 20 }) }), t('backstage.downloadCopy'));
+    copy.addEventListener('click', () => session.downloadCopy());
+    return h('div', { class: 'bs-home' }, h('h1', { class: 'bs-title' }, t('backstage.saveAsTitle')),
+      h('div', { class: 'bs-actions' }, saveAs, copy), h('p', { class: 'bs-empty bs-gap' }, t('backstage.saveAsHint')));
+  }
+
+  function renderRecover() {
+    const list = h('div', { class: 'bs-recent', role: 'list' }, h('p', { class: 'bs-empty' }, t('backstage.recoverEmpty')));
+    session.recoverable().then((items) => {
+      if (!items.length) return;
+      list.replaceChildren(...items.map((e) => {
+        const open = h('button', { type: 'button', class: 'bs-recent-open', role: 'listitem' },
+          h('span', { class: 'bs-recent-icon', html: iconSvg('recover', { size: 20 }) }),
+          h('span', { class: 'bs-recent-text' }, h('span', { class: 'bs-recent-name' }, e.name), h('span', { class: 'bs-recent-when' }, t('backstage.savedAt', { when: fmtWhen(e.savedAt) }))));
+        open.addEventListener('click', async () => { if (await session.recover(e.id)) store.set({ backstageOpen: false }); });
+        const del = h('button', { type: 'button', class: 'bs-text-btn' }, t('backstage.recoverDelete'));
+        del.addEventListener('click', async () => { await session.deleteRecovered(e.id); refreshPage(); });
+        return h('div', { class: 'bs-recent-row' }, open, del);
+      }));
+    });
+    return h('div', { class: 'bs-home' }, h('h1', { class: 'bs-title' }, t('backstage.recoverTitle')), h('p', { class: 'bs-empty bs-gap' }, t('backstage.recoverHint')), list);
   }
 
   function renderPlaceholder(page) {
@@ -100,6 +162,10 @@ export function createBackstage({ registry, store, toast }) {
       h('h1', { class: 'bs-title' }, label),
       h('p', { class: 'bs-empty' }, t('backstage.placeholder'), ' ', PLANNED[page] ? t('backstage.placeholderIn', { milestone: PLANNED[page] }) : ''));
   }
+
+  const PAGES = { home: renderHome, new: renderNew, open: renderOpen, saveAs: renderSaveAs, recover: renderRecover };
+  function renderPage(page) { content.replaceChildren((PAGES[page] || (() => renderPlaceholder(page)))()); }
+  function refreshPage() { renderPage(store.get().backstagePage); }
 
   let lastFocus = null;
   function apply(state, changed) {
@@ -117,7 +183,7 @@ export function createBackstage({ registry, store, toast }) {
       btn.classList.toggle('is-active', on);
       if (btn.getAttribute('role') === 'tab') btn.setAttribute('aria-selected', String(on));
     }
-    content.replaceChildren(state.backstagePage === 'home' ? renderHome() : renderPlaceholder(state.backstagePage));
+    renderPage(state.backstagePage);
     if (!wasOpen) requestAnimationFrame(() => navButtons.get(state.backstagePage)?.focus({ preventScroll: true }));
   }
   store.subscribe(apply);

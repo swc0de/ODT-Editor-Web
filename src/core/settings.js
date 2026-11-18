@@ -25,7 +25,10 @@ function load() {
   if (cache) return cache;
   let stored = {};
   try { stored = JSON.parse(localStorage.getItem(KEY) || '{}') || {}; } catch { stored = {}; }
-  cache = { ...DEFAULT_SETTINGS, ...stored };
+  // Automated tests can supply different defaults (e.g. no native file pickers)
+  // without touching storage; anything the user saved still wins.
+  const testDefaults = (typeof window !== 'undefined' && window.__ODT_TEST_DEFAULTS__) || {};
+  cache = { ...DEFAULT_SETTINGS, ...testDefaults, ...stored };
   return cache;
 }
 
