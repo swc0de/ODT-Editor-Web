@@ -6,8 +6,8 @@ The memory between sessions. Statuses: `todo`, `in progress`, `awaiting approval
 |---|---|
 | M0 — Scaffold, build, test harness | approved |
 | M1 — App shell and complete ribbon UI (visual match) | approved |
-| M2 — Document model and ODT open/save | awaiting approval |
-| M3 — Print Layout: pagination, rulers, status bar, zoom | todo |
+| M2 — Document model and ODT open/save | approved |
+| M3 — Print Layout: pagination, rulers, status bar, zoom | in progress |
 | M4 — Home tab: character and paragraph formatting, styles, lists, find | todo |
 | M5 — Layout and Design tabs, headers/footers, sections | todo |
 | M6 — Tables | todo |
@@ -78,7 +78,7 @@ Unresolved differences from the screenshots:
 
 Performance: typing latency is still not applicable (no editor until M2).
 
-## M2 — Document model and ODT open/save (awaiting approval)
+## M2 — Document model and ODT open/save (approved)
 
 Built:
 - **Schema** (`src/core/schema.js`): paragraph, heading, list/list_item (incl. list headers), table/row/cell (merged cells, nested), section, frame (images, text boxes, objects), note, annotation (+ end), bookmark (bookmarks and reference marks), field (any text field: element + attributes + text), change_marker, tab, hard_break, and **opaque_block / opaque_inline** holding verbatim XML for anything else (TOCs until M8, ruby, shapes, unknown elements). Marks: link, charStyle (named character style), textProps (direct formatting).
