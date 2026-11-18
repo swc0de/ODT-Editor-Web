@@ -7,8 +7,8 @@ The memory between sessions. Statuses: `todo`, `in progress`, `awaiting approval
 | M0 — Scaffold, build, test harness | approved |
 | M1 — App shell and complete ribbon UI (visual match) | approved |
 | M2 — Document model and ODT open/save | approved |
-| M3 — Print Layout: pagination, rulers, status bar, zoom | awaiting approval |
-| M4 — Home tab: character and paragraph formatting, styles, lists, find | todo |
+| M3 — Print Layout: pagination, rulers, status bar, zoom | approved |
+| M4 — Home tab: character and paragraph formatting, styles, lists, find | in progress |
 | M5 — Layout and Design tabs, headers/footers, sections | todo |
 | M6 — Tables | todo |
 | M7 — Insert tab: pictures, shapes, text boxes, links, symbols | todo |
@@ -108,7 +108,7 @@ Known limitations:
 - A word-count field shows our statistic, which can differ from LibreOffice's by about 1 word.
 - Native Save pickers (File System Access) only exist in Chromium-based browsers; elsewhere saving downloads the file. These pickers can't be exercised in automated tests.
 
-## M3 — Print Layout: pagination, rulers, status bar, zoom (awaiting approval)
+## M3 — Print Layout: pagination, rulers, status bar, zoom (approved)
 
 Built:
 - **Pagination** (`src/layout/paginator.js`) over the single ProseMirror flow: page backgrounds are drawn behind the editor (`page-view.js`) and gaps are inserted as decorations — a block widget before a block that moves to the next page, a line-start widget that splits a paragraph, and translateY row shifts (+ spacer) that split a table between rows (split tables switch to separate borders so cell borders move with their rows). Honours page size/margins from the master page's page layout, header/footer heights and spacing, widows/orphans (default 2), keep-together, keep-with-next, break-before/after page, master-page switches and page-number restarts.
