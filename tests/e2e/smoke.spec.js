@@ -50,13 +50,13 @@ test('theme switching updates the colour tokens', async ({ page }) => {
   const bg = () => page.evaluate(() => getComputedStyle(document.body).backgroundColor);
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
   expect(await bg()).toBe('rgb(31, 31, 31)');
-  await page.evaluate(() => window.odtEditor.registry.run('theme.light'));
+  await page.evaluate(() => window.odtEditor.registry.run('view.themeLight'));
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
   expect(await bg()).toBe('rgb(243, 243, 243)');
   // The choice persists across reloads.
   await page.reload();
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
-  await page.locator('[data-command="theme.toggle"]').click();
+  await page.evaluate(() => window.odtEditor.registry.run('view.themeDark'));
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
 });
 
@@ -66,12 +66,12 @@ test('command registry and i18n are wired up', async ({ page }) => {
     const { registry, t } = window.odtEditor;
     return {
       ids: registry.all().map((c) => c.id),
-      label: registry.label('theme.light'),
+      label: registry.label('view.themeLight'),
       words: t('status.words', { count: 3 }),
     };
   });
-  expect(info.ids).toEqual(expect.arrayContaining(['theme.dark', 'theme.light', 'theme.system', 'theme.toggle']));
-  expect(info.label).toBe('Light theme');
+  expect(info.ids).toEqual(expect.arrayContaining(['view.themeDark', 'view.themeLight', 'view.themeSystem', 'home.bold', 'app.commandSearch']));
+  expect(info.label).toBe('Light');
   expect(info.words).toBe('3 words');
   await expect(page.locator('.status-bar')).toContainText('Page 1 of 1');
   await expect(page.locator('.status-bar')).toContainText('English (United Kingdom)');

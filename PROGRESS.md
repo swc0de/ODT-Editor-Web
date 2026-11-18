@@ -5,7 +5,7 @@ The memory between sessions. Statuses: `todo`, `in progress`, `awaiting approval
 | Milestone | Status |
 |---|---|
 | M0 — Scaffold, build, test harness | approved |
-| M1 — App shell and complete ribbon UI (visual match) | in progress |
+| M1 — App shell and complete ribbon UI (visual match) | awaiting approval |
 | M2 — Document model and ODT open/save | todo |
 | M3 — Print Layout: pagination, rulers, status bar, zoom | todo |
 | M4 — Home tab: character and paragraph formatting, styles, lists, find | todo |
@@ -23,7 +23,7 @@ The memory between sessions. Statuses: `todo`, `in progress`, `awaiting approval
 
 - Node 22, npm 10. Playwright 1.63 with the preinstalled Chromium (`@playwright/test` pinned to the same version).
 - **LibreOffice: installed** — `soffice` = LibreOffice 24.2.7.2 (detected by `tests/make-fixtures.mjs`). Used to produce genuine LibreOffice-written fixtures (`tests/fixtures/lo-*.odt`) and, with `--check`, to verify every fixture opens. The lo-*.odt files are committed so tests also run without LibreOffice.
-- **Reference screenshots: none supplied yet** (`reference/` is empty). M1 needs them for the pixel-close visual match.
+- **Reference screenshots** (supplied during M1, saved with descriptive names): `home-document-dark.png` (2552×1331), `backstage-home-dark.png` (2554×1370), and ribbon crops `ribbon-insert-dark.png`, `ribbon-draw-dark.png`, `ribbon-layout-dark.png`, `ribbon-view-dark.png`. All dark theme, 1:1 pixel scale. No light-theme references yet.
 
 ## M0 — Scaffold, build, test harness (approved)
 
@@ -47,3 +47,33 @@ Decisions:
 Known issues / not applicable yet:
 - No reference screenshots to compare against.
 - Typing-latency performance check is not applicable until editing exists (M2/M3); the 50/100-page fixtures are ready for it.
+
+## M1 — App shell and complete ribbon UI (awaiting approval)
+
+Built:
+- Tab bar with all 13 tabs in screenshot order (**Zotero** added because the screenshots show it), accent text + underline on the active tab, Comments / Editing ▾ / Share on the right.
+- Ribbon framework (`src/ui/ribbon/`): groups with centred labels, dividers, dialog launchers; large, small, icon-only, split (large and small), toggle, combo, select, spin, checkbox and gallery controls; dropdown menus with submenus, headers and widgets (colour palettes, table grid picker, symbol grid, shapes, list libraries); hover / pressed / checked / disabled states; collapse with Ctrl+F1 or double-clicking a tab (clicking a tab then "peeks"); responsive collapsing of right-most groups into dropdown buttons; KeyTips (Alt or F10; prefix-free letters per tab); arrow-key navigation; F6 region cycling.
+- Every tab populated from `src/features/<tab>/index.js`, each control bound to a command id (~430 commands). Unbuilt commands are dimmed with a "Coming soon" tooltip and toast; their menus still open so the UI can be explored. Contextual commands (Arrange group, Cut, View Side by Side) are dimmed until applicable.
+- Working now: tab switching, Backstage navigation, Interface Theme (Dark/Light/System), Editing mode menu, Draw ▸ Select, View ▸ Print Layout / Vertical, ribbon collapse, Alt+Q search, KeyTips, status-bar customisation (right-click, remembered).
+- Static horizontal and vertical rulers aligned to the page (numbers only in the text area, margins shaded, indent markers, tab selector cycling its 7 types), canvas, A4 page, status bar (Page 1 of 1, 0 words, English (United Kingdom), Focus, Read/Print/Web, zoom − slider + 100%).
+- Backstage: indigo nav with ‹ back, Home/New/Open/Info/Recover/Save/Save As/Print/Export/Close/Options and About at the bottom; Home page with time-based greeting, four real rendered template previews (original sample content), More templates →, Recent empty state. Other pages are placeholders naming their milestone. Esc / ‹ return.
+- Alt+Q command search: every non-hidden command with its ribbon location and shortcut; Enter runs it.
+- i18n: all strings in `src/i18n/en-GB/*.js` (app, commands, ribbon, ui).
+- Tests: 41 unit (registry, i18n, units, fixtures, ribbon definitions: every reference resolves, every icon and label exists, KeyTips prefix-free) + 22 e2e (tabs, every panel's controls bound, Home groups, coming-soon tooltip/toast, collapse/peek, responsive collapse, menus + keyboard, table grid, KeyTips, Alt+Q, Backstage, status bar customisation, rulers, F6, Ctrl+S default suppressed; no console errors or network requests).
+- Comparisons: `node tests/screenshots.mjs` → `reference/compare/<name>-compare.png` (reference / ours with coming-soon controls at full strength / ours as shipped) and `<name>-light.png`.
+
+Decisions (screenshot vs brief):
+- Colours sampled from the screenshots: accent `#7a93f0`, Share = accent fill with dark text `#11162e` (brief said deeper blue `#5b6ee1`), ribbon `#292929`, checked `#2e3a66`/`#5467ab`, gallery tiles `#c8c8c8`, Backstage nav `#27315c` / active `#4e5679`.
+- The Backstage screenshot shows a "Discord community" link; it is **left out** because the brief explicitly forbids it.
+- The font combo shows "Aptos" with the ⚠ badge (as in the screenshot) because Aptos isn't bundled; documents render with Carlito in its place.
+- The row-1 Font icon after Clear Formatting is Phonetic Guide (ODT ruby); the brief's "Text Effects icon" is the row-2 A ▾.
+- Comments/Editing/Share keep full brightness (as in the screenshot) even though Comments and Share's items are coming soon; their tooltips say so.
+- Tab content for Design, References, Mailings, Review, Developer, Zotero and Help follows the brief (no screenshots of them).
+
+Unresolved differences from the screenshots:
+- The reference renders text in Segoe UI on Windows; here the UI font falls back to Inter/Noto, so text is ~2–4% wider and some groups sit a few pixels off.
+- Icons are original Lucide-style line icons, so their shapes differ from the reference's.
+- Most controls are dimmed ("Coming soon") whereas the reference shows them active; the middle row of each comparison shows the layout without dimming.
+- The zoom slider and rulers are static until M3.
+
+Performance: typing latency is still not applicable (no editor until M2).

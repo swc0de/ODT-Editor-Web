@@ -1,0 +1,36 @@
+*, *::before, *::after { box-sizing: border-box; }
+html, body { height: 100%; margin: 0; }
+body {
+  background: var(--app-bg);
+  color: var(--text);
+  font: var(--font-size-ui) / 1.3 var(--font-ui);
+  overflow: hidden;
+  -webkit-font-smoothing: antialiased;
+  user-select: none;
+}
+button, input, select { font: inherit; color: inherit; }
+button { cursor: default; }
+.app, .shell { height: 100vh; }
+.shell { display: flex; flex-direction: column; }
+:focus { outline: none; }
+:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: -2px; border-radius: 3px; }
+.icon { display: block; flex: none; overflow: visible; }
+.icon .a { stroke: var(--icon-accent); }
+.icon .af { fill: var(--icon-accent); stroke: none; }
+.icon .f { fill: currentColor; stroke: none; }
+.icon .rf { fill: var(--icon-red); stroke: none; }
+.icon .yf { fill: var(--icon-yellow); stroke: none; }
+.icon .pf { fill: var(--icon-pink); stroke: var(--icon-pink); }
+.icon .of { fill: var(--icon-orange); stroke: none; }
+.icon .gf { stroke: var(--icon-green); stroke-width: 2.2; }
+.icon .or { stroke: var(--icon-orange); stroke-width: 2.2; }
+.icon .pagefill { fill: var(--ribbon-bg); }
+.icon .ink { stroke: #1f1f1f; fill: #1f1f1f; stroke-width: 2.4; }
+.icon .dots { stroke-dasharray: 1.2 2.2; }
+.icon .dash { stroke-dasharray: 2.5 2; }
+.icon .it { font-family: var(--font-ui); stroke: none; dominant-baseline: auto; }
+.sr-only { position: absolute !important; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+[hidden] { display: none !important; }
+::-webkit-scrollbar { width: 12px; height: 12px; }
+::-webkit-scrollbar-thumb { background: var(--scrollbar); border-radius: 6px; border: 3px solid transparent; background-clip: content-box; }
+::-webkit-scrollbar-track, ::-webkit-scrollbar-corner { background: transparent; }

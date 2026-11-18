@@ -1,6 +1,207 @@
-/**
- * Ribbon tab "home": commands and ribbon definition. Populated in M1 (UI)
- * and wired up in later milestones (see MILESTONES.md).
- * @param {import('../../core/command-registry.js').CommandRegistry} _registry
- */
-export function register(_registry) {}
+/** Home tab: Clipboard, Font, Paragraph, Paragraph Tools, Styles, Editing, Voice, Editor. */
+import { defineCommands } from '../define.js';
+
+const speechSupported = () => typeof window !== 'undefined' && !!(window.SpeechRecognition || window.webkitSpeechRecognition);
+
+export const commands = defineCommands('home', {
+  // Clipboard
+  paste: { icon: 'paste', shortcutHint: 'Mod-v' },
+  pasteKeepSource: { icon: 'paste-keep' },
+  pasteMerge: { icon: 'paste-merge' },
+  pasteTextOnly: { icon: 'paste-text' },
+  pasteSpecial: {},
+  setDefaultPaste: {},
+  cut: { icon: 'cut', shortcutHint: 'Mod-x', isEnabled: (ctx) => ctx.state.hasSelection },
+  copy: { icon: 'copy', shortcutHint: 'Mod-c' },
+  formatPainter: { icon: 'format-painter', shortcut: 'Mod-Shift-c' },
+  clipboardPane: { icon: 'clipboard' },
+  // Font
+  fontName: { icon: 'type', keywords: ['font', 'typeface'] },
+  fontSize: { icon: 'type' },
+  growFont: { icon: 'grow-font', shortcut: 'Mod-]' },
+  shrinkFont: { icon: 'shrink-font', shortcut: 'Mod-[' },
+  changeCase: { icon: 'change-case', shortcut: 'Shift-F3' },
+  caseSentence: {},
+  caseLower: {},
+  caseUpper: {},
+  caseCapitalize: {},
+  caseToggle: {},
+  clearFormatting: { icon: 'clear-formatting', shortcut: 'Mod-Space' },
+  phoneticGuide: { icon: 'phonetic-guide' },
+  bold: { icon: 'bold', shortcut: 'Mod-b' },
+  italic: { icon: 'italic', shortcut: 'Mod-i' },
+  underline: { icon: 'underline', shortcut: 'Mod-u' },
+  underlineDouble: {},
+  underlineThick: {},
+  underlineDotted: {},
+  underlineDashed: {},
+  underlineWave: {},
+  underlineMore: {},
+  underlineColour: {},
+  strikethrough: { icon: 'strikethrough' },
+  subscript: { icon: 'subscript', shortcut: 'Mod-=' },
+  superscript: { icon: 'superscript', shortcut: 'Mod-Shift-=' },
+  characterBorder: { icon: 'char-border' },
+  enclosedCharacters: { icon: 'enclosed-char' },
+  textEffects: { icon: 'text-effects' },
+  textOutline: {},
+  textShadow: {},
+  textGlow: {},
+  highlight: { icon: 'highlight' },
+  highlightNone: {},
+  fontColour: { icon: 'font-colour' },
+  fontColourAuto: {},
+  fontColourMore: {},
+  fontDialog: { icon: 'type', shortcut: 'Mod-d' },
+  // Paragraph
+  bullets: { icon: 'bullets' },
+  numbering: { icon: 'numbering' },
+  multilevel: { icon: 'multilevel' },
+  defineBullet: {},
+  defineNumber: {},
+  defineMultilevel: {},
+  decreaseIndent: { icon: 'indent-decrease', shortcut: 'Mod-Shift-m' },
+  increaseIndent: { icon: 'indent-increase', shortcut: 'Mod-m' },
+  sort: { icon: 'sort' },
+  showMarks: { icon: 'pilcrow', shortcut: 'Mod-Shift-8', keywords: ['formatting marks', 'pilcrow'] },
+  // The checked state reflects the paragraph at the cursor (real even before editing exists).
+  alignLeft: { icon: 'align-left', shortcut: 'Mod-l', isChecked: (ctx) => ctx.state.paraAlign === 'left' },
+  alignCentre: { icon: 'align-centre', shortcut: 'Mod-e', isChecked: (ctx) => ctx.state.paraAlign === 'centre' },
+  alignRight: { icon: 'align-right', shortcut: 'Mod-r', isChecked: (ctx) => ctx.state.paraAlign === 'right' },
+  justify: { icon: 'justify', shortcut: 'Mod-j', isChecked: (ctx) => ctx.state.paraAlign === 'justify' },
+  ltr: { icon: 'ltr', isChecked: (ctx) => ctx.state.paraDir === 'ltr' },
+  rtl: { icon: 'rtl', isChecked: (ctx) => ctx.state.paraDir === 'rtl' },
+  lineSpacing: { icon: 'line-spacing' },
+  lineSpacing1: { shortcut: 'Mod-1' },
+  lineSpacing115: {},
+  lineSpacing15: { shortcut: 'Mod-5' },
+  lineSpacing2: { shortcut: 'Mod-2' },
+  lineSpacing25: {},
+  lineSpacing3: {},
+  lineSpacingOptions: {},
+  addSpaceBefore: {},
+  removeSpaceAfter: {},
+  shading: { icon: 'shading' },
+  borders: { icon: 'borders' },
+  borderBottom: { icon: 'border-bottom' },
+  borderTop: { icon: 'border-top' },
+  borderLeft: { icon: 'border-left' },
+  borderRight: { icon: 'border-right' },
+  borderNone: { icon: 'border-none' },
+  borderAll: { icon: 'borders' },
+  borderOutside: { icon: 'border-outside' },
+  horizontalLine: {},
+  bordersAndShading: {},
+  paragraphDialog: { icon: 'pilcrow' },
+  clearParagraphFormatting: { shortcut: 'Mod-q' },
+  // Paragraph Tools
+  paragraphTools: { icon: 'paragraph-tools' },
+  tabsDialog: {},
+  keepWithNext: {},
+  keepLinesTogether: {},
+  pageBreakBefore: {},
+  // Styles
+  applyStyle: { keywords: ['style'] },
+  styleNormal: { shortcut: 'Mod-Shift-n' },
+  styleHeading1: { shortcut: 'Mod-Alt-1' },
+  styleHeading2: { shortcut: 'Mod-Alt-2' },
+  styleHeading3: { shortcut: 'Mod-Alt-3' },
+  stylesPane: { icon: 'styles-pane', shortcut: 'Mod-Alt-Shift-s' },
+  createStyle: {},
+  clearStyle: {},
+  applyStylesDialog: {},
+  // Editing
+  find: { icon: 'find', shortcut: 'Mod-f' },
+  advancedFind: {},
+  goTo: { shortcut: 'Mod-g' },
+  replace: { icon: 'replace', shortcut: 'Mod-h' },
+  select: { icon: 'draw-select' },
+  selectAll: { shortcutHint: 'Mod-a' },
+  selectObjects: {},
+  selectSimilar: {},
+  // Voice & Editor
+  dictate: { icon: 'dictate', isEnabled: speechSupported },
+  editor: { icon: 'editor' },
+});
+
+const COLOUR = { custom: 'colourPalette' };
+
+export const ribbon = {
+  id: 'home',
+  keytip: 'H',
+  groups: [
+    {
+      id: 'clipboard', icon: 'paste', launcher: 'clipboardPane',
+      controls: [
+        { t: 'large', cmd: 'paste', split: true, menu: [{ header: 'menu.pasteOptions' }, 'pasteKeepSource', 'pasteMerge', 'pasteTextOnly', '-', 'pasteSpecial', 'setDefaultPaste'] },
+        { t: 'col', items: [{ cmd: 'cut' }, { cmd: 'copy' }, { cmd: 'formatPainter', label: 'label.home.format' }] },
+      ],
+    },
+    {
+      id: 'font', icon: 'font-colour', launcher: 'fontDialog',
+      controls: [{
+        t: 'rows', rows: [
+          [
+            { t: 'combo', cmd: 'fontName', kind: 'font', width: 145 },
+            { t: 'combo', cmd: 'fontSize', kind: 'size', width: 48 },
+            { cmd: 'growFont' }, { cmd: 'shrinkFont' },
+            { cmd: 'changeCase', menu: ['caseSentence', 'caseLower', 'caseUpper', 'caseCapitalize', 'caseToggle'] },
+            { cmd: 'clearFormatting' }, { cmd: 'phoneticGuide' },
+          ],
+          [
+            { cmd: 'bold' }, { cmd: 'italic' },
+            { cmd: 'underline', split: true, menu: ['underline', 'underlineDouble', 'underlineThick', 'underlineDotted', 'underlineDashed', 'underlineWave', '-', 'underlineMore', { cmd: 'underlineColour', sub: [COLOUR] }] },
+            { cmd: 'strikethrough' }, { cmd: 'subscript' }, { cmd: 'superscript' },
+            { cmd: 'characterBorder' }, { cmd: 'enclosedCharacters' },
+            { cmd: 'textEffects', menu: ['textOutline', 'textShadow', 'textGlow'], gap: true },
+            { cmd: 'highlight', split: true, menu: [{ custom: 'highlightPalette' }, '-', 'highlightNone'] },
+            { cmd: 'fontColour', split: true, menu: ['fontColourAuto', COLOUR, '-', 'fontColourMore'] },
+          ],
+        ],
+      }],
+    },
+    {
+      id: 'paragraph', icon: 'pilcrow', launcher: 'paragraphDialog',
+      controls: [{
+        t: 'rows', rows: [
+          [
+            { cmd: 'bullets', split: true, menu: [{ custom: 'bulletLibrary' }, '-', 'defineBullet'] },
+            { cmd: 'numbering', split: true, menu: [{ custom: 'numberLibrary' }, '-', 'defineNumber'] },
+            { cmd: 'multilevel', menu: [{ custom: 'multilevelLibrary' }, '-', 'defineMultilevel'] },
+            { cmd: 'decreaseIndent', gap: true }, { cmd: 'increaseIndent' },
+            { cmd: 'sort', gap: true }, { cmd: 'showMarks' },
+          ],
+          [
+            { cmd: 'alignLeft' }, { cmd: 'alignCentre' }, { cmd: 'alignRight' }, { cmd: 'justify' },
+            { cmd: 'ltr', gap: true }, { cmd: 'rtl' },
+            { cmd: 'lineSpacing', menu: ['lineSpacing1', 'lineSpacing115', 'lineSpacing15', 'lineSpacing2', 'lineSpacing25', 'lineSpacing3', '-', 'lineSpacingOptions', '-', 'addSpaceBefore', 'removeSpaceAfter'], gap: true },
+            { cmd: 'shading', split: true, menu: [COLOUR] },
+            { cmd: 'borders', split: true, menu: ['borderBottom', 'borderTop', 'borderLeft', 'borderRight', '-', 'borderNone', 'borderAll', 'borderOutside', '-', 'horizontalLine', 'bordersAndShading'] },
+          ],
+        ],
+      }],
+    },
+    {
+      id: 'paragraphTools', icon: 'paragraph-tools',
+      controls: [{ t: 'large', cmd: 'paragraphTools', menu: ['paragraphDialog', 'tabsDialog', 'bordersAndShading', '-', 'keepWithNext', 'keepLinesTogether', 'pageBreakBefore', '-', 'clearParagraphFormatting'] }],
+    },
+    {
+      id: 'styles', icon: 'styles-pane', launcher: 'stylesPane',
+      controls: [{ t: 'gallery', id: 'styles', cmd: 'applyStyle', menu: ['createStyle', 'clearStyle', 'applyStylesDialog'] }],
+    },
+    {
+      id: 'editing', icon: 'find',
+      controls: [{
+        t: 'col', items: [
+          { cmd: 'find', split: true, menu: ['find', 'advancedFind', 'goTo'] },
+          { cmd: 'replace' },
+          { cmd: 'select', menu: ['selectAll', 'selectObjects', 'selectSimilar', '-', 'layout.selectionPane'] },
+        ],
+      }],
+    },
+    { id: 'voice', icon: 'dictate', controls: [{ t: 'large', cmd: 'dictate' }] },
+    { id: 'editorGroup', icon: 'editor', controls: [{ t: 'large', cmd: 'editor' }] },
+  ],
+};
+
+export function register(registry) { registry.register(commands); }

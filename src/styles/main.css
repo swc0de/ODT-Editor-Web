@@ -1,2 +1,9 @@
 @import "./tokens.css";
-@import "./shell.css";
+@import "./base.css";
+@import "./tabbar.css";
+@import "./ribbon.css";
+@import "./menu.css";
+@import "./document.css";
+@import "./statusbar.css";
+@import "./backstage.css";
+@import "./overlays.css";

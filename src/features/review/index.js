@@ -1,6 +1,115 @@
-/**
- * Ribbon tab "review": commands and ribbon definition. Populated in M1 (UI)
- * and wired up in later milestones (see MILESTONES.md).
- * @param {import('../../core/command-registry.js').CommandRegistry} _registry
- */
-export function register(_registry) {}
+/** Review tab: Proofing, Speech, Accessibility, Language, Comments, Tracking, Changes, Compare, Protect (M9). */
+import { defineCommands } from '../define.js';
+
+export const commands = defineCommands('review', {
+  spelling: { icon: 'spelling', shortcut: 'F7' },
+  thesaurus: { icon: 'thesaurus', shortcut: 'Shift-F7' },
+  wordCount: { icon: 'word-count', shortcut: 'Mod-Shift-g' },
+  readAloud: { icon: 'read-aloud' },
+  checkAccessibility: { icon: 'accessibility' },
+  translate: { icon: 'translate' },
+  language: { icon: 'language' },
+  setProofingLanguage: {},
+  languagePreferences: {},
+  deleteComment: { icon: 'delete-comment' },
+  deleteAllShown: {},
+  deleteAllComments: {},
+  previousComment: { icon: 'previous' },
+  nextComment: { icon: 'next' },
+  showComments: { icon: 'show-comments' },
+  commentsContextual: {},
+  commentsList: {},
+  trackChanges: { icon: 'track-changes', shortcut: 'Mod-Shift-e' },
+  trackChangesEveryone: {},
+  trackChangesJustMine: {},
+  trackChangesLock: {},
+  displayForReview: { icon: 'display-review' },
+  displaySimple: {},
+  displayAll: {},
+  displayNone: {},
+  displayOriginal: {},
+  showMarkup: { icon: 'show-markup' },
+  markupComments: {},
+  markupInk: {},
+  markupInsertionsDeletions: {},
+  markupFormatting: {},
+  markupBalloons: {},
+  markupPeople: {},
+  reviewingPane: { icon: 'reviewing-pane' },
+  reviewingPaneVertical: {},
+  reviewingPaneHorizontal: {},
+  trackingOptions: { icon: 'track-changes' },
+  accept: { icon: 'accept' },
+  acceptAndMove: {},
+  acceptThis: {},
+  acceptAllShown: {},
+  acceptAll: {},
+  acceptAllAndStop: {},
+  reject: { icon: 'reject' },
+  rejectAndMove: {},
+  rejectThis: {},
+  rejectAllShown: {},
+  rejectAll: {},
+  rejectAllAndStop: {},
+  previousChange: { icon: 'previous' },
+  nextChange: { icon: 'next' },
+  compare: { icon: 'compare' },
+  compareDocuments: {},
+  combineDocuments: {},
+  restrictEditing: { icon: 'restrict' },
+});
+
+export const ribbon = {
+  id: 'review',
+  keytip: 'R',
+  groups: [
+    {
+      id: 'proofing', icon: 'spelling',
+      controls: [
+        { t: 'large', cmd: 'spelling', label: 'label.review.spelling' },
+        { t: 'col', items: [{ cmd: 'thesaurus' }, { cmd: 'wordCount' }] },
+      ],
+    },
+    { id: 'speech', icon: 'read-aloud', controls: [{ t: 'large', cmd: 'readAloud', label: 'label.review.readAloud' }] },
+    { id: 'accessibility', icon: 'accessibility', controls: [{ t: 'large', cmd: 'checkAccessibility', label: 'label.review.checkAccessibility' }] },
+    {
+      id: 'language', icon: 'language',
+      controls: [
+        { t: 'large', cmd: 'translate' },
+        { t: 'large', cmd: 'language', menu: ['setProofingLanguage', 'languagePreferences'] },
+      ],
+    },
+    {
+      id: 'comments', icon: 'comment',
+      controls: [
+        { t: 'large', cmd: 'insert.comment', label: 'label.review.newComment' },
+        { t: 'large', cmd: 'deleteComment', label: 'label.review.delete', split: true, menu: ['deleteComment', 'deleteAllShown', 'deleteAllComments'] },
+        { t: 'col', items: [{ cmd: 'previousComment', label: 'label.review.previous' }, { cmd: 'nextComment', label: 'label.review.next' }] },
+        { t: 'large', cmd: 'showComments', label: 'label.review.showComments', menu: ['commentsContextual', 'commentsList'] },
+      ],
+    },
+    {
+      id: 'tracking', icon: 'track-changes', launcher: 'trackingOptions',
+      controls: [
+        { t: 'large', cmd: 'trackChanges', label: 'label.review.trackChanges', split: true, menu: ['trackChangesEveryone', 'trackChangesJustMine', 'trackChangesLock'] },
+        { t: 'col', items: [
+          { t: 'select', cmd: 'displayForReview', width: 128, options: ['displaySimple', 'displayAll', 'displayNone', 'displayOriginal'], value: 'displaySimple' },
+          { cmd: 'showMarkup', menu: ['markupComments', 'markupInk', 'markupInsertionsDeletions', 'markupFormatting', '-', 'markupBalloons', 'markupPeople'] },
+          { cmd: 'reviewingPane', split: true, menu: ['reviewingPaneVertical', 'reviewingPaneHorizontal'] },
+        ] },
+      ],
+    },
+    {
+      id: 'changes', icon: 'accept',
+      controls: [
+        { t: 'large', cmd: 'accept', split: true, menu: ['acceptAndMove', 'acceptThis', 'acceptAllShown', 'acceptAll', 'acceptAllAndStop'] },
+        { t: 'large', cmd: 'reject', split: true, menu: ['rejectAndMove', 'rejectThis', 'rejectAllShown', 'rejectAll', 'rejectAllAndStop'] },
+        { t: 'col', items: [{ cmd: 'previousChange', label: 'label.review.previous' }, { cmd: 'nextChange', label: 'label.review.next' }] },
+      ],
+    },
+    { id: 'compare', icon: 'compare', controls: [{ t: 'large', cmd: 'compare', menu: ['compareDocuments', 'combineDocuments'] }] },
+    { id: 'protect', icon: 'restrict', controls: [{ t: 'large', cmd: 'restrictEditing', label: 'label.review.restrictEditing' }] },
+  ],
+};
+
+export function register(registry) { registry.register(commands); }

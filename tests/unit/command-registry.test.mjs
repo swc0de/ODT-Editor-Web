@@ -53,7 +53,7 @@ test('register, run, enabled and checked state', async () => {
   assert.equal(reg.run('missing'), false);
 
   const ev = key('b', 'KeyB', { ctrlKey: true });
-  assert.equal(reg.handleKeydown(ev), true);
+  assert.equal(reg.handleKeydown(ev), 'format.bold');
   assert.equal(ev.prevented, true);
   assert.equal(ran, 2);
 
@@ -83,4 +83,24 @@ test('search ranks prefix matches first and lists everything for an empty query'
   assert.deepEqual(reg.search('stops').map((c) => c.id), ['layout.tabs']);
   assert.equal(reg.search('').length, 4);
   assert.equal(reg.search('', { limit: 2 }).length, 2);
+});
+
+test('menu-only commands, shortcut hints and coming-soon shortcuts', () => {
+  const reg = new CommandRegistry({ mac: false });
+  reg.register([
+    { id: 'view.theme', menuOnly: true },
+    { id: 'home.copy', label: 'Copy', shortcutHint: 'Mod-c' },
+    { id: 'file.save', label: 'Save', shortcut: 'Mod-s' },
+  ]);
+  assert.equal(reg.get('view.theme').comingSoon, false);
+  assert.equal(reg.isEnabled('view.theme'), true);
+  assert.equal(reg.run('view.theme'), false);
+  assert.equal(reg.search('').some((c) => c.id === 'view.theme'), false);
+  assert.equal(reg.shortcutText('home.copy'), 'Ctrl+C');
+  // A hint is display-only: Ctrl+C is not captured.
+  assert.equal(reg.handleKeydown(key('c', 'KeyC', { ctrlKey: true })), null);
+  // A coming-soon shortcut is still captured so the browser default (Save page) doesn't fire.
+  const ev = key('s', 'KeyS', { ctrlKey: true });
+  assert.equal(reg.handleKeydown(ev), 'file.save');
+  assert.equal(ev.prevented, true);
 });

@@ -1,0 +1,43 @@
+.tooltip {
+  position: fixed; z-index: 2000; max-width: 320px; padding: 7px 10px; pointer-events: none;
+  background: var(--tooltip-bg); color: var(--text); border: 1px solid var(--menu-border); border-radius: 5px;
+  box-shadow: var(--menu-shadow); font-size: 12px; line-height: 1.4;
+}
+.tooltip-title { font-weight: 600; }
+.tooltip-body { margin-top: 3px; color: var(--text-soft); }
+.tooltip-status { margin-top: 4px; color: var(--accent-text); font-style: italic; }
+
+.toast {
+  position: fixed; z-index: 2100; left: 50%; bottom: 44px; transform: translateX(-50%); padding: 7px 12px;
+  background: var(--tooltip-bg); color: var(--text); border: 1px solid var(--menu-border); border-radius: 6px; box-shadow: var(--menu-shadow); font-size: 12.5px;
+}
+.toast.anchored { transform: none; bottom: auto; }
+
+.keytips-layer { position: fixed; inset: 0; z-index: 1500; pointer-events: none; }
+.keytip {
+  position: absolute; transform: translateX(-50%); min-width: 16px; padding: 0 3px; border-radius: 3px;
+  background: var(--keytip-bg); color: var(--keytip-text); font: 600 11px/15px var(--font-ui); text-align: center; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+}
+
+.cs-overlay { position: fixed; inset: 0; z-index: 1800; background: var(--overlay); display: flex; justify-content: center; align-items: flex-start; padding-top: 34px; }
+.cs-box { width: min(620px, calc(100vw - 32px)); background: var(--menu-bg); border: 1px solid var(--menu-border); border-radius: 8px; box-shadow: var(--menu-shadow); overflow: hidden; }
+.cs-field { display: flex; align-items: center; gap: 8px; padding: 0 12px; border-bottom: 1px solid var(--divider); }
+.cs-icon { display: flex; color: var(--text-muted); }
+.cs-input { flex: 1; height: 40px; border: 0; background: transparent; font-size: 14px; user-select: text; }
+.cs-input:focus-visible { outline: none; }
+.cs-list { max-height: min(460px, calc(100vh - 140px)); overflow: auto; padding: 4px; }
+.cs-row { display: flex; align-items: center; gap: 10px; height: 30px; padding: 0 8px; border-radius: 4px; }
+.cs-row.is-active { background: var(--hover-bg); outline: 1px solid var(--accent); outline-offset: -1px; }
+.cs-row.is-dim .cs-row-label, .cs-row.is-dim .cs-row-icon { opacity: 0.55; }
+.cs-row-icon { display: flex; width: 18px; justify-content: center; }
+.cs-row-label { white-space: nowrap; }
+.cs-row-where { flex: 1; color: var(--text-muted); font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cs-row-soon { font-size: 11px; color: var(--text-muted); border: 1px solid var(--control-border-soft); border-radius: 8px; padding: 0 6px; }
+.cs-row-keys { color: var(--text-muted); font-size: 12px; white-space: nowrap; }
+.cs-empty { padding: 14px; color: var(--text-muted); }
+
+/* Screenshot comparison aid: render "Coming soon" controls at full strength so
+   layouts can be compared with the reference images (used only by tests/screenshots.mjs). */
+:root.compare-undim [data-coming-soon].is-dim > *, :root.compare-undim [data-coming-soon].is-dim.rb-combo-input, :root.compare-undim [data-coming-soon].rb-spin-input.is-dim,
+:root.compare-undim [data-coming-soon].gal-tile.is-dim .gal-tile-inner, :root.compare-undim [data-coming-soon].rb-check.is-dim { opacity: 1; }
+:root.compare-undim .page-caret { animation: none; }

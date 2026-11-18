@@ -132,8 +132,11 @@ export class CommandRegistry {
       keywords: [],
       group: null,
       ...def,
-      comingSoon: def.comingSoon ?? typeof def.run !== 'function',
+      // menuOnly: a ▾ button whose items are the real commands (e.g. Interface Theme).
+      comingSoon: def.comingSoon ?? (!def.menuOnly && typeof def.run !== 'function'),
+      hidden: def.hidden ?? !!def.menuOnly,
     };
+    cmd.shortcutHint = def.shortcutHint ? normalizeShortcut(def.shortcutHint, { mac: this._mac }) : null;
     const shortcuts = [].concat(cmd.shortcut || []);
     cmd.shortcuts = shortcuts.map((s) => normalizeShortcut(s, { mac: this._mac }));
     for (const s of cmd.shortcuts) {
@@ -161,7 +164,8 @@ export class CommandRegistry {
   /** Display string of the command's first shortcut. */
   shortcutText(id) {
     const cmd = this.get(id);
-    return cmd && cmd.shortcuts[0] ? formatShortcut(cmd.shortcuts[0], { mac: this._mac }) : '';
+    const s = cmd && (cmd.shortcuts[0] || cmd.shortcutHint);
+    return s ? formatShortcut(s, { mac: this._mac }) : '';
   }
 
   isEnabled(id) {
@@ -179,7 +183,7 @@ export class CommandRegistry {
   /** Runs a command. Returns false if it is unknown, disabled or coming soon. */
   run(id, ...args) {
     const cmd = this.get(id);
-    if (!cmd || !this.isEnabled(id)) return false;
+    if (!cmd || !this.isEnabled(id) || typeof cmd.run !== 'function') return false;
     const result = cmd.run(this._context(), ...args);
     this.notify();
     return result === undefined ? true : result;
@@ -191,15 +195,18 @@ export class CommandRegistry {
     return s ? this._byShortcut.get(s) || null : null;
   }
 
-  /** Handles a keydown: runs the bound command. Returns true if handled. */
+  /**
+   * Handles a keydown: runs the bound command. Returns the command id when the
+   * shortcut belongs to a command (whether or not it could run), else null.
+   * The browser default is always suppressed for app shortcuts, so e.g.
+   * Ctrl+S never opens the browser's "Save page" dialog.
+   */
   handleKeydown(event) {
     const id = this.commandForEvent(event);
-    if (!id) return false;
-    const cmd = this.get(id);
-    if (cmd.comingSoon) return false;
-    const handled = this.run(id) !== false;
-    if (handled) event.preventDefault();
-    return handled;
+    if (!id) return null;
+    event.preventDefault();
+    this.run(id);
+    return id;
   }
 
   /**

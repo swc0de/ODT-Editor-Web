@@ -1,6 +1,111 @@
-/**
- * Ribbon tab "insert": commands and ribbon definition. Populated in M1 (UI)
- * and wired up in later milestones (see MILESTONES.md).
- * @param {import('../../core/command-registry.js').CommandRegistry} _registry
- */
-export function register(_registry) {}
+/** Insert tab: Pages, Tables, Illustrations, Links, Comments, Header & Footer, Text, Symbols. */
+import { defineCommands } from '../define.js';
+
+export const commands = defineCommands('insert', {
+  coverPage: { icon: 'cover-page' },
+  removeCoverPage: {},
+  blankPage: { icon: 'blank-page' },
+  pageBreak: { icon: 'page-break', shortcut: 'Mod-Enter' },
+  table: { icon: 'table' },
+  tableGrid: { label: 'cmd.insert.table' },
+  insertTableDialog: { icon: 'table' },
+  drawTable: { icon: 'draw-table' },
+  convertTextToTable: {},
+  quickTables: {},
+  pictures: { icon: 'pictures' },
+  picturesFromDevice: { icon: 'pictures' },
+  shapes: { icon: 'shapes' },
+  insertShape: { label: 'cmd.insert.shapes' },
+  newDrawingCanvas: {},
+  icons: { icon: 'icons' },
+  smartArt: { icon: 'smartart' },
+  chart: { icon: 'chart' },
+  link: { icon: 'link', shortcut: 'Mod-k' },
+  bookmark: { icon: 'bookmark' },
+  crossReference: { icon: 'cross-reference' },
+  comment: { icon: 'comment', shortcut: 'Mod-Alt-m' },
+  header: { icon: 'header' },
+  editHeader: {},
+  removeHeader: {},
+  footer: { icon: 'footer' },
+  editFooter: {},
+  removeFooter: {},
+  pageNumber: { icon: 'page-number' },
+  pageNumberTop: {},
+  pageNumberBottom: {},
+  pageNumberMargins: {},
+  pageNumberCurrent: {},
+  pageNumberFormat: {},
+  removePageNumbers: {},
+  textBox: { icon: 'text-box' },
+  drawTextBox: {},
+  quickParts: { icon: 'quick-parts' },
+  autoText: {},
+  documentProperty: {},
+  field: {},
+  wordArt: { icon: 'wordart' },
+  dropCap: { icon: 'drop-cap' },
+  dropCapNone: {},
+  dropCapDropped: {},
+  dropCapInMargin: {},
+  dropCapOptions: {},
+  signatureLine: { icon: 'signature-line' },
+  dateTime: { icon: 'date-time' },
+  object: { icon: 'object' },
+  textFromFile: {},
+  equation: { icon: 'equation' },
+  insertNewEquation: { shortcut: 'Alt-=' },
+  inkEquation: {},
+  symbol: { icon: 'symbol' },
+  insertSymbol: { label: 'cmd.insert.symbol' },
+  moreSymbols: { icon: 'symbol' },
+  unicodeToggle: { shortcut: 'Alt-x' },
+});
+
+export const ribbon = {
+  id: 'insert',
+  keytip: 'N',
+  groups: [
+    { id: 'pages', icon: 'blank-page', controls: [{ t: 'col', items: [{ cmd: 'coverPage', menu: [{ custom: 'coverPages' }, '-', 'removeCoverPage'] }, { cmd: 'blankPage' }, { cmd: 'pageBreak' }] }] },
+    { id: 'tables', icon: 'table', controls: [{ t: 'large', cmd: 'table', menu: [{ custom: 'tableGrid' }, '-', 'insertTableDialog', 'drawTable', 'convertTextToTable', { cmd: 'quickTables', sub: [{ custom: 'quickTables' }] }] }] },
+    {
+      id: 'illustrations', icon: 'pictures',
+      controls: [
+        { t: 'large', cmd: 'pictures' },
+        { t: 'large', cmd: 'shapes', menu: [{ custom: 'shapesGallery' }, '-', 'newDrawingCanvas'] },
+        { t: 'col', items: [{ cmd: 'icons' }, { cmd: 'smartArt' }, { cmd: 'chart' }] },
+      ],
+    },
+    { id: 'links', icon: 'link', controls: [{ t: 'col', items: [{ cmd: 'link' }, { cmd: 'bookmark' }, { cmd: 'crossReference' }] }] },
+    { id: 'comments', icon: 'comment', controls: [{ t: 'large', cmd: 'comment' }] },
+    {
+      id: 'headerFooter', icon: 'header',
+      controls: [
+        { t: 'large', cmd: 'header', menu: [{ custom: 'headerGallery' }, '-', 'editHeader', 'removeHeader'] },
+        { t: 'large', cmd: 'footer', menu: [{ custom: 'footerGallery' }, '-', 'editFooter', 'removeFooter'] },
+        { t: 'large', cmd: 'pageNumber', label: 'label.insert.pageNumber', menu: ['pageNumberTop', 'pageNumberBottom', 'pageNumberMargins', 'pageNumberCurrent', '-', 'pageNumberFormat', 'removePageNumbers'] },
+      ],
+    },
+    {
+      id: 'text', icon: 'text-box',
+      controls: [
+        { t: 'large', cmd: 'textBox', label: 'label.insert.textBox' },
+        { t: 'col', items: [
+          { cmd: 'quickParts', menu: ['autoText', 'documentProperty', 'field'] },
+          { cmd: 'wordArt', menu: [{ custom: 'wordArtGallery' }] },
+          { cmd: 'dropCap', menu: ['dropCapNone', 'dropCapDropped', 'dropCapInMargin', '-', 'dropCapOptions'] },
+        ] },
+        { t: 'col', items: [{ cmd: 'signatureLine', iconOnly: true }, { cmd: 'dateTime', iconOnly: true }, { cmd: 'object', iconOnly: true }] },
+      ],
+    },
+    {
+      id: 'symbols', icon: 'symbol',
+      controls: [
+        { t: 'large', cmd: 'equation', split: true, menu: [{ custom: 'equationGallery' }, '-', 'insertNewEquation', 'inkEquation'] },
+        { t: 'large', cmd: 'symbol', menu: [{ custom: 'symbolGrid' }, '-', 'moreSymbols'] },
+      ],
+    },
+  ],
+};
+
+export function register(registry) { registry.register(commands); }

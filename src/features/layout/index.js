@@ -1,6 +1,121 @@
-/**
- * Ribbon tab "layout": commands and ribbon definition. Populated in M1 (UI)
- * and wired up in later milestones (see MILESTONES.md).
- * @param {import('../../core/command-registry.js').CommandRegistry} _registry
- */
-export function register(_registry) {}
+/** Layout tab: Page Setup, Paragraph (indent/spacing spins), Arrange. */
+import { defineCommands } from '../define.js';
+
+const objectSelected = (ctx) => !!ctx.state.objectSelected;
+
+export const commands = defineCommands('layout', {
+  textDirection: { icon: 'text-direction' },
+  textDirectionHorizontal: {},
+  textDirectionRotate90: {},
+  textDirectionRotate270: {},
+  margins: { icon: 'margins' },
+  marginsNormal: {},
+  marginsNarrow: {},
+  marginsModerate: {},
+  marginsWide: {},
+  marginsMirrored: {},
+  marginsCustom: {},
+  orientation: { icon: 'orientation' },
+  portrait: {},
+  landscape: {},
+  size: { icon: 'page-size' },
+  sizeA4: {},
+  sizeA5: {},
+  sizeA3: {},
+  sizeLetter: {},
+  sizeLegal: {},
+  sizeB5: {},
+  sizeMore: {},
+  columns: { icon: 'columns' },
+  columnsOne: {},
+  columnsTwo: {},
+  columnsThree: {},
+  columnsLeft: {},
+  columnsRight: {},
+  columnsMore: {},
+  breaks: { icon: 'breaks' },
+  breakPage: {},
+  breakColumn: {},
+  breakTextWrapping: {},
+  breakSectionNext: {},
+  breakSectionContinuous: {},
+  breakSectionEven: {},
+  breakSectionOdd: {},
+  lineNumbers: { icon: 'line-numbers' },
+  lineNumbersNone: {},
+  lineNumbersContinuous: {},
+  lineNumbersRestartPage: {},
+  lineNumbersRestartSection: {},
+  lineNumbersSuppress: {},
+  lineNumbersOptions: {},
+  hyphenation: { icon: 'hyphenation' },
+  hyphenationNone: {},
+  hyphenationAuto: {},
+  hyphenationOptions: {},
+  pageSetupDialog: { icon: 'margins' },
+  indentLeft: { icon: 'indent-increase' },
+  indentRight: { icon: 'indent-decrease' },
+  spacingBefore: { icon: 'line-spacing' },
+  spacingAfter: { icon: 'line-spacing' },
+  position: { icon: 'position', isEnabled: objectSelected },
+  wrapText: { icon: 'wrap-text', isEnabled: objectSelected },
+  wrapInline: {},
+  wrapSquare: {},
+  wrapTight: {},
+  wrapTopBottom: {},
+  wrapBehind: {},
+  wrapInFront: {},
+  bringForward: { icon: 'bring-forward', isEnabled: objectSelected },
+  bringToFront: {},
+  sendBackward: { icon: 'send-backward', isEnabled: objectSelected },
+  sendToBack: {},
+  selectionPane: { icon: 'selection-pane' },
+  align: { icon: 'align-objects', isEnabled: objectSelected },
+  group: { icon: 'group', isEnabled: objectSelected },
+  ungroup: {},
+  rotate: { icon: 'rotate', isEnabled: objectSelected },
+  rotateRight: {},
+  rotateLeft: {},
+  flipVertical: {},
+  flipHorizontal: {},
+});
+
+export const ribbon = {
+  id: 'layout',
+  keytip: 'P',
+  groups: [
+    {
+      id: 'pageSetup', icon: 'margins', launcher: 'pageSetupDialog',
+      controls: [
+        { t: 'large', cmd: 'textDirection', label: 'label.layout.textDirection', menu: ['textDirectionHorizontal', 'textDirectionRotate90', 'textDirectionRotate270'] },
+        { t: 'large', cmd: 'margins', menu: ['marginsNormal', 'marginsNarrow', 'marginsModerate', 'marginsWide', 'marginsMirrored', '-', 'marginsCustom'] },
+        { t: 'large', cmd: 'orientation', menu: ['portrait', 'landscape'] },
+        { t: 'large', cmd: 'size', menu: ['sizeA4', 'sizeA5', 'sizeA3', 'sizeLetter', 'sizeLegal', 'sizeB5', '-', 'sizeMore'] },
+        { t: 'large', cmd: 'columns', menu: ['columnsOne', 'columnsTwo', 'columnsThree', 'columnsLeft', 'columnsRight', '-', 'columnsMore'] },
+        { t: 'col', items: [
+          { cmd: 'breaks', menu: [{ header: 'menu.pageBreaks' }, 'breakPage', 'breakColumn', 'breakTextWrapping', { header: 'menu.sectionBreaks' }, 'breakSectionNext', 'breakSectionContinuous', 'breakSectionEven', 'breakSectionOdd'] },
+          { cmd: 'lineNumbers', menu: ['lineNumbersNone', 'lineNumbersContinuous', 'lineNumbersRestartPage', 'lineNumbersRestartSection', 'lineNumbersSuppress', '-', 'lineNumbersOptions'] },
+          { cmd: 'hyphenation', menu: ['hyphenationNone', 'hyphenationAuto', '-', 'hyphenationOptions'] },
+        ] },
+      ],
+    },
+    {
+      id: 'paragraph', icon: 'pilcrow', launcher: 'home.paragraphDialog',
+      controls: [
+        { t: 'spins', header: 'label.layout.indent', items: [{ cmd: 'indentLeft', label: 'label.layout.left', unit: 'cm', value: 0, step: 0.1, decimals: 1 }, { cmd: 'indentRight', label: 'label.layout.right', unit: 'cm', value: 0, step: 0.1, decimals: 1 }] },
+        { t: 'spins', header: 'label.layout.spacing', items: [{ cmd: 'spacingBefore', label: 'label.layout.before', unit: 'pt', value: 0, step: 6, decimals: 0 }, { cmd: 'spacingAfter', label: 'label.layout.after', unit: 'pt', value: 8, step: 6, decimals: 0 }] },
+      ],
+    },
+    {
+      id: 'arrange', icon: 'bring-forward',
+      controls: [
+        { t: 'large', cmd: 'position' },
+        { t: 'large', cmd: 'wrapText', label: 'label.layout.wrapText', menu: ['wrapInline', '-', 'wrapSquare', 'wrapTight', 'wrapTopBottom', 'wrapBehind', 'wrapInFront'] },
+        { t: 'col', items: [{ cmd: 'bringForward', split: true, menu: ['bringForward', 'bringToFront'] }, { cmd: 'sendBackward', split: true, menu: ['sendBackward', 'sendToBack'] }, { cmd: 'selectionPane' }] },
+        { t: 'col', items: [{ cmd: 'align', iconOnly: true, menu: [{ custom: 'alignObjects' }] }, { cmd: 'group', iconOnly: true, menu: ['group', 'ungroup'] }, { cmd: 'rotate', iconOnly: true, menu: ['rotateRight', 'rotateLeft', 'flipVertical', 'flipHorizontal'] }] },
+      ],
+    },
+  ],
+};
+
+export function register(registry) { registry.register(commands); }

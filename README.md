@@ -5,10 +5,11 @@ browser from **one self-contained HTML file**: `dist/odt-editor.html`.
 No server, no uploads, no analytics — open the file (even from `file://`, even
 offline) and everything happens locally.
 
-> **Status: milestone M0 (scaffold).** The build, the test harness, theme
-> tokens, the command registry and i18n are in place, and the app shows a blank
-> A4 page. The ribbon UI, editing and ODT open/save arrive in the next
-> milestones — see [MILESTONES.md](MILESTONES.md) and [PROGRESS.md](PROGRESS.md).
+> **Status: milestone M1 (app shell).** The complete ribbon UI (all tabs and
+> controls), Backstage, rulers, status bar, KeyTips and Alt+Q command search
+> are in place around a blank A4 page. Editing and ODT open/save arrive in M2 —
+> see [MILESTONES.md](MILESTONES.md) and [PROGRESS.md](PROGRESS.md). Controls
+> for features that aren't built yet are dimmed with a "Coming soon" tooltip.
 
 ## Using it
 
@@ -29,7 +30,7 @@ npm run build        # → dist/odt-editor.html (minified, everything inlined)
 npm run watch        # rebuild on change (unminified, inline source maps)
 npm test             # unit tests (node:test) + e2e tests (Playwright, Chromium)
 npm run fixtures     # regenerate tests/fixtures/*.odt (+ LibreOffice exports if soffice exists)
-npm run screenshots  # capture dark/light screenshots into reference/compare/
+npm run screenshots  # compare against reference/*.png → reference/compare/
 ```
 
 `node tests/make-fixtures.mjs --check` additionally verifies that LibreOffice
@@ -85,8 +86,17 @@ reference/             UI reference screenshots; compare/ holds generated compar
 
 UI inspired by the open-source WordCraft project (MIT/Apache-2.0).
 
-## Known limitations (M0)
+## Keyboard
 
-- Only the scaffold exists: no ribbon, no editing, no open/save yet.
-- No reference screenshots have been supplied yet, so visual comparison is
-  limited to the generated dark/light captures in `reference/compare/`.
+- **Alt** (or F10): KeyTips — letters over tabs, then over the active tab's controls. Esc goes back.
+- **Alt+Q**: search every command.
+- **Ctrl+F1**: collapse/expand the ribbon (or double-click a tab).
+- **F6 / Shift+F6**: move between the tab bar, ribbon, document and status bar.
+- Arrow keys move between tabs and between ribbon controls; menus support ↑ ↓ → ← Home End and type-ahead.
+
+## Known limitations (M1)
+
+- No document editing, opening or saving yet (M2). Every unbuilt command is
+  dimmed with a "Coming soon" tooltip; its dropdown menu still opens.
+- Rulers and the zoom slider are static (M3).
+- Backstage pages other than Home are placeholders.
