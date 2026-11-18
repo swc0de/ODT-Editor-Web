@@ -84,6 +84,10 @@ test('formulas: SUM(ABOVE), AVERAGE(LEFT), cell references', () => {
   assert.equal(evalFormula(at(doc, 1, 2), '=AVERAGE(LEFT)').value, 3.5);
   assert.equal(evalFormula(s, '=A1+B2*2').value, 9);
   assert.equal(evalFormula(s, '=MAX(A1:B2)').value, 4);
+  assert.equal(evalFormula(s, '=SUM(ABOVE)').odf, 'ooow:sum <A1:A2>');
+  assert.equal(evalFormula(at(doc, 1, 2), '=AVERAGE(LEFT)').odf, 'ooow:mean <A2:B2>');
+  assert.equal(evalFormula(s, '=A1+B2*2').odf, 'ooow:<A1>+<B2>*2');
+  assert.equal(evalFormula(s, '=MAX(A1:B2)/2').odf, 'ooow:max <A1:B2> /2');
   s = apply(s, (st, d) => insertFormula(st, d, '=SUM(ABOVE)'));
   const cell = s.doc.firstChild.child(2).child(0);
   assert.equal(cell.textContent, '4');

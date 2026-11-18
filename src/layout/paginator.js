@@ -88,7 +88,9 @@ export function paginationPlugin() {
             if (tp.deleted || te.deleted) continue;
             const shifts = new Map();
             for (const [p, s] of g.shifts) { const r = m.mapResult(p, 1); if (!r.deleted) shifts.set(r.pos, s); }
-            gaps.push({ ...g, tablePos: tp.pos, tableEnd: te.pos, shifts });
+            const repeat = new Map();
+            for (const [p, s] of g.repeat || []) { const r = m.mapResult(p, 1); if (!r.deleted) repeat.set(r.pos, s); }
+            gaps.push({ ...g, tablePos: tp.pos, tableEnd: te.pos, shifts, repeat });
           } else {
             const r = m.mapResult(g.pos, -1);
             if (!r.deleted) gaps.push({ ...g, pos: r.pos });
@@ -335,16 +337,39 @@ export function createPaginator(o) {
       return true;
     };
 
+    /** Height of the table's repeated heading rows when row unit `u` starts a page (0: none). */
+    const headerHeight = (u) => {
+      const tbl = u.table.node;
+      let n = 0;
+      while (n < tbl.childCount && tbl.child(n).attrs.header) n++;
+      if (!n || u.rowIndex < n) return 0;
+      let pos = u.table.pos + 1;
+      let top = null;
+      let bottom = null;
+      for (let i = 0; i < n; i++) {
+        const row = tbl.child(i);
+        const hm = measure(pos, row, 'row');
+        if (hm) { top = top ?? hm.top; bottom = hm.bottom; }
+        pos += row.nodeSize;
+      }
+      const hh = top == null ? 0 : bottom - top;
+      // Heading rows taller than half the page don't repeat (as in Writer).
+      return hh > 0 && hh < (page.box.bottom - page.box.top) / 2 ? hh : 0;
+    };
+
     /** Moves unit `u` (natural top `natTop`) to the top of a new page. */
     const moveToNewPage = (u, natTop, forcedMaster) => {
       const before = page;
       newPage(u, forcedMaster);
       if (u.kind === 'row') {
         if (!rows || rows.tablePos !== u.table.pos) {
-          rows = { type: 'rows', tablePos: u.table.pos, tableEnd: u.table.pos + u.table.node.nodeSize, shifts: new Map(), h: 0, base: before.D };
+          rows = { type: 'rows', tablePos: u.table.pos, tableEnd: u.table.pos + u.table.node.nodeSize, shifts: new Map(), repeat: new Map(), h: 0, base: before.D };
           newGaps.push(rows);
         }
         page.D = bodyTop(page) - natTop;
+        // Repeated heading rows: leave room above the row for a copy of them.
+        const hh = headerHeight(u);
+        if (hh > 0) { rows.repeat.set(u.pos, hh); page.D += hh; }
         page.clean = false;
         return;
       }

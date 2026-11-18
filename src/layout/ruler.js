@@ -86,7 +86,8 @@ export function createRulers(o) {
   const mRight = h('div', { class: 'hruler-margin right' });
   const edgeL = h('span', { class: 'ruler-edge h left', 'data-tip': t('ruler.leftMargin') });
   const edgeR = h('span', { class: 'ruler-edge h right', 'data-tip': t('ruler.rightMargin') });
-  const hruler = h('div', { class: 'hruler', role: 'group', 'aria-label': t('ruler.horizontal') }, mLeft, hBody, mRight, hTicks, hTabs, edgeL, edgeR, firstLine, hanging, leftIndent, rightIndent);
+  const hCols = h('div', { class: 'hruler-cols' });
+  const hruler = h('div', { class: 'hruler', role: 'group', 'aria-label': t('ruler.horizontal') }, mLeft, hBody, mRight, hTicks, hCols, hTabs, edgeL, edgeR, firstLine, hanging, leftIndent, rightIndent);
   const hstrip = h('div', { class: 'hruler-strip' }, hruler);
 
   const vBody = h('div', { class: 'vruler-body' });
@@ -122,11 +123,23 @@ export function createRulers(o) {
     edgeR.style.left = `${(P.width - P.marginRight) * s}px`;
     drawTicks(hTicks, rulerTicks(P.width, P.marginLeft, P.width - P.marginRight), false, `${P.width}|${P.marginLeft}|${P.marginRight}|${s}`, s);
     const ind = g.indents || { left: 0, right: 0, firstLine: 0 };
-    const x0 = P.marginLeft;
+    // Indents are measured from the text area: the page body, or the table cell.
+    g.x0 = g.x0 ?? P.marginLeft;
+    g.x1 = g.x1 ?? P.width - P.marginRight;
+    const x0 = g.x0;
     firstLine.style.left = `${(x0 + ind.left + ind.firstLine) * s}px`;
     hanging.style.left = `${(x0 + ind.left) * s}px`;
     leftIndent.style.left = `${(x0 + ind.left) * s}px`;
-    rightIndent.style.left = `${(P.width - P.marginRight - ind.right) * s}px`;
+    rightIndent.style.left = `${(g.x1 - ind.right) * s}px`;
+    const colKey = JSON.stringify([g.tableCols, s]);
+    if (hCols._key !== colKey) {
+      hCols._key = colKey;
+      hCols.replaceChildren(...(g.tableCols || []).map((x, i) => {
+        const el = h('span', { class: 'ruler-tcol', 'data-index': String(i), 'data-tip': t('ruler.tableColumn') });
+        el.style.left = `${x * s}px`;
+        return el;
+      }));
+    }
     const tabKey = JSON.stringify([g.tabs, ind.left, s, x0]);
     if (hTabs._key !== tabKey) {
       hTabs._key = tabKey;
@@ -161,7 +174,7 @@ export function createRulers(o) {
   const hideGuide = () => { guide?.remove(); guide = null; };
   const snap = (v, e) => (e.altKey ? v : Math.round(v / SNAP) * SNAP);
   /** Snaps a position measured from the page edge on the grid that starts at the left margin. */
-  const snapRel = (abs, e) => geo.page.marginLeft + snap(abs - geo.page.marginLeft, e);
+  const snapRel = (abs, e) => geo.x0 + snap(abs - geo.x0, e);
 
   /** Generic drag helper: onMove(dxPx, dyPx, event) in unzoomed px; onEnd(...) commits. */
   function drag(e, { vertical = false, onMove, onEnd }) {
@@ -190,36 +203,36 @@ export function createRulers(o) {
 
   firstLine.addEventListener('pointerdown', (e) => {
     const ind = { ...geo.indents };
-    const base = geo.page.marginLeft + ind.left + ind.firstLine;
+    const base = geo.x0 + ind.left + ind.firstLine;
     drag(e, {
       onMove: (dx, _dy, ev) => preview(firstLine, 'left', base, snapRel(base + dx, ev) - base),
-      onEnd: (dx, _dy, ev) => o.onIndents({ firstLine: snapRel(base + dx, ev) - geo.page.marginLeft - ind.left }),
+      onEnd: (dx, _dy, ev) => o.onIndents({ firstLine: snapRel(base + dx, ev) - geo.x0 - ind.left }),
     });
   });
   hanging.addEventListener('pointerdown', (e) => {
     // Moves the left indent but keeps the first line where it is.
     const ind = { ...geo.indents };
-    const base = geo.page.marginLeft + ind.left;
+    const base = geo.x0 + ind.left;
     drag(e, {
       onMove: (dx, _dy, ev) => { const v = snapRel(base + dx, ev) - base; preview(hanging, 'left', base, v); preview(leftIndent, 'left', base, v); },
-      onEnd: (dx, _dy, ev) => { const left = snapRel(base + dx, ev) - geo.page.marginLeft; o.onIndents({ left, firstLine: ind.left + ind.firstLine - left }); },
+      onEnd: (dx, _dy, ev) => { const left = snapRel(base + dx, ev) - geo.x0; o.onIndents({ left, firstLine: ind.left + ind.firstLine - left }); },
     });
   });
   leftIndent.addEventListener('pointerdown', (e) => {
     // Moves the left indent and the first line together.
     const ind = { ...geo.indents };
-    const base = geo.page.marginLeft + ind.left;
+    const base = geo.x0 + ind.left;
     drag(e, {
       onMove: (dx, _dy, ev) => { const v = snapRel(base + dx, ev) - base; for (const el of [hanging, leftIndent]) preview(el, 'left', base, v); preview(firstLine, 'left', base + ind.firstLine, v); },
-      onEnd: (dx, _dy, ev) => o.onIndents({ left: snapRel(base + dx, ev) - geo.page.marginLeft }),
+      onEnd: (dx, _dy, ev) => o.onIndents({ left: snapRel(base + dx, ev) - geo.x0 }),
     });
   });
   rightIndent.addEventListener('pointerdown', (e) => {
     const ind = { ...geo.indents };
-    const base = geo.page.width - geo.page.marginRight - ind.right;
+    const base = geo.x1 - ind.right;
     drag(e, {
       onMove: (dx, _dy, ev) => preview(rightIndent, 'left', base, snapRel(base + dx, ev) - base),
-      onEnd: (dx, _dy, ev) => o.onIndents({ right: geo.page.width - geo.page.marginRight - snapRel(base + dx, ev) }),
+      onEnd: (dx, _dy, ev) => o.onIndents({ right: geo.x1 - snapRel(base + dx, ev) }),
     });
   });
   const marginDrag = (edge, side) => edge.addEventListener('pointerdown', (e) => {
@@ -249,7 +262,7 @@ export function createRulers(o) {
     const i = Number(el.dataset.index);
     const tabs = geo.tabs.map((x) => ({ ...x }));
     const base = tabs[i].pos;
-    const origin = geo.page.marginLeft + geo.indents.left;
+    const origin = geo.x0 + geo.indents.left;
     drag(e, {
       onMove: (dx, dy, ev) => { el.style.left = `${(origin + snap(base + dx, ev)) * geo.scale}px`; el.classList.toggle('removing', Math.abs(dy) > 24); },
       onEnd: (dx, dy, ev) => {
@@ -261,19 +274,41 @@ export function createRulers(o) {
 
   // Click on the ruler body: add a tab stop, or place the first-line / hanging indent.
   hruler.addEventListener('pointerdown', (e) => {
-    if (e.target.closest('.ruler-marker, .ruler-tab, .ruler-edge') || !geo) return;
+    if (e.target.closest('.ruler-marker, .ruler-tab, .ruler-edge, .ruler-tcol') || !geo) return;
     const r = hruler.getBoundingClientRect();
     const x = (e.clientX - r.left) / geo.scale;
-    if (x < geo.page.marginLeft || x > geo.page.width - geo.page.marginRight) return;
+    if (x < geo.x0 || x > geo.x1) return;
     e.preventDefault();
     const type = TAB_TYPES[tabType];
-    const rel = snap(x - geo.page.marginLeft, e);
+    const rel = snap(x - geo.x0, e);
     if (type === 'firstLine') { o.onIndents({ firstLine: rel - geo.indents.left }); return; }
     if (type === 'hanging') { o.onIndents({ left: rel, firstLine: geo.indents.left + geo.indents.firstLine - rel }); return; }
     const pos = rel - geo.indents.left;
     if (pos <= 0) return;
     const tabs = [...(geo.tabs || []).map((x2) => ({ ...x2 })), { pos, type: ODF_TYPE[type], char: '.' }];
     o.onTabs(tabs);
+  });
+
+  // Table column markers: drag to resize the columns either side (Alt: no snapping).
+  hCols.addEventListener('pointerdown', (e) => {
+    const el = e.target.closest('.ruler-tcol');
+    if (!el || !geo.tableCols) return;
+    const i = Number(el.dataset.index);
+    const xs = geo.tableCols;
+    const base = xs[i];
+    const lo = i > 0 ? xs[i - 1] + 10 : -Infinity;
+    const hi = i < xs.length - 1 ? xs[i + 1] - 10 : Infinity;
+    const at = (dx, ev) => Math.max(lo, Math.min(hi, snapRel(base + dx, ev)));
+    drag(e, {
+      onMove: (dx, _dy, ev) => { el.style.left = `${at(dx, ev) * geo.scale}px`; },
+      onEnd: (dx, _dy, ev) => {
+        const v = at(dx, ev);
+        if (Math.abs(v - base) < 0.5) return;
+        const next = xs.slice();
+        next[i] = v;
+        o.onTableColumns?.(next);
+      },
+    });
   });
 
   function setVisible(show) {

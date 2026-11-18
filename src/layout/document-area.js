@@ -13,6 +13,7 @@ import { regionsPlugin, regionsKey } from './regions.js';
 import { hyphenationPlugin, hyphenKey } from './hyphenate.js';
 import { renderLineNumbers } from './line-numbers.js';
 import { fieldsPlugin, updatePageFields } from './fields.js';
+import { renderRepeatedRows } from './repeat-rows.js';
 import { hyphenation } from '../core/page-setup.js';
 import { buildPageModel, measureMasters } from './page-model.js';
 import { layoutTabs, tabStopsOf, defaultTabInterval } from './tabs.js';
@@ -21,6 +22,7 @@ import { findChild } from '../core/odt/xml.js';
 import { pxToLength } from './units.js';
 import { paragraphIndents, setIndents, setTabStops, selectedTextblocks } from '../core/commands/paragraph.js';
 import { editState } from '../core/state-step.js';
+import { isInTable, tableAt, columnWidths, setWidths } from '../core/commands/tables.js';
 
 export const ZOOM_MIN = 10;
 export const ZOOM_MAX = 500;
@@ -49,6 +51,12 @@ export function createDocumentArea({ store, getEditor, getSession, onPagesChange
     onIndents: (change) => { const ed = getEditor(); setIndents(ed.view.state, ed.view.dispatch, styleIndex, change); ed.focus(); },
     onTabs: (stops) => { const ed = getEditor(); setTabStops(ed.view.state, ed.view.dispatch, styleIndex, stops); ed.focus(); },
     onMargins: (change) => setPageMargins(change),
+    onTableColumns: (xs) => {
+      const ed = getEditor();
+      const widths = xs.slice(1).map((x, i) => Math.max(10, x - xs[i]));
+      setWidths(ed.view.state, ed.view.dispatch, widths);
+      ed.focus();
+    },
   });
   const area = h('main', { class: 'doc-area' }, canvas, rulers.hstrip, rulers.vstrip, rulers.corner);
 
@@ -77,7 +85,9 @@ export function createDocumentArea({ store, getEditor, getSession, onPagesChange
     const r = el.getBoundingClientRect();
     const node = selectedTextblocks(ed.view.state)[0]?.node;
     const m = model.masters.get(page.master) || model.first;
+    const cell = tableRuler(ed.view, r, m);
     rulers.update({
+      ...cell,
       left: r.left, top: r.top, scale: options().zoom,
       page: { width: m.width, height: page.box.pageHeight, marginLeft: m.marginLeft, marginRight: m.marginRight, bodyTop: page.box.top, bodyBottom: page.box.bottom },
       indents: node ? paragraphIndents(node, styleIndex) : { left: 0, right: 0, firstLine: 0 },
@@ -85,6 +95,36 @@ export function createDocumentArea({ store, getEditor, getSession, onPagesChange
       interval: defaultTabInterval(styleIndex),
     });
     store.set({ page: i + 1, pageCount: pages.length });
+  }
+
+  /**
+   * With the selection in a table: the column boundaries (unzoomed px from the
+   * page's left edge) and the cell's text area, which the indent markers use.
+   */
+  function tableRuler(pmView, pageRect, master) {
+    const st = pmView.state;
+    if (!isInTable(st)) return {};
+    const tt = tableAt(st);
+    const dom = pmView.nodeDOM(tt.tablePos);
+    const tableEl = dom?.nodeName === 'TABLE' ? dom : dom?.querySelector?.('table');
+    if (!tableEl) return {};
+    const z = options().zoom;
+    const tr = tableEl.getBoundingClientRect();
+    const widths = columnWidths(tt.table, tableEl, master.bodyWidth);
+    let x = (tr.left - pageRect.left) / z;
+    const tableCols = [x];
+    for (const w of widths) { x += w; tableCols.push(Math.round(x * 100) / 100); }
+    const out = { tableCols };
+    let el = pmView.domAtPos(st.selection.head).node;
+    if (el.nodeType !== 1) el = el.parentNode;
+    const td = el.closest?.('td, th');
+    if (td && tableEl.contains(td)) {
+      const cr = td.getBoundingClientRect();
+      const cs = getComputedStyle(td);
+      out.x0 = (cr.left - pageRect.left) / z + (parseFloat(cs.paddingLeft) || 0) + (parseFloat(cs.borderLeftWidth) || 0);
+      out.x1 = (cr.right - pageRect.left) / z - (parseFloat(cs.paddingRight) || 0) - (parseFloat(cs.borderRightWidth) || 0);
+    }
+    return out;
   }
 
   // ------------------------------------------------------------ layout
@@ -97,7 +137,12 @@ export function createDocumentArea({ store, getEditor, getSession, onPagesChange
       pages = newPages;
       view.renderPages(pages);
     }
-    if (store.get().pageMovement !== 'side') requestAnimationFrame(() => updatePageFields(getEditor().view, pages, model));
+    if (store.get().pageMovement !== 'side') {
+      requestAnimationFrame(() => {
+        updatePageFields(getEditor().view, pages, model);
+        renderRepeatedRows({ view: getEditor().view, layer: view.repeatLayer, zoom: options().zoom, origin: () => view.stack });
+      });
+    } else view.repeatLayer.firstChild.replaceChildren();
     cancelAnimationFrame(lnFrame);
     if (model?.lineNumbering && store.get().pageMovement !== 'side') {
       lnFrame = requestAnimationFrame(() => renderLineNumbers({ view: getEditor().view, layer: view.lnLayer, model, pages, index: styleIndex, zoom: options().zoom, origin: () => view.stack }));

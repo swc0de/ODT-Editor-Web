@@ -102,7 +102,8 @@ export function compressColumns(cols) {
     const last = out[out.length - 1];
     const key = (x) => JSON.stringify([x.styleName, x.auto, x.defaultCellStyle, x.extra]);
     if (last && key(last) === key(c)) last.repeat += 1;
-    else out.push({ ...c, repeat: 1 });
+    // Same key order as the importer builds, so models compare equal after a round-trip.
+    else out.push({ styleName: c.styleName ?? null, auto: c.auto ?? null, repeat: 1, defaultCellStyle: c.defaultCellStyle ?? null, extra: c.extra ?? null, width: c.width ?? null });
   }
   return out;
 }
@@ -637,7 +638,12 @@ export function textToTable(state, dispatch, { separator = '\t', cols = null, wi
   }))))));
   // Like Word, a table is always followed by a paragraph.
   const after = end >= state.doc.content.size ? [filled, PARA.create({ styleName: 'Standard' })] : [filled];
-  if (dispatch) dispatch(state.tr.replaceWith(start, end, after).scrollIntoView());
+  if (dispatch) {
+    const tr = state.tr.replaceWith(start, end, after);
+    // The caret goes into the first cell, so the table tabs apply straight away.
+    tr.setSelection(TextSelection.create(tr.doc, start + 4));
+    dispatch(tr.scrollIntoView());
+  }
   return true;
 }
 
@@ -704,30 +710,52 @@ export function evalFormula(state, formula) {
     return num(table.nodeAt(map.map[row * map.width + col]).textContent);
   };
   const ref = (s) => { const m = /^([A-Z]+)(\d+)$/i.exec(s); if (!m) throw new Error(`bad reference ${s}`); let col = 0; for (const ch of m[1].toUpperCase()) col = col * 26 + (ch.charCodeAt(0) - 64); return [Number(m[2]) - 1, col - 1]; };
+  const name = (r, c) => `${colLetters(c)}${r + 1}`;
+  /** Values of a function argument, and the argument in LibreOffice Writer syntax (<B1:B3>). */
   const range = (arg) => {
     const out = [];
     const a = arg.trim().toUpperCase();
-    const run = (dr, dc) => { let r = cur.row + dr; let c = cur.col + dc; while (r >= 0 && c >= 0 && r < map.height && c < map.width) { const v = valueAt(r, c); if (v == null && out.length) break; if (v != null) out.push(v); r += dr; c += dc; } };
-    if (a === 'ABOVE') run(-1, 0); else if (a === 'BELOW') run(1, 0); else if (a === 'LEFT') run(0, -1); else if (a === 'RIGHT') run(0, 1);
+    const run = (dr, dc) => {
+      let r = cur.row + dr; let c = cur.col + dc; let last = null;
+      while (r >= 0 && c >= 0 && r < map.height && c < map.width) { const v = valueAt(r, c); if (v == null && out.length) break; if (v != null) { out.push(v); last = [r, c]; } r += dr; c += dc; }
+      const near = [cur.row + dr, cur.col + dc];
+      if (!last) return `<${name(...near)}>`;
+      const [a1, a2] = dr + dc < 0 ? [last, near] : [near, last];
+      return `<${name(...a1)}:${name(...a2)}>`;
+    };
+    let lo;
+    if (a === 'ABOVE') lo = run(-1, 0); else if (a === 'BELOW') lo = run(1, 0); else if (a === 'LEFT') lo = run(0, -1); else if (a === 'RIGHT') lo = run(0, 1);
     else if (a.includes(':')) {
       const [[r1, c1], [r2, c2]] = a.split(':').map(ref);
       for (let r = Math.min(r1, r2); r <= Math.max(r1, r2); r++) for (let c = Math.min(c1, c2); c <= Math.max(c1, c2); c++) { const v = valueAt(r, c); if (v != null) out.push(v); }
-    } else { const [r, c] = ref(a); const v = valueAt(r, c); if (v != null) out.push(v); }
-    return out;
+      lo = `<${a}>`;
+    } else { const [r, c] = ref(a); const v = valueAt(r, c); if (v != null) out.push(v); lo = `<${a}>`; }
+    return { vals: out, lo };
   };
   const FN = {
     SUM: (v) => v.reduce((x, y) => x + y, 0), AVERAGE: (v) => (v.length ? v.reduce((x, y) => x + y, 0) / v.length : 0),
     MIN: (v) => Math.min(...v), MAX: (v) => Math.max(...v), PRODUCT: (v) => v.reduce((x, y) => x * y, 1), COUNT: (v) => v.length,
   };
+  // LibreOffice Writer's names for the functions.
+  const LO = { SUM: 'sum', AVERAGE: 'mean', MIN: 'min', MAX: 'max', PRODUCT: 'product', COUNT: 'count' };
   let src = formula.trim().replace(/^=/, '');
-  let odf = src;
-  src = src.replace(/\b(SUM|AVERAGE|MIN|MAX|PRODUCT|COUNT)\(([^)]*)\)/gi, (_, f, args) => String(FN[f.toUpperCase()](args.split(/[;,]/).flatMap(range))));
+  const parts = [];
+  const FN_RE = /\b(SUM|AVERAGE|MIN|MAX|PRODUCT|COUNT)\(([^)]*)\)/gi;
+  src = src.replace(FN_RE, (_, f, args) => {
+    const rs = args.split(/[;,]/).map(range);
+    parts.push(`${LO[f.toUpperCase()]} ${rs.map((r) => r.lo).join('|')}`);
+    return `\u0000${parts.length - 1}\u0000${FN[f.toUpperCase()](rs.flatMap((r) => r.vals))}\u0001`;
+  });
+  // ODF form: functions as above, plain references as <A1>.
+  let odf = src.replace(/\u0000(\d+)\u0000[^\u0001]*\u0001/g, '\u0002$1\u0002').replace(/\b([A-Z]+\d+)\b/gi, (m) => `<${m.toUpperCase()}>`)
+    .replace(/\u0002(\d+)\u0002/g, (_, i) => ` ${parts[i]} `);
+  odf = odf.replace(/\s+/g, ' ').trim();
+  src = src.replace(/\u0000\d+\u0000([^\u0001]*)\u0001/g, '$1');
   src = src.replace(/\b([A-Z]+\d+)\b/gi, (m) => String(valueAt(...ref(m)) ?? 0));
   if (!/^[\d.+\-*/()\s%]+$/.test(src)) throw new Error('unsupported formula');
   const value = arithmetic(src);
   if (!Number.isFinite(value)) throw new Error('not a number');
-  odf = odf.replace(/\b([A-Z]+)(\d+)\b/gi, (m) => `<${m.toUpperCase()}>`);
-  return { value, odf: `ooow:${odf}`, address: `${colLetters(cur.col)}${cur.row + 1}` };
+  return { value, odf: `ooow:${odf}`, address: name(cur.row, cur.col) };
 }
 
 /** Evaluates + - * / % ( ) on numbers (no eval: the app's security policy forbids it). */
@@ -762,6 +790,7 @@ export function insertFormula(state, dispatch, formula, format = (v) => String(+
     const para = cur.node.firstChild?.isTextblock ? cur.node.firstChild : PARA.create({ styleName: 'Table_20_Contents' });
     const cell = cur.node.type.create({ ...cur.node.attrs, extra }, para.type.create(para.attrs, schema.text(format(r.value))));
     tr.replaceWith(cur.pos, cur.pos + cur.node.nodeSize, cell);
+    tr.setSelection(TextSelection.create(tr.doc, cur.pos + 1 + cell.firstChild.nodeSize - 1));
     dispatch(tr);
   }
   return r;

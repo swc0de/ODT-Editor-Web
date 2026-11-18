@@ -176,7 +176,7 @@ export function buildDocumentCss(state, index = buildStyleIndex(state)) {
   const defPara = index.defaults.has('paragraph') ? autoFromTree(index.defaults.get('paragraph')).auto : null;
   const base = [];
   textPropsCss(defPara?.props?.['style:text-properties']?.a, base);
-  rules.push(`${scope} .ProseMirror{${base.join(';')}}`);
+  rules.push(`${scope} :is(.ProseMirror, .odt-mirror){${base.join(';')}}`);
 
   for (const [name] of index.families.get('paragraph') || []) {
     const auto = index.effective('paragraph', name, { includeDefault: false });

@@ -1,4 +1,5 @@
 /** Helpers shared by the Insert ▸ Table menu and the Table Design / Table Layout tabs. */
+import { closeHistory } from 'prosemirror-history';
 import { isInTable, tableAt, columnWidths } from '../../core/commands/tables.js';
 
 export const canEdit = (c) => !!c.editor && c.state.editingMode !== 'viewing';
@@ -20,8 +21,14 @@ export function widthOpts(c) {
   return { dom: t ? V(c).nodeDOM(t.tablePos) : null, bodyWidth: bodyWidth(c) };
 }
 
-/** Runs a (state, dispatch, …args) command on the active editor and refocuses. */
-export const runCmd = (c, fn, ...args) => { const v = V(c); const r = fn(v.state, v.dispatch, ...args); c.editor.focus(); return r; };
+/** Runs a (state, dispatch, …args) command on the active editor as its own undo step, and refocuses. */
+export const runCmd = (c, fn, ...args) => {
+  const v = V(c);
+  v.dispatch(closeHistory(v.state.tr));
+  const r = fn(v.state, v.dispatch, ...args);
+  c.editor.focus();
+  return r;
+};
 
 /** Current column widths of the table at the selection (px). */
 export const widthsAt = (c) => { const t = tableAt(V(c).state); return t ? columnWidths(t.table, V(c).nodeDOM(t.tablePos), bodyWidth(c)) : []; };

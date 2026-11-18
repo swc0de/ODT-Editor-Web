@@ -10,7 +10,7 @@ The memory between sessions. Statuses: `todo`, `in progress`, `awaiting approval
 | M3 — Print Layout: pagination, rulers, status bar, zoom | approved |
 | M4 — Home tab: character and paragraph formatting, styles, lists, find | approved |
 | M5 — Layout and Design tabs, headers/footers, sections | approved |
-| M6 — Tables | in progress |
+| M6 — Tables | awaiting approval |
 | M7 — Insert tab: pictures, shapes, text boxes, links, symbols | todo |
 | M8 — References | todo |
 | M9 — Review: comments, track changes, proofing | todo |
@@ -201,3 +201,27 @@ Known limitations:
 - Design ▸ Effects (shape effects) is "Coming soon" (M7). Insert ▸ Page Number ▸ Page Margins is "Coming soon" (needs frames, M7).
 - Different first page / odd & even apply to the page style; "Link to Previous" copies the previous section's header/footer (ODF has no linking), and is checked while they are identical.
 - Side to Side view still uses the first page style's size.
+
+## M6 — Tables (awaiting approval)
+
+Built:
+- **Table model** (`core/odt/import.js`, `export.js`, `schema.js`): automatic table, column, row and cell styles become direct formatting on the nodes (`auto`); named styles stay named. On save they're regenerated and de-duplicated (`Tab1`, `TabCol1`, `TabRow1`, `TabCell1`); merged cells (`number-columns/rows-spanned` + covered cells), column widths (absolute + relative), heading rows (`table:table-header-rows`), nested tables, formulas and cell values round-trip.
+- **Insert ▸ Table**: the grid picker (up to 10×8), Insert Table… (columns, rows, fixed width / AutoFit to contents / window), Draw Table (drag a rectangle to make a table; drag across a cell to split it), Convert Text to Table (tabs, commas, paragraphs or another character), Quick Tables (Tabular List, Matrix, With Subheads, Calendar).
+- **Table Design** contextual tab (shown while the caret is in a table): Table Style Options (Header Row, Total Row, Banded Rows, First Column, Last Column, Banded Columns), a Table Styles gallery of 8 styles drawn as mini previews (applied as direct cell formatting; the style name and options are also written as ODF `table:template-name` / `table:use-*-styles`), Shading, Border Styles (8 presets that load the pen and start the border painter), Line Style, Line Weight, Pen Colour, Borders ▾ (bottom, top, left, right, none, all, outside, inside, inside horizontal/vertical) and Border Painter (click cell edges).
+- **Table Layout** contextual tab: Select (cell, column, row, table), View Gridlines, Properties (table width / alignment / indent, row height and "allow row to break across pages", repeat as heading row, column width, cell vertical alignment), Draw Table, Eraser (merges across the clicked edge), Delete (cells…, columns, rows, table), Insert Above/Below/Left/Right (new rows and columns copy their neighbours' formatting; the table keeps its width), Merge Cells, Split Cells…, Split Table, AutoFit (contents, window, fixed), Height/Width spins, Distribute Rows/Columns, the 9-way alignment grid, Text Direction, Cell Margins, Sort (by column, as text / number / date, ascending or descending, with or without a heading row), Repeat Header Rows, Convert to Text, Formula (`=SUM(ABOVE)`, `AVERAGE(LEFT)`, `MIN`, `MAX`, `PRODUCT`, `COUNT`, cell references like `=A1+B2*2`, number formats).
+- **Mouse and keyboard**: drag column borders and row bottoms to resize (guide line while dragging); column markers on the horizontal ruler (drag to resize; indent markers follow the cell); Tab / Shift+Tab move between cells and Tab in the last cell adds a row; cell selection by dragging.
+- **Pages**: rows split across pages (existing), and **heading rows repeat** at the top of every continuation page: the paginator leaves room above the first row on the new page and a read-only copy of the heading rows is drawn there (`layout/repeat-rows.js`).
+- Ribbon commands on tables are separate undo steps (no grouping of quick successive commands).
+- Tests: 56 unit (incl. a new table-commands suite) + 109 e2e (7 new in `tests/e2e/tables.spec.js`). Round-trips must re-open with an identical model; **LibreOffice re-saves** our files and keeps merged cells, shading, borders, alignment, cell vertical alignment, heading rows and nested tables. Performance check unchanged (50 pages, under 16 ms per keystroke).
+- Screenshots: `reference/compare/m6-*.png` (Table Design, Table Layout, Insert ▸ Table grid, repeated heading rows) in dark and light.
+
+Decisions:
+- Formulas are stored the way LibreOffice Writer stores them (`ooow:sum <B1:B3>`, with ABOVE/LEFT/… resolved to cell ranges) plus the computed `office:value`, so LibreOffice can recalculate them; they are evaluated by a small parser (the app's security policy forbids `eval`).
+- Table styles are applied as direct formatting (as Word does on export), because LibreOffice's table-template support in ODT is limited; re-applying a style or changing the options re-formats the cells.
+- New tables have no `table:name`; LibreOffice names them on open.
+
+Known limitations:
+- A single row taller than a page isn't split inside the row.
+- Content in cells covered by a merge in a file from elsewhere (rare) isn't kept.
+- Formulas don't recalculate automatically when the numbers change; run Formula again (LibreOffice recalculates on open).
+

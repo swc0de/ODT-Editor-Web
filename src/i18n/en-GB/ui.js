@@ -29,6 +29,7 @@ export default {
   'ruler.horizontal': 'Horizontal ruler',
   'ruler.vertical': 'Vertical ruler',
   'ruler.tabSelector': 'Tab type: {type}. Click to change.',
+  'ruler.tableColumn': 'Move Table Column',
   'ruler.tab.left': 'Left tab',
   'ruler.tab.centre': 'Centre tab',
   'ruler.tab.right': 'Right tab',

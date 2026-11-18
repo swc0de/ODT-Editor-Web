@@ -5,12 +5,13 @@ browser from **one self-contained HTML file**: `dist/odt-editor.html`.
 No server, no uploads, no analytics — open the file (even from `file://`, even
 offline) and everything happens locally.
 
-> **Status: milestone M5 (Layout and Design).** Open .odt/.ott files and edit
+> **Status: milestone M6 (Tables).** Open .odt/.ott files and edit
 > them on real pages with the Home, Layout and Design tabs: formatting, lists,
 > styles, find and replace; page setup, sections with their own page size and
 > orientation, columns, breaks, line numbers, hyphenation; editable headers and
 > footers with page numbers; themes, style sets, watermarks, page colour and
-> borders — plus live rulers, zoom and an autosaving, crash-safe workflow.
+> borders; tables with the Table Design and Table Layout tabs — plus live
+> rulers, zoom and an autosaving, crash-safe workflow.
 > Other ribbon tabs arrive in later milestones — see [MILESTONES.md](MILESTONES.md)
 > and [PROGRESS.md](PROGRESS.md). Controls for features that aren't built yet
 > are dimmed with a "Coming soon" tooltip.
@@ -100,7 +101,7 @@ reference/             UI reference screenshots; compare/ holds generated compar
 - App code: MIT.
 - Bundled fonts: Carlito, Caladea, Liberation Sans/Serif/Mono — SIL Open Font
   License 1.1 (see `assets/fonts/LICENSE.md`).
-- Libraries bundled into the HTML file: ProseMirror (MIT), fflate (MIT),
+- Libraries bundled into the HTML file: ProseMirror incl. prosemirror-tables (MIT), fflate (MIT),
   Lucide icons (ISC), hyphen (ISC) with British English hyphenation patterns
   from CTAN (hyph-en-gb).
 
@@ -153,7 +154,26 @@ UI inspired by the open-source WordCraft project (MIT/Apache-2.0).
   documents.
 - Everything here is undoable with Ctrl+Z.
 
-## Known limitations (M5)
+## Tables
+
+- Insert ▸ Table: pick a size on the grid, or use Insert Table…, Draw Table,
+  Convert Text to Table or Quick Tables. With the caret in a table the
+  **Table Design** and **Layout** tabs appear.
+- Tab moves to the next cell (and adds a row at the end), Shift+Tab goes back.
+  Drag column borders or row bottoms to resize, or drag the column markers on
+  the ruler. Drag across cells to select them, then Merge Cells.
+- Table Design: styles gallery and style options, shading, borders, line
+  style / weight / pen colour and the Border Painter (click cell edges; Esc
+  stops). Table Layout: insert/delete, merge/split, split table, AutoFit, cell
+  sizes, distribute, alignment, text direction, cell margins, sort, repeat
+  header rows (they repeat on every page the table continues on), convert to
+  text and formulas such as `=SUM(ABOVE)`.
+
+## Known limitations (M6)
+
+- Tables: a single row taller than a page isn't split inside the row; formulas
+  don't recalculate by themselves (run Formula again; LibreOffice recalculates
+  on open).
 
 - Columns: a paragraph taller than a column isn't split across pages inside a
   column region. Line numbers count body paragraphs only. Hyphenation is
@@ -161,8 +181,7 @@ UI inspired by the open-source WordCraft project (MIT/Apache-2.0).
   Margins (they need text frames, M7).
 - Coming soon on the Home tab: the Clipboard pane, Phonetic Guide, Enclose
   Characters, Glow, the Editor (spelling) pane.
-- Footnotes at the page bottom aren't laid out yet (M8); table header rows
-  aren't repeated (M6).
+- Footnotes at the page bottom aren't laid out yet (M8).
 - Footnotes, comments, text boxes, tables of contents and tracked changes are
   kept and displayed but not editable yet.
 - Content inside merged-away table cells (rare) is not kept.

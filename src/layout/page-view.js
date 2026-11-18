@@ -20,7 +20,9 @@ export function createPageView({ getPictureUrl } = {}) {
   const lnLayer = h('div', { class: 'ln-layer', 'aria-hidden': 'true' });
   const mount = h('div', { class: 'odt-doc' });
   const flow = h('div', { class: 'page-flow' }, mount);
-  const stack = h('div', { class: 'page-stack' }, bgs, lnLayer, flow);
+  // Copies of repeated table heading rows on continuation pages (see repeat-rows.js).
+  const repeatLayer = h('div', { class: 'odt-doc repeat-layer', 'aria-hidden': 'true' }, h('div', { class: 'odt-mirror' }));
+  const stack = h('div', { class: 'page-stack' }, bgs, lnLayer, flow, repeatLayer);
   const pagesEl = h('div', { class: 'pages' }, stack);
   let model = null;
   let opts = { zoom: 1, side: false, hideWhiteSpace: false, gridlines: false };
@@ -186,7 +188,7 @@ export function createPageView({ getPictureUrl } = {}) {
   }
 
   return {
-    el: pagesEl, stack, flow, mount, bgs, lnLayer, setModel, setOptions, renderPages, renderSide, leaveSide,
+    el: pagesEl, stack, flow, mount, bgs, lnLayer, repeatLayer, setModel, setOptions, renderPages, renderSide, leaveSide,
     pageElement: (i) => pageEls[i] || pageEls[0] || null,
     get options() { return opts; },
   };

@@ -1,20 +1,20 @@
 /* Document content inside the page (the ProseMirror editor). Named styles
    come from the generated #odt-doc-css stylesheet; these are the base rules. */
 .odt-doc { position: relative; min-height: 100%; color: #000; }
-.odt-doc .ProseMirror {
+.odt-doc :is(.ProseMirror, .odt-mirror) {
   outline: none; white-space: pre-wrap; word-wrap: break-word; font-variant-ligatures: none;
   font-family: "Carlito", sans-serif; font-size: 12pt; line-height: 1.17; user-select: text; caret-color: #000;
   tab-size: 1.27cm; -moz-tab-size: 1.27cm;
 }
 /* :where() keeps these resets weaker than the document's style classes. */
-.odt-doc :where(.ProseMirror p, .ProseMirror h1, .ProseMirror h2, .ProseMirror h3, .ProseMirror h4, .ProseMirror h5, .ProseMirror h6) { margin: 0; font-size: inherit; font-weight: inherit; min-height: 1.17em; }
-.odt-doc :where(.ProseMirror ul, .ProseMirror ol) { margin: 0; padding-left: 0.635cm; }
-.odt-doc :where(.ProseMirror li > p) { margin-top: 0; }
-.odt-doc .ProseMirror li[data-header]::marker { content: ""; }
-.odt-doc .ProseMirror table { border-collapse: collapse; table-layout: fixed; margin: 0; width: 100%; }
-.odt-doc :where(.ProseMirror td) { vertical-align: top; padding: 0.1cm; border: 0.5px dotted #c8c8c8; }
-.odt-doc .ProseMirror section { position: relative; outline: 1px dashed transparent; }
-.odt-doc .ProseMirror [data-break="column"] { border-top: 1px dotted #b0b0b0; }
+.odt-doc :where(:is(.ProseMirror, .odt-mirror) p, :is(.ProseMirror, .odt-mirror) h1, :is(.ProseMirror, .odt-mirror) h2, :is(.ProseMirror, .odt-mirror) h3, :is(.ProseMirror, .odt-mirror) h4, :is(.ProseMirror, .odt-mirror) h5, :is(.ProseMirror, .odt-mirror) h6) { margin: 0; font-size: inherit; font-weight: inherit; min-height: 1.17em; }
+.odt-doc :where(:is(.ProseMirror, .odt-mirror) ul, :is(.ProseMirror, .odt-mirror) ol) { margin: 0; padding-left: 0.635cm; }
+.odt-doc :where(:is(.ProseMirror, .odt-mirror) li > p) { margin-top: 0; }
+.odt-doc :is(.ProseMirror, .odt-mirror) li[data-header]::marker { content: ""; }
+.odt-doc :is(.ProseMirror, .odt-mirror) table { border-collapse: collapse; table-layout: fixed; margin: 0; width: 100%; }
+.odt-doc :where(:is(.ProseMirror, .odt-mirror) td) { vertical-align: top; padding: 0.1cm; border: 0.5px dotted #c8c8c8; }
+.odt-doc :is(.ProseMirror, .odt-mirror) section { position: relative; outline: 1px dashed transparent; }
+.odt-doc :is(.ProseMirror, .odt-mirror) [data-break="column"] { border-top: 1px dotted #b0b0b0; }
 .odt-doc .odt-tab { display: inline-block; white-space: pre; overflow: hidden; vertical-align: baseline; height: 1em; line-height: 1; }
 .odt-doc .odt-tab[data-leader="dotted"] { background: radial-gradient(circle, currentColor 0.7px, transparent 0.9px) repeat-x 0 92% / 4px 3px; }
 .odt-doc .odt-tab[data-leader="dash"] { background: linear-gradient(to right, currentColor 60%, transparent 60%) repeat-x 0 92% / 6px 1px; }
@@ -40,7 +40,7 @@
 .odt-doc .ProseMirror-gapcursor { display: none; pointer-events: none; position: absolute; }
 .odt-doc .ProseMirror-gapcursor::after { content: ""; display: block; position: absolute; top: -2px; width: 20px; border-top: 1px solid #000; animation: caret-blink 1.1s steps(2, start) infinite; }
 .odt-doc .ProseMirror-focused .ProseMirror-gapcursor { display: block; }
-.odt-doc .ProseMirror ::selection { background: #b4c8f5; }
+.odt-doc :is(.ProseMirror, .odt-mirror) ::selection { background: #b4c8f5; }
 
 /* Dialogs */
 .dlg-overlay { position: fixed; inset: 0; z-index: 2500; display: grid; place-items: center; background: var(--overlay); }
@@ -63,19 +63,19 @@
 .zd-option { display: flex; align-items: center; gap: 6px; }
 .zd-percent-row { display: flex; align-items: center; gap: 8px; }
 .zd-percent { width: 72px; height: 26px; padding: 0 6px; border: 1px solid var(--control-border); border-radius: 4px; background: var(--control-bg); color: var(--text); user-select: text; }
-.odt-doc .ProseMirror br[data-clear] { clear: both; }
-.odt-doc .ProseMirror [data-break="column"] { break-before: column; }
+.odt-doc :is(.ProseMirror, .odt-mirror) br[data-clear] { clear: both; }
+.odt-doc :is(.ProseMirror, .odt-mirror) [data-break="column"] { break-before: column; }
 /* Page fields in the body show the number of the page they are on. */
 .odt-doc .odt-field[data-shown] > .odt-field-text { display: none; }
 .odt-doc .odt-field[data-shown]::before { content: attr(data-shown); }
 /* Tables (M6) */
-.odt-doc .ProseMirror.tbl-col-resize { cursor: col-resize; }
-.odt-doc .ProseMirror.tbl-row-resize { cursor: row-resize; }
-.odt-doc .ProseMirror.tbl-mode-draw { cursor: crosshair; }
-.odt-doc .ProseMirror.tbl-mode-paint td { cursor: cell; }
-.odt-doc .ProseMirror.tbl-mode-erase td { cursor: not-allowed; }
-.odt-doc .ProseMirror td.selectedCell { background-image: linear-gradient(rgba(122, 147, 240, 0.28), rgba(122, 147, 240, 0.28)); }
-.odt-doc.no-gridlines :where(.ProseMirror td) { border-color: transparent; }
+.odt-doc :is(.ProseMirror, .odt-mirror).tbl-col-resize { cursor: col-resize; }
+.odt-doc :is(.ProseMirror, .odt-mirror).tbl-row-resize { cursor: row-resize; }
+.odt-doc :is(.ProseMirror, .odt-mirror).tbl-mode-draw { cursor: crosshair; }
+.odt-doc :is(.ProseMirror, .odt-mirror).tbl-mode-paint td { cursor: cell; }
+.odt-doc :is(.ProseMirror, .odt-mirror).tbl-mode-erase td { cursor: not-allowed; }
+.odt-doc :is(.ProseMirror, .odt-mirror) td.selectedCell { background-image: linear-gradient(rgba(122, 147, 240, 0.28), rgba(122, 147, 240, 0.28)); }
+.odt-doc.no-gridlines :where(:is(.ProseMirror, .odt-mirror) td) { border-color: transparent; }
 .table-guide { position: fixed; z-index: 2600; pointer-events: none; }
 .table-guide.v { width: 0; border-left: 1px dashed #333; }
 .table-guide.h { height: 0; border-top: 1px dashed #333; }

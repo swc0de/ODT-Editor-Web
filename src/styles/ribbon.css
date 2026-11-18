@@ -138,3 +138,8 @@
 .gal-scroll { display: flex; flex-direction: column; width: 16px; border-left: 0; }
 .gal-btn { flex: 1; display: flex; align-items: center; justify-content: center; border: 0; background: transparent; color: var(--text-muted); padding: 0; }
 .gal-btn:hover { background: var(--hover-bg); color: var(--text); }
+/* Table Styles gallery: a small white page with the style's preview table. */
+.gal-tile.tbl-tile { display: flex; align-items: center; justify-content: center; }
+.tbl-prev { width: 64px; height: 44px; border-collapse: collapse; table-layout: fixed; background: #fff; box-shadow: 0 0 0 3px #fff, 0 0 0 4px var(--border, rgba(127,127,127,.4)); }
+.tbl-prev td { height: 11px; padding: 0; border: 1px dotted #d0d0d0; position: relative; }
+.tbl-prev td::after { content: ""; position: absolute; left: 3px; right: 5px; top: 5px; height: 1px; background: #8a8a8a; }
