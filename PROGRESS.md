@@ -8,8 +8,8 @@ The memory between sessions. Statuses: `todo`, `in progress`, `awaiting approval
 | M1 — App shell and complete ribbon UI (visual match) | approved |
 | M2 — Document model and ODT open/save | approved |
 | M3 — Print Layout: pagination, rulers, status bar, zoom | approved |
-| M4 — Home tab: character and paragraph formatting, styles, lists, find | awaiting approval |
-| M5 — Layout and Design tabs, headers/footers, sections | todo |
+| M4 — Home tab: character and paragraph formatting, styles, lists, find | approved |
+| M5 — Layout and Design tabs, headers/footers, sections | in progress |
 | M6 — Tables | todo |
 | M7 — Insert tab: pictures, shapes, text boxes, links, symbols | todo |
 | M8 — References | todo |
@@ -136,7 +136,7 @@ Known limitations:
 - Side to Side uses one page size for all pages and the browser's own fragmentation.
 - Read Mode / Web Layout / Focus buttons and the Language dialog remain "Coming soon" (M12 / M9).
 
-## M4 — Home tab: character and paragraph formatting, styles, lists, find (awaiting approval)
+## M4 — Home tab: character and paragraph formatting, styles, lists, find (approved)
 
 Built:
 - **Character formatting** (`core/commands/text.js`): every Font-group control works on all selection ranges (and on the stored marks for the next typed text). Font name/size combos follow the selection (the font list includes the bundled fonts; choosing a font adds its `style:font-face`), Grow/Shrink (Ctrl+] / Ctrl+[), Change Case ▾ (+ Shift+F3 cycling), Clear All Formatting, Bold/Italic/Underline (+ double/thick/dotted/dashed/wave, underline colour), Strikethrough, Sub/Superscript (Ctrl+= / Ctrl+Shift+=), Character Border, Text Effects ▾ Outline/Shadow, Highlight and Font Colour palettes (the split button repeats the last colour), Ctrl+Space clears character formatting. Direct formatting is stored as ODF text properties; values equal to the style's (or the initial value) are dropped, so turning bold off removes the property.
