@@ -1,0 +1,57 @@
+*, *::before, *::after { box-sizing: border-box; }
+
+html, body { height: 100%; margin: 0; }
+
+body {
+  background: var(--app-bg);
+  color: var(--text);
+  font: var(--font-size-ui) / 1.35 var(--font-ui);
+  overflow: hidden;
+  -webkit-font-smoothing: antialiased;
+}
+
+.app { display: flex; flex-direction: column; height: 100vh; }
+
+:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 1px; }
+
+.icon { display: block; flex: none; }
+
+/* Minimal M0 header; replaced by the tab bar + ribbon in M1. */
+.shell-header {
+  display: flex; align-items: center; gap: 8px;
+  height: var(--header-h); padding: 0 10px;
+  background: var(--app-bg); border-bottom: 1px solid var(--border);
+}
+.shell-logo svg { width: 22px; height: 22px; display: block; }
+.shell-title { font-size: 13px; color: var(--text); }
+.shell-spacer { flex: 1; }
+.shell-btn {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 30px; height: 28px; border: 1px solid transparent; border-radius: var(--radius);
+  background: transparent; color: var(--text); cursor: pointer;
+}
+.shell-btn:hover { background: var(--hover-bg); }
+.shell-btn:active { background: var(--active-bg); }
+
+.canvas {
+  flex: 1; overflow: auto; background: var(--canvas-bg);
+  display: flex; flex-direction: column; align-items: center; padding: 24px 16px;
+}
+
+.page {
+  flex: none; background: var(--page-bg); color: var(--page-text);
+  box-shadow: var(--page-shadow);
+  font-family: var(--doc-font); font-size: 12pt;
+}
+.page-body { width: 100%; height: 100%; }
+
+.status-bar {
+  display: flex; align-items: center; gap: 16px;
+  height: var(--status-h); padding: 0 12px;
+  background: var(--app-bg); border-top: 1px solid var(--border);
+  color: var(--text-muted); font-size: 12px; user-select: none;
+}
+
+::-webkit-scrollbar { width: 12px; height: 12px; }
+::-webkit-scrollbar-thumb { background: var(--scrollbar); border-radius: 6px; border: 3px solid var(--canvas-bg); }
+::-webkit-scrollbar-track { background: transparent; }

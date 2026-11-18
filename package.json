@@ -1,0 +1,36 @@
+{
+  "name": "odt-editor",
+  "version": "0.1.0",
+  "private": true,
+  "description": "A full offline word processor for OpenDocument Text, delivered as one self-contained HTML file.",
+  "type": "module",
+  "license": "MIT",
+  "scripts": {
+    "build": "node build.mjs",
+    "watch": "node build.mjs --watch",
+    "fixtures": "node tests/make-fixtures.mjs",
+    "test": "npm run test:unit && npm run test:e2e",
+    "test:unit": "node --test \"tests/unit/**/*.test.mjs\"",
+    "test:e2e": "playwright test --trace off",
+    "screenshots": "node tests/screenshots.mjs"
+  },
+  "dependencies": {
+    "fflate": "^0.8.3",
+    "lucide": "^1.75.0",
+    "prosemirror-commands": "^1.7.2",
+    "prosemirror-dropcursor": "^1.8.4",
+    "prosemirror-gapcursor": "^1.4.1",
+    "prosemirror-history": "^1.5.1",
+    "prosemirror-inputrules": "^1.6.0",
+    "prosemirror-keymap": "^1.2.3",
+    "prosemirror-model": "^1.25.13",
+    "prosemirror-state": "^1.4.4",
+    "prosemirror-tables": "^1.8.5",
+    "prosemirror-transform": "^1.12.6",
+    "prosemirror-view": "^1.42.9"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.63.0",
+    "esbuild": "^0.28.2"
+  }
+}
