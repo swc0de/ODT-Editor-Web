@@ -26,7 +26,11 @@ export const INITIAL_APP_STATE = Object.freeze({
   ribbonCollapsed: false,
   ribbonPeek: false, // collapsed ribbon temporarily shown after clicking a tab
   view: 'print', // 'read' | 'print' | 'web' | 'outline' | 'draft'
-  pageMovement: 'vertical',
+  pageMovement: 'vertical', // 'vertical' | 'side'
+  hideWhiteSpace: false,
+  gridlines: false,
+  page: 1,
+  pageCount: 1,
   zoom: 100,
   editingMode: 'editing', // 'editing' | 'reviewing' | 'viewing'
   drawTool: 'select',

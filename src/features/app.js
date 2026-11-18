@@ -19,6 +19,7 @@ export const commands = defineCommands('app', {
   goBack: { shortcut: 'Shift-F5' },
   extendSelection: { shortcut: 'F8' },
   statusWordCount: { label: 'cmd.review.wordCount', hidden: true },
+  setZoom: { hidden: true, label: 'cmd.view.zoomDialog', run: (ctx, pct) => ctx.ui.docArea.setZoom(pct) },
   recover: { icon: 'recover', label: 'cmd.file.recoverPage', hidden: true, run: (ctx) => ctx.store.set({ backstageOpen: true, backstagePage: 'recover' }) },
 });
 

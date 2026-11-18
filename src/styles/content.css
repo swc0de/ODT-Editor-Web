@@ -14,11 +14,11 @@
 .odt-doc .ProseMirror table { border-collapse: collapse; table-layout: fixed; margin: 0; width: 100%; }
 .odt-doc :where(.ProseMirror td) { vertical-align: top; padding: 0.1cm; border: 0.5px dotted #c8c8c8; }
 .odt-doc .ProseMirror section { position: relative; outline: 1px dashed transparent; }
-.odt-doc .ProseMirror [data-break="page"] { border-top: 1px dashed #9a9a9a; padding-top: 2px; }
-.odt-doc .ProseMirror [data-break="page"]::before { content: "Page break"; position: absolute; transform: translateY(-1.4em); left: 0; right: 0; text-align: center; font: 10px var(--font-ui); color: #8a8a8a; }
-.odt-doc .ProseMirror [data-break="page"] { position: relative; margin-top: 1.6em; }
 .odt-doc .ProseMirror [data-break="column"] { border-top: 1px dotted #b0b0b0; }
-.odt-doc .odt-tab { white-space: pre; }
+.odt-doc .odt-tab { display: inline-block; white-space: pre; overflow: hidden; vertical-align: baseline; height: 1em; line-height: 1; }
+.odt-doc .odt-tab[data-leader="dotted"] { background: radial-gradient(circle, currentColor 0.7px, transparent 0.9px) repeat-x 0 92% / 4px 3px; }
+.odt-doc .odt-tab[data-leader="dash"] { background: linear-gradient(to right, currentColor 60%, transparent 60%) repeat-x 0 92% / 6px 1px; }
+.odt-doc .odt-tab[data-leader="solid"] { background: linear-gradient(currentColor, currentColor) no-repeat 0 92% / 100% 1px; }
 .odt-doc .odt-link { color: inherit; }
 .odt-doc .odt-field { background: #e6e6e6; border-radius: 1px; }
 .odt-doc .odt-note { color: #0f4761; font-size: 0.65em; vertical-align: super; line-height: 0; padding: 0 1px; cursor: default; }
@@ -55,3 +55,11 @@
 .dlg-btn:hover { background: var(--hover-bg); }
 .dlg-btn.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-contrast); font-weight: 600; }
 .dlg-btn.primary:hover { background: var(--accent-hover); }
+
+/* Zoom dialog */
+.zd { display: flex; flex-direction: column; gap: 12px; }
+.zd-presets { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 24px; margin: 0; padding: 8px 12px 10px; border: 1px solid var(--divider); border-radius: 6px; }
+.zd-presets legend { padding: 0 4px; color: var(--text-muted); font-size: 12px; }
+.zd-option { display: flex; align-items: center; gap: 6px; }
+.zd-percent-row { display: flex; align-items: center; gap: 8px; }
+.zd-percent { width: 72px; height: 26px; padding: 0 6px; border: 1px solid var(--control-border); border-radius: 4px; background: var(--control-bg); color: var(--text); user-select: text; }

@@ -40,7 +40,7 @@ export function createStatusBar({ registry, store, toast }) {
 
   function update() {
     const s = store.get();
-    pageEl.textContent = t('status.pageOf', { page: 1, pages: 1 });
+    pageEl.textContent = t('status.pageOf', { page: s.page || 1, pages: s.pageCount || 1 });
     wordsEl.textContent = t('status.words', { count: s.words || 0 });
     langEl.textContent = t(`lang.${getLocale()}`);
     zoomPct.textContent = `${s.zoom}%`;
@@ -52,6 +52,31 @@ export function createStatusBar({ registry, store, toast }) {
     for (const b of views.children) b.classList.toggle('is-checked', b.dataset.view === `view.${{ read: 'readMode', print: 'printLayout', web: 'webLayout' }[s.view]}`);
     for (const el of bar.querySelectorAll('[data-item]')) el.hidden = hidden.has(el.dataset.item);
   }
+
+  // Zoom slider: drag or click; 100 % sits in the middle (10 %…100 %…500 %).
+  const fracToZoom = (f) => (f <= 0.5 ? 10 + (f / 0.5) * 90 : 100 + ((f - 0.5) / 0.5) * 400);
+  const zoomFromEvent = (e) => {
+    const r = slider.getBoundingClientRect();
+    let z = fracToZoom(Math.max(0, Math.min(1, (e.clientX - r.left) / r.width)));
+    if (Math.abs(z - 100) < 6) z = 100; // snap to 100 %
+    return z;
+  };
+  slider.addEventListener('pointerdown', (e) => {
+    e.preventDefault();
+    slider.setPointerCapture(e.pointerId);
+    const apply = (ev) => registry.run('app.setZoom', zoomFromEvent(ev));
+    apply(e);
+    const move = (ev) => apply(ev);
+    const up = () => { slider.removeEventListener('pointermove', move); slider.removeEventListener('pointerup', up); };
+    slider.addEventListener('pointermove', move);
+    slider.addEventListener('pointerup', up);
+  });
+  slider.addEventListener('keydown', (e) => {
+    const step = { ArrowRight: 10, ArrowUp: 10, ArrowLeft: -10, ArrowDown: -10 }[e.key];
+    if (!step) return;
+    e.preventDefault();
+    registry.run('app.setZoom', store.get().zoom + step);
+  });
 
   bar.addEventListener('contextmenu', (e) => {
     e.preventDefault();

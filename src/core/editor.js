@@ -61,6 +61,8 @@ class FrameView {
       img.draggable = false;
       const url = this.env.pictureUrl(a.href) || fa['#pastedSrc'] || '';
       if (url) img.src = url;
+      // Images change height when they load: lay the pages out again.
+      img.addEventListener('load', () => this.env.onImageLoad?.(), { once: true });
       if (w) img.style.width = `${w}px`;
       if (h) img.style.height = `${h}px`;
       this.dom.append(img);
@@ -138,7 +140,7 @@ export function createEditor(mount, env) {
   function makeState(doc) {
     return EditorState.create({
       doc,
-      plugins: [history({ newGroupDelay: 500 }), editorKeymap, keymap(baseKeymap), dropCursor({ color: '#7a93f0' }), gapCursor(), notifyPlugin],
+      plugins: [history({ newGroupDelay: 500 }), editorKeymap, keymap(baseKeymap), dropCursor({ color: '#7a93f0' }), gapCursor(), notifyPlugin, ...(env.extraPlugins?.() || [])],
     });
   }
 
@@ -182,6 +184,12 @@ export function createEditor(mount, env) {
     },
     getDoc: () => view.state.doc,
     focus: () => view.focus(),
+    /** Puts the caret near a document position and focuses the editor. */
+    focusAt(pos) {
+      const $p = view.state.doc.resolve(Math.max(0, Math.min(pos, view.state.doc.content.size)));
+      view.dispatch(view.state.tr.setSelection(TextSelection.near($p)));
+      view.focus();
+    },
     undo: () => undo(view.state, view.dispatch),
     redo: () => redo(view.state, view.dispatch),
     canUndo: () => undoDepth(view.state) > 0,

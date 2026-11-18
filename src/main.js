@@ -18,67 +18,22 @@ import { initMenus, isMenuOpen } from './ui/menu.js';
 import { toast } from './ui/toast.js';
 import { createRibbon } from './ui/ribbon/ribbon.js';
 import { createStatusBar } from './ui/statusbar.js';
-import { createRulers } from './layout/ruler.js';
+import { createDocumentArea } from './layout/document-area.js';
+import { showZoomDialog } from './ui/zoom-dialog.js';
 import { createBackstage } from './ui/backstage.js';
 import { createCommandSearch } from './ui/command-search.js';
 import { createKeyTips } from './ui/keytips.js';
 import { importOdt } from './core/odt/import.js';
 import { exportOdt } from './core/odt/export.js';
 import { stateToJSON, createBlankState, documentStats } from './core/document.js';
-import { buildStyleIndex, buildDocumentCss, pageLayout, autoFromTree } from './core/odt/styles.js';
+import { autoFromTree } from './core/odt/styles.js';
 import { createEditor } from './core/editor.js';
 import { createSession } from './core/session.js';
 import { createClipboardActions } from './core/clipboard-actions.js';
-import { toPx } from './layout/units.js';
-import { TextSelection } from 'prosemirror-state';
-
-/**
- * The document area: canvas, page, rulers and the editor. The page takes its
- * size and margins from the document's default master page; in this
- * continuous view it grows with the content (pagination arrives in M3).
- */
-function createDocumentArea(store, editorEnv) {
-  const docStyle = h('style', { id: 'odt-doc-css' });
-  document.head.append(docStyle);
-  const mount = h('div', { class: 'odt-doc' });
-  const page = h('div', { class: 'page', role: 'document', 'aria-label': t('region.page', { page: 1 }) }, mount);
-  const pages = h('div', { class: 'pages' }, page);
-  const canvas = h('div', { class: 'canvas', 'aria-label': t('region.document'), 'data-region': 'document' }, pages);
-  const rulers = createRulers({ store });
-  const area = h('main', { class: 'doc-area' }, canvas, rulers.hstrip, rulers.vstrip, rulers.corner);
-  let marginsPx = { top: 96, right: 96, bottom: 96, left: 96 };
-  let pageHeightPx = 1123;
-  const sync = () => rulers.update(page, marginsPx, pageHeightPx);
-  canvas.addEventListener('scroll', sync, { passive: true });
-  new ResizeObserver(sync).observe(canvas);
-  new ResizeObserver(sync).observe(page);
-  store.subscribe((s, changed) => { if (changed.includes('showRuler') || changed.includes('ribbonCollapsed') || changed.includes('ribbonPeek')) requestAnimationFrame(sync); });
-  document.fonts?.ready.then(sync);
-  // Clicking the page margin or canvas puts the caret in the document, like Word.
-  canvas.addEventListener('mousedown', (e) => {
-    if (e.target === canvas || e.target === pages || e.target === page) { e.preventDefault(); editorEnv.focusEnd?.(e); }
-  });
-
-  /** Applies a document's styles and page geometry. */
-  function applyDocument(state) {
-    const index = buildStyleIndex(state);
-    docStyle.textContent = buildDocumentCss(state, index);
-    const layout = pageLayout(state);
-    marginsPx = { top: toPx(layout.marginTop), right: toPx(layout.marginRight), bottom: toPx(layout.marginBottom), left: toPx(layout.marginLeft) };
-    page.style.width = `${toPx(layout.width)}px`;
-    pageHeightPx = toPx(layout.height);
-    page.style.minHeight = `${pageHeightPx}px`;
-    page.style.padding = `${marginsPx.top}px ${marginsPx.right}px ${marginsPx.bottom}px ${marginsPx.left}px`;
-    page.style.background = layout.background || '';
-    requestAnimationFrame(sync);
-    return index;
-  }
-  return { el: area, canvas, page, mount, sync, applyDocument };
-}
 
 function boot() {
   applyTheme();
-  const store = createStore({ ...INITIAL_APP_STATE, ribbonCollapsed: !!getSetting('ribbonCollapsed'), showRuler: getSetting('showRuler') !== false });
+  const store = createStore({ ...INITIAL_APP_STATE, ribbonCollapsed: !!getSetting('ribbonCollapsed'), showRuler: getSetting('showRuler') !== false, zoom: getSetting('zoom') || 100 });
   const ui = {};
   let editor = null;
   let session = null;
@@ -87,6 +42,8 @@ function boot() {
   registerFeatures(registry);
   store.subscribe((s, changed) => {
     if (changed.includes('ribbonCollapsed')) setSetting('ribbonCollapsed', s.ribbonCollapsed);
+    if (changed.includes('showRuler')) setSetting('showRuler', s.showRuler);
+    if (changed.includes('zoom')) setSetting('zoom', s.zoom);
     registry.notify();
   });
   onThemeChange(() => registry.notify());
@@ -98,8 +55,8 @@ function boot() {
   initMenus({ registry, resolve: resolveId, toast });
 
   // ------------------------------------------------------------ document
-  let styleIndex = null;
   let pictureUrls = new Map();
+  const docArea = createDocumentArea({ store, getEditor: () => editor, getSession: () => session });
   const editorEnv = {
     pictureUrl(path) {
       if (!path || !session?.state) return '';
@@ -112,7 +69,7 @@ function boot() {
     },
     /** Horizontal placement of an anchored frame from its graphic style. */
     graphicPos(styleName) {
-      const t2 = styleName && styleIndex?.autos.get(`graphic:${styleName}`);
+      const t2 = styleName && docArea.styleIndex?.autos.get(`graphic:${styleName}`);
       const gp = t2 ? autoFromTree(t2).auto?.props?.['style:graphic-properties']?.a || {} : {};
       if (gp['style:wrap'] === 'none' || gp['style:horizontal-pos'] === 'center') return 'center';
       if (gp['style:horizontal-pos'] === 'right' || gp['style:horizontal-pos'] === 'outside') return 'right';
@@ -127,17 +84,11 @@ function boot() {
       return path;
     },
     openFiles(files) { if (files[0]) session.openFile(files[0]).then((ok) => { if (ok) store.set({ backstageOpen: false }); }); },
-    focusEnd(e) {
-      const view = editor.view;
-      const pos = view.posAtCoords({ left: e.clientX, top: e.clientY });
-      const sel = pos ? TextSelection.near(view.state.doc.resolve(pos.pos)) : TextSelection.atEnd(view.state.doc);
-      view.dispatch(view.state.tr.setSelection(sel));
-      view.focus();
-    },
+    extraPlugins: () => [docArea.plugin()],
+    onImageLoad: () => docArea.relayout(),
   };
 
   const ribbon = createRibbon({ registry, store, tabs: TABS, toast });
-  const docArea = createDocumentArea(store, editorEnv);
   const status = createStatusBar({ registry, store, toast });
 
   let statsTimer = null;
@@ -146,13 +97,17 @@ function boot() {
     statsTimer = setTimeout(() => store.set({ words: documentStats(editor.getDoc()).words }), 250);
   };
   editorEnv.onTransaction = (view, tr) => {
+    if (tr.getMeta('pagination')) return;
     if (tr.docChanged && !tr.getMeta('load')) { session?.markDirty(); updateStats(); }
     if (tr.getMeta('load')) updateStats();
+    if (tr.docChanged) docArea.update();
+    if (tr.docChanged || tr.selectionSet) requestAnimationFrame(docArea.syncRulers);
     const hasSelection = !view.state.selection.empty;
     if (hasSelection !== store.get().hasSelection) store.set({ hasSelection });
     else if (tr.docChanged) registry.notify();
   };
-  editor = createEditor(docArea.mount, editorEnv);
+  editor = createEditor(docArea.view.mount, editorEnv);
+  docArea.attach(editor);
   clipboard = createClipboardActions(editor, toast);
 
   session = createSession({
@@ -161,7 +116,7 @@ function boot() {
     onLoad(state) {
       for (const url of pictureUrls.values()) URL.revokeObjectURL(url);
       pictureUrls = new Map();
-      styleIndex = docArea.applyDocument(state);
+      docArea.applyDocument(state);
     },
     onChange(info) { store.set({ docTitle: info.name, dirty: info.dirty }); },
   });
@@ -174,6 +129,8 @@ function boot() {
   const regions = () => [ribbon.tabbar, ribbon.ribbon, docArea.canvas, status.el].filter((r) => !r.hidden && r.getClientRects().length);
   ui.openCommandSearch = () => search.open();
   ui.showKeyTips = () => keytips.start();
+  ui.docArea = docArea;
+  ui.openZoomDialog = () => showZoomDialog({ store, docArea });
   ui.cycleRegion = (dir) => {
     if (store.get().backstageOpen) return;
     const list = regions();
@@ -217,11 +174,11 @@ function boot() {
     if (file) editorEnv.openFiles([file]);
   });
 
-  addEventListener('resize', () => docArea.sync());
+  document.fonts?.addEventListener?.('loadingdone', () => docArea.relayout());
   session.newDocument({ skipGuard: true });
 
   const ready = loadBundledFonts().then(() => new Promise((r) => requestAnimationFrame(r))).finally(() => {
-    docArea.sync();
+    docArea.relayout();
     root.setAttribute('aria-busy', 'false');
   });
 
@@ -233,7 +190,7 @@ function boot() {
   // Stable hook for tests and debugging.
   window.odtEditor = Object.freeze({
     io: { importOdt, exportOdt, stateToJSON, createBlankState }, registry, store, t, ready, version: APP_VERSION, appName: APP_NAME,
-    tabs: TABS, search, keytips, ribbon, editor, session,
+    tabs: TABS, search, keytips, ribbon, editor, session, docArea,
   });
 }
 

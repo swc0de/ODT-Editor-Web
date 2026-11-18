@@ -36,6 +36,10 @@ export default {
   'ruler.tab.bar': 'Bar tab',
   'ruler.tab.firstLine': 'First line indent',
   'ruler.tab.hanging': 'Hanging indent',
+  'ruler.leftMargin': 'Left Margin',
+  'ruler.rightMargin': 'Right Margin',
+  'ruler.topMargin': 'Top Margin',
+  'ruler.bottomMargin': 'Bottom Margin',
   'ruler.firstLineIndent': 'First Line Indent',
   'ruler.hangingIndent': 'Hanging Indent',
   'ruler.leftIndent': 'Left Indent',
@@ -73,6 +77,17 @@ export default {
   'search.noResults': 'No matching commands',
   'search.comingSoon': 'Coming soon',
   'search.button': 'Search',
+
+  'zoom.zoomTo': 'Zoom to',
+  'zoom.200': '200%',
+  'zoom.100': '100%',
+  'zoom.75': '75%',
+  'zoom.pageWidth': 'Page width',
+  'zoom.textWidth': 'Text width',
+  'zoom.wholePage': 'Whole page',
+  'zoom.manyPages': 'Many pages',
+  'zoom.percent': 'Percent:',
+  'page.label': 'Page {page}',
 
   'keytips.hint': 'KeyTips: press a letter, or Esc to go back.',
 
