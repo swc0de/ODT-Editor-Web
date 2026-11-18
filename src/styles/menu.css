@@ -50,3 +50,17 @@
 .gal-popup-grid { display: flex; flex-wrap: wrap; width: calc(77px * 7 + 4px); }
 .group-popup { min-width: 0; padding: 4px 4px 0; background: var(--ribbon-bg); }
 .group-popup .group-full { display: flex; }
+/* Design tab galleries */
+.theme-grid { display: grid; grid-template-columns: repeat(3, 108px); gap: 8px; padding: 4px; }
+.theme-card, .wm-card { display: flex; flex-direction: column; gap: 4px; padding: 6px; border: 1px solid transparent; border-radius: 4px; background: transparent; color: var(--text); }
+.theme-card:hover, .theme-card:focus, .wm-card:hover, .wm-card:focus { background: var(--hover-bg); border-color: var(--control-border-soft); }
+.theme-sample { display: block; height: 44px; background: #fff; font-size: 26px; line-height: 44px; text-align: center; border-radius: 2px; }
+.theme-bars, .set-swatches { display: flex; gap: 2px; }
+.theme-bars i, .set-swatches i { display: block; width: 14px; height: 10px; }
+.theme-name, .wm-name { font-size: 12px; text-align: center; }
+.set-row, .font-row { display: flex; align-items: center; gap: 10px; width: 100%; border: 0; background: transparent; color: var(--text); text-align: left; }
+.font-aa { font-size: 22px; width: 36px; }
+.font-names { display: flex; flex-direction: column; font-size: 12px; }
+.wm-grid { display: grid; grid-template-columns: repeat(3, 96px); gap: 8px; padding: 4px; }
+.wm-page { display: grid; place-items: center; height: 110px; background: #fff; overflow: hidden; }
+.wm-text { transform: rotate(-45deg); color: #b8b8b8; font: 600 13px "Carlito", sans-serif; white-space: nowrap; }

@@ -33,6 +33,7 @@ export function createDocumentArea({ store, getEditor, getSession, onPagesChange
   let styleIndex = null;
   let model = null;
   let hyphCaps = true;
+  let hyphAny = false;
   let lnFrame = 0;
   let paginator = null;
   let pages = [];
@@ -134,6 +135,7 @@ export function createDocumentArea({ store, getEditor, getSession, onPagesChange
     view.mount.style.setProperty('--page-col-gap', `${model.first.columns.gap || 0}px`);
     const ed = getEditor();
     hyphCaps = hyphenation(state).caps;
+    hyphAny = JSON.stringify(state.commonStyles || {}).includes('"fo:hyphenate":"true"') || JSON.stringify(state.contentAutoStyles || []).includes('"fo:hyphenate":"true"');
     if (ed) ed.view.dispatch(ed.view.state.tr.setMeta(regionsKey, true).setMeta(hyphenKey, true).setMeta('addToHistory', false).setMeta('pagination', true));
     paginator?.relayout();
     return styleIndex;
@@ -222,7 +224,7 @@ export function createDocumentArea({ store, getEditor, getSession, onPagesChange
     rulers,
     attach,
     applyDocument,
-    plugins: () => [paginationPlugin(), regionsPlugin(() => model, () => styleIndex), hyphenationPlugin(() => ({ index: styleIndex, caps: hyphCaps })), fieldsPlugin()],
+    plugins: () => [paginationPlugin(), regionsPlugin(() => model, () => styleIndex), hyphenationPlugin(() => ({ index: styleIndex, caps: hyphCaps, any: hyphAny })), fieldsPlugin()],
     /** After a document change. */
     update: () => paginator?.update(),
     relayout: () => paginator?.relayout(),

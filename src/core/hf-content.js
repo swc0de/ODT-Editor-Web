@@ -10,6 +10,7 @@ import { createBodyWriter, createAutoRegistry } from './odt/export.js';
 import { parseXml, toTree, treeToXml, createNsContext, nsDeclarations, findChild } from './odt/xml.js';
 import { ROOT_PREFIXES } from './odt/namespaces.js';
 import { treeFromAuto } from './odt/styles.js';
+import { isWatermark } from '../layout/page-model.js';
 
 /** Element name of a header/footer variant: kind 'right' (default) | 'left' | 'first'. */
 export const partElement = (part, kind) => (kind === 'left' ? `style:${part}-left` : kind === 'first' ? `style:${part}-first` : `style:${part}`);
@@ -20,8 +21,13 @@ export function findPart(state, masterName, part, kind) {
   return { master, tree: master ? findChild(master, partElement(part, kind)) : null };
 }
 
-/** A part tree → ProseMirror document (at least one paragraph). */
+/** Watermark shapes of a part (kept outside the header editor). */
+const watermarks = (tree) => (tree?.c || []).flatMap((p) => (typeof p === 'string' ? [] : (p.c || []).filter(isWatermark)));
+const stripWatermarks = (tree) => (tree ? { ...tree, c: (tree.c || []).map((p) => (typeof p === 'string' ? p : { ...p, c: (p.c || []).filter((x) => !isWatermark(x)) })) } : tree);
+
+/** A part tree → ProseMirror document (at least one paragraph; watermarks left out). */
 export function partToDoc(state, styleIndex, tree) {
+  tree = stripWatermarks(tree);
   const autoIndex = new Map();
   for (const t of state.stylesAutoStyles?.c || []) if (typeof t !== 'string' && t.n === 'style:style') autoIndex.set(`${t.a['style:family']}:${t.a['style:name']}`, t);
   const converter = createConverter({ ns: createNsContext(), autoIndex, styleIndex });
@@ -61,6 +67,13 @@ export function writePart(state, masterName, part, kind, doc) {
   const ns = createNsContext();
   const children = [...root.children].map((el) => toTree(el, ns));
   const el = partElement(part, kind);
+  // Keep the part's watermark (it lives in the first paragraph).
+  const old = findPart(state, masterName, part, kind).tree;
+  const wm = watermarks(old);
+  if (wm.length) {
+    const first = children.find((x) => x.n === 'text:p' || x.n === 'text:h');
+    if (first) first.c = [...wm, ...(first.c || [])]; else children.unshift({ n: 'text:p', a: { 'text:style-name': part === 'header' ? 'Header' : 'Footer' }, c: wm });
+  }
   const masters = (state.masterStyles?.c || []).map((m) => {
     if (typeof m === 'string' || m.n !== 'style:master-page' || m.a['style:name'] !== masterName) return m;
     const c = [...(m.c || [])];

@@ -52,7 +52,7 @@ function decosFor(doc, from, to, wants, caps, out) {
   return out;
 }
 
-/** getConfig() → { index, caps } where index is the style index. */
+/** getConfig() → { index, caps, any } (style index; hyphenate capitals; does any style hyphenate). */
 export function hyphenationPlugin(getConfig) {
   const wantsFor = () => {
     const { index } = getConfig();
@@ -74,6 +74,8 @@ export function hyphenationPlugin(getConfig) {
         if (tr.getMeta(hyphenKey)) return DecorationSet.create(state.doc, decosFor(state.doc, 0, state.doc.content.size, wantsFor(), getConfig().caps, []));
         if (!tr.docChanged) return old;
         let decos = old.map(tr.mapping, tr.doc);
+        // Nothing in the document hyphenates: nothing to do while typing.
+        if (!getConfig().any) return decos;
         const wants = wantsFor();
         tr.steps.forEach((step, i) => step.getMap().forEach((_a, _b, from, to) => {
           const m = tr.mapping.slice(i + 1);

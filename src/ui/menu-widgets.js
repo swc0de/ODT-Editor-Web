@@ -7,6 +7,7 @@
 import { h } from './dom.js';
 import { t } from '../i18n/index.js';
 import { iconSvg } from './icons.js';
+import { THEMES, COLOUR_SETS, FONT_SETS, SPACING, WATERMARKS } from '../features/design/apply.js';
 
 const THEME_COLOURS = [
   ['#ffffff', '#000000', '#e8e8e8', '#0e2841', '#156082', '#e97132', '#196b24', '#0f9ed5', '#a02b93', '#4ea72e'],
@@ -168,6 +169,62 @@ function hfGallery(o, part) {
     })));
 }
 
+/** Design ▸ Themes: a card per theme (title sample in its fonts and colours). */
+function themeGallery(o) {
+  return h('div', { class: 'menu-widget' }, h('div', { class: 'menu-header' }, t('design.themesHeader')),
+    h('div', { class: 'theme-grid' }, Object.entries(THEMES).map(([id, th], i) => {
+      const cs = COLOUR_SETS[th.colours];
+      const [hf] = FONT_SETS[th.fonts];
+      const b = h('button', { type: 'button', class: 'theme-card', tabindex: '-1', 'data-menu-focus': i === 0 ? '' : null, 'aria-label': t(`design.theme.${id}`), 'data-theme-id': id },
+        h('span', { class: 'theme-sample', style: { fontFamily: `"${hf}"`, color: cs.title } }, 'Aa'),
+        h('span', { class: 'theme-bars' }, cs.swatches.map((c) => h('i', { style: { background: c } }))),
+        h('span', { class: 'theme-name' }, t(`design.theme.${id}`)));
+      bind(b, o, 'design.themes', () => o.registry.run('design.themes', id));
+      return b;
+    })));
+}
+
+function colourSets(o) {
+  return h('div', { class: 'menu-widget' }, h('div', { class: 'menu-header' }, t('design.coloursHeader')),
+    Object.entries(COLOUR_SETS).map(([id, cs], i) => {
+      const b = h('button', { type: 'button', class: 'menu-item set-row', tabindex: '-1', 'data-menu-focus': i === 0 ? '' : null, 'aria-label': t(`design.colours.${id}`) },
+        h('span', { class: 'set-swatches' }, cs.swatches.map((c) => h('i', { style: { background: c } }))), h('span', { class: 'menu-label' }, t(`design.colours.${id}`)));
+      bind(b, o, 'design.colours', () => o.registry.run('design.colours', id));
+      return b;
+    }));
+}
+
+function fontSets(o) {
+  return h('div', { class: 'menu-widget' }, h('div', { class: 'menu-header' }, t('design.fontsHeader')),
+    Object.entries(FONT_SETS).map(([id, [hf, bf]], i) => {
+      const b = h('button', { type: 'button', class: 'menu-item font-row', tabindex: '-1', 'data-menu-focus': i === 0 ? '' : null, 'aria-label': `${hf} / ${bf}` },
+        h('span', { class: 'font-aa', style: { fontFamily: `"${hf}"` } }, 'Aa'),
+        h('span', { class: 'font-names' }, h('span', { style: { fontFamily: `"${hf}"` } }, hf), h('span', { style: { fontFamily: `"${bf}"` } }, bf)));
+      bind(b, o, 'design.fonts', () => o.registry.run('design.fonts', id));
+      return b;
+    }));
+}
+
+function spacingPresets(o) {
+  return h('div', { class: 'menu-widget' }, h('div', { class: 'menu-header' }, t('design.spacingHeader')),
+    Object.keys(SPACING).map((id, i) => {
+      const b = h('button', { type: 'button', class: 'menu-item', tabindex: '-1', 'data-menu-focus': i === 0 ? '' : null, role: 'menuitem' },
+        h('span', { class: 'menu-check' }), h('span', { class: 'menu-label' }, t(`design.spacing.${id}`)));
+      bind(b, o, 'design.paragraphSpacing', () => o.registry.run('design.paragraphSpacing', id));
+      return b;
+    }));
+}
+
+function watermarkGallery(o) {
+  return h('div', { class: 'menu-widget' }, h('div', { class: 'menu-header' }, t('design.watermarkHeader')),
+    h('div', { class: 'wm-grid' }, WATERMARKS.map(([id, text], i) => {
+      const b = h('button', { type: 'button', class: 'wm-card', tabindex: '-1', 'data-menu-focus': i === 0 ? '' : null, 'aria-label': text, 'data-watermark': id },
+        h('span', { class: 'wm-page' }, h('span', { class: 'wm-text' }, text)), h('span', { class: 'wm-name' }, text));
+      bind(b, o, 'design.watermark', () => o.registry.run('design.watermark', id));
+      return b;
+    })));
+}
+
 /** Galleries whose previews are built together with their feature (later milestones). */
 function pendingGallery() {
   return h('div', { class: 'menu-widget' }, h('div', { class: 'menu-note' }, t('menu.galleryPreview')));
@@ -185,6 +242,11 @@ const WIDGETS = {
   thicknessList,
   windowList,
   headerGallery: (o) => hfGallery(o, 'header'),
+  themeGallery,
+  themeColours: colourSets,
+  themeFonts: fontSets,
+  paragraphSpacingPresets: spacingPresets,
+  watermarkGallery,
   footerGallery: (o) => hfGallery(o, 'footer'),
 };
 

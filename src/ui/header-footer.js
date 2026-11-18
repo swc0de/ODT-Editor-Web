@@ -237,7 +237,7 @@ export function createHeaderFooter({ store, docArea, getSession, mainEditor, edi
   }
 
   return {
-    open, close, commit, remove,
+    open, close, commit, remove, ensurePart,
     isActive: () => !!active,
     activeEditor: () => active?.editor || null,
     current: () => (active ? { master: active.master, part: active.part, kind: active.kind } : null),

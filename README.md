@@ -5,11 +5,12 @@ browser from **one self-contained HTML file**: `dist/odt-editor.html`.
 No server, no uploads, no analytics — open the file (even from `file://`, even
 offline) and everything happens locally.
 
-> **Status: milestone M4 (Home tab).** Open .odt/.ott files and edit them on
-> real pages with the whole Home tab: character and paragraph formatting and
-> their dialogs, lists, styles and the Styles pane, find and replace, Format
-> Painter, paste options, AutoCorrect, the mini-toolbar and context menu —
-> plus live rulers, zoom and an autosaving, crash-safe save/open workflow.
+> **Status: milestone M5 (Layout and Design).** Open .odt/.ott files and edit
+> them on real pages with the Home, Layout and Design tabs: formatting, lists,
+> styles, find and replace; page setup, sections with their own page size and
+> orientation, columns, breaks, line numbers, hyphenation; editable headers and
+> footers with page numbers; themes, style sets, watermarks, page colour and
+> borders — plus live rulers, zoom and an autosaving, crash-safe workflow.
 > Other ribbon tabs arrive in later milestones — see [MILESTONES.md](MILESTONES.md)
 > and [PROGRESS.md](PROGRESS.md). Controls for features that aren't built yet
 > are dimmed with a "Coming soon" tooltip.
@@ -100,7 +101,8 @@ reference/             UI reference screenshots; compare/ holds generated compar
 - Bundled fonts: Carlito, Caladea, Liberation Sans/Serif/Mono — SIL Open Font
   License 1.1 (see `assets/fonts/LICENSE.md`).
 - Libraries bundled into the HTML file: ProseMirror (MIT), fflate (MIT),
-  Lucide icons (ISC).
+  Lucide icons (ISC), hyphen (ISC) with British English hyphenation patterns
+  from CTAN (hyph-en-gb).
 
 UI inspired by the open-source WordCraft project (MIT/Apache-2.0).
 
@@ -137,13 +139,30 @@ UI inspired by the open-source WordCraft project (MIT/Apache-2.0).
 - F8 extends the selection; Shift+F5 goes back to where you last edited.
 - Dictate uses the browser's speech recognition where available.
 
-## Known limitations (M4)
+## Layout, headers and footers, Design
 
+- Layout ▸ Margins / Orientation / Size / Columns apply to the current section
+  (or the whole document when there is only one); the Page Setup dialog
+  (launcher) offers both. Breaks ▸ Next Page / Even / Odd start a new section
+  with its own page style; Continuous starts a column section.
+- Double-click a header or footer to edit it (Esc to finish). Insert ▸ Page
+  Number puts numbers at the top or bottom; Format Page Numbers sets the
+  style and start value.
+- Design ▸ Themes, Style Sets, Colours, Fonts and Paragraph Spacing restyle the
+  document through its styles; Set as Default makes them the styles of new
+  documents.
+- Everything here is undoable with Ctrl+Z.
+
+## Known limitations (M5)
+
+- Columns: a paragraph taller than a column isn't split across pages inside a
+  column region. Line numbers count body paragraphs only. Hyphenation is
+  British English. Coming soon: Design ▸ Effects and Page Number ▸ Page
+  Margins (they need text frames, M7).
 - Coming soon on the Home tab: the Clipboard pane, Phonetic Guide, Enclose
   Characters, Glow, the Editor (spelling) pane.
-- Headers and footers are shown but not editable yet (M5); all pages use the
-  first page style's width; page-level columns and footnotes at the page
-  bottom aren't laid out yet; table header rows aren't repeated (M6).
+- Footnotes at the page bottom aren't laid out yet (M8); table header rows
+  aren't repeated (M6).
 - Footnotes, comments, text boxes, tables of contents and tracked changes are
   kept and displayed but not editable yet.
 - Content inside merged-away table cells (rare) is not kept.

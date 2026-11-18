@@ -454,8 +454,9 @@ export function createPaginator(o) {
         // up from the body bottom: move the split by that much.
         const prevEl = ownEls[chunkNo];
         let measuredTop = null;
+        let jp = -1;
         if (prevEl) {
-          const jp = pieces.findIndex((x, idx) => idx > i && x.set > chunkNo);
+          jp = pieces.findIndex((x, idx) => idx > i && x.set > chunkNo);
           if (jp > i) {
             const ppos = Number(prevEl.dataset.pos);
             measuredTop = (prevEl.getBoundingClientRect().top - top0) / k - prefix(ppos, true) + sumNew();
@@ -465,7 +466,9 @@ export function createPaginator(o) {
               let removed = 0;
               while (j > i + 1 && removed < err * N) { j--; removed += pieces[j].h; }
               measuredTop = null;
-            } else if (err < -line * 1.2) {
+            } else if (err < -line * 2.2) {
+              // Clearly under-filled (by more than two lines): take more. Smaller gaps are
+              // left alone, or a split would flip between two positions forever.
               let added = 0;
               while (j < pieces.length && !pieces[j].forced && added + pieces[j].h <= (-err - line * 0.2) * N) { added += pieces[j].h; j++; }
               if (added > 0) measuredTop = null;
@@ -486,13 +489,17 @@ export function createPaginator(o) {
         }
         if (++count % 10 === 0) yield;
         const piece = pieces[j];
-        const pos = piece.pos();
+        let pos = piece.pos();
+        // A split at the very start of a paragraph is a block-level spacer.
+        let inline = !!piece.inline;
+        if (inline && pos <= piece.unit.pos + 1) { pos = piece.unit.pos; inline = false; }
         const before = page;
         newPage(piece.unit, null);
         page.clean = false;
-        page.startPos = pos;
         let h;
-        if (measuredTop != null && prevEl && Number(prevEl.dataset.pos) === pos) {
+        if (measuredTop != null && prevEl && (Number(prevEl.dataset.pos) === pos || j === jp)) {
+          pos = Number(prevEl.dataset.pos);
+          inline = prevEl.classList.contains('pg-gap-inline');
           h = bodyTop(page) - measuredTop;
           const old = gaps.find((g) => g.type === 'span' && g.pos === pos);
           if (!old || Math.abs(h - old.h) > 0.5) regionAgain = Math.min(regionAgain, u.whole ? 0 : u.pos);
@@ -501,7 +508,8 @@ export function createPaginator(o) {
           h = bodyTop(page) - Math.min(bodyBottom(before), chunkTop + acc / N + line);
           regionAgain = Math.min(regionAgain, u.whole ? 0 : u.pos);
         }
-        newGaps.push({ type: 'span', pos, h, inline: !!piece.inline });
+        page.startPos = pos;
+        newGaps.push({ type: 'span', pos, h, inline });
         chunkTop = bodyTop(page);
         firstChunk = false;
         chunkNo++;
@@ -620,12 +628,23 @@ export function createPaginator(o) {
     const redo = [...newlySplit, ...(again != null ? [again] : [])];
     view.dispatch(view.state.tr.setMeta(paginationKey, { decos, gaps: newGaps, pages, dirtyFrom: redo.length ? Math.min(...redo) : null }).setMeta('addToHistory', false).setMeta('pagination', true));
     o.onLayout?.(pages);
-    if (redo.length) { cancelAnimationFrame(frame); frame = requestAnimationFrame(() => run(Math.min(...redo))); }
+    if (redo.length && !fullPending) { cancelAnimationFrame(frame); frame = requestAnimationFrame(() => run(Math.min(...redo))); }
   }
 
   /** Starts (or restarts) a layout from the page containing `fromPos` (null = everything). */
   function run(fromPos) {
     cancelAnimationFrame(frame);
+    // A full re-layout was requested (styles, page setup…): do that instead.
+    if (fullPending) { fullPending = false; fromPos = null; }
+    // Column spacers from an earlier layout split lines where a single column
+    // wouldn't: remove them before measuring from scratch.
+    if (fromPos == null && st().gaps.some((g) => g.type === 'span')) {
+      const keep = st().gaps.filter((g) => g.type !== 'span');
+      view.dispatch(view.state.tr.setMeta(paginationKey, { decos: gapDecorations(view.state.doc, keep), gaps: keep }).setMeta('addToHistory', false).setMeta('pagination', true));
+      fullPending = true;
+      frame = requestAnimationFrame(() => run(null));
+      return;
+    }
     if (!o.getModel()) return; // no document loaded yet
     const cur = st();
     if (!o.getOptions().enabled) {

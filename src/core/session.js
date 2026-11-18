@@ -86,10 +86,26 @@ export function createSession({ editor, onLoad, onChange, toast }) {
 
   function untitledName() { untitledCounter++; return `${t('app.untitled').replace(/\d+$/, '')}${untitledCounter}`; }
 
+  /** A blank document with the styles saved by Design ▸ Set as Default. */
+  function blankState(opts) {
+    const st = createBlankState(opts);
+    let saved = null;
+    try { saved = JSON.parse(getSetting('defaultStyles') || 'null'); } catch { saved = null; }
+    if (!saved?.trees?.length) return st;
+    const key = (x) => `${x.n}|${x.a?.['style:family'] || ''}|${x.a?.['style:name'] || ''}`;
+    const byKey = new Map(saved.trees.map((x) => [key(x), x]));
+    const c = (st.commonStyles.c || []).map((x) => (typeof x !== 'string' && byKey.has(key(x)) ? byKey.get(key(x)) : x));
+    for (const x of saved.trees) if (!c.some((y) => typeof y !== 'string' && key(y) === key(x))) c.push(x);
+    st.commonStyles = { ...st.commonStyles, c };
+    const names = new Set((st.fontFaces || []).map((f) => f.a['style:name']));
+    st.fontFaces = [...(st.fontFaces || []), ...(saved.fontFaces || []).filter((f) => !names.has(f.a['style:name']))];
+    return st;
+  }
+
   async function newDocument({ doc = null, skipGuard = false } = {}) {
     if (!skipGuard && !(await confirmDiscard())) return false;
     await discardAutosave();
-    load(createBlankState({ doc }), { name: untitledName() });
+    load(blankState({ doc }), { name: untitledName() });
     return true;
   }
 
@@ -240,7 +256,7 @@ export function createSession({ editor, onLoad, onChange, toast }) {
   async function close() {
     if (!(await confirmDiscard())) return false;
     await discardAutosave();
-    load(createBlankState(), { name: untitledName() });
+    load(blankState(), { name: untitledName() });
     return true;
   }
 

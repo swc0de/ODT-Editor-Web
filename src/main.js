@@ -263,6 +263,7 @@ function boot() {
     }),
   });
   ui.onPages = () => ui.hf.relocate();
+  ui.addPicture = (bytes, type) => editorEnv.addPicture(bytes, type);
 
   const mini = createMiniToolbar({ registry, store, editor });
   attachContextMenu({ registry, editor, mini });

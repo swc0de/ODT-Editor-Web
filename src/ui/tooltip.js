@@ -40,11 +40,11 @@ function show(el) {
   const c = contentFor(el);
   if (!c) return;
   const tip = ensureEl();
-  tip.replaceChildren(
+  tip.replaceChildren(...[
     h('div', { class: 'tooltip-title' }, c.title),
     c.body ? h('div', { class: 'tooltip-body' }, c.body) : null,
     c.status ? h('div', { class: 'tooltip-status' }, c.status) : null,
-  );
+  ].filter(Boolean));
   tip.hidden = false;
   const r = el.getBoundingClientRect();
   const tr = tip.getBoundingClientRect();

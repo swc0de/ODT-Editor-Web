@@ -52,7 +52,8 @@ function watermarkInfo(shape, state) {
   if (!shape) return null;
   const gs = (state.stylesAutoStyles?.c || []).find((t) => t.n === 'style:style' && t.a['style:family'] === 'graphic' && t.a['style:name'] === shape.a['draw:style-name']);
   const gp = gs ? findChild(gs, 'style:graphic-properties')?.a || {} : {};
-  const opacity = gp['draw:opacity'] ? parseFloat(gp['draw:opacity']) / 100 : 0.5;
+  const op = gp['draw:image-opacity'] || gp['draw:opacity'];
+  const opacity = op ? parseFloat(op) / 100 : 0.5;
   const m = /rotate\s*\(\s*(-?[\d.]+)\s*\)/.exec(shape.a['draw:transform'] || '');
   const angle = m ? -Number(m[1]) * 180 / Math.PI : 0;
   if (shape.n === 'draw:frame') {
@@ -60,8 +61,10 @@ function watermarkInfo(shape, state) {
     return { kind: 'image', href: img?.a?.['xlink:href'] || '', opacity, angle, width: px(shape.a['svg:width'], 300), height: px(shape.a['svg:height'], 300) };
   }
   const text = (shape.c || []).filter((c) => typeof c !== 'string' && c.n === 'text:p').map((c) => (c.c || []).filter((x) => typeof x === 'string').join('')).join(' ');
+  const ts = (state.stylesAutoStyles?.c || []).find((t) => t.n === 'style:style' && t.a['style:name'] === shape.a['draw:text-style-name']);
+  const font = ts ? findChild(ts, 'style:text-properties')?.a?.['style:font-name'] : null;
   return {
-    kind: 'text', text, colour: gp['draw:fill-color'] || '#c0c0c0', opacity, angle,
+    kind: 'text', text, colour: gp['draw:fill-color'] || '#c0c0c0', opacity, angle, font,
     width: px(shape.a['svg:width'], 600), height: px(shape.a['svg:height'], 150),
   };
 }

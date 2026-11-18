@@ -9,7 +9,7 @@ The memory between sessions. Statuses: `todo`, `in progress`, `awaiting approval
 | M2 — Document model and ODT open/save | approved |
 | M3 — Print Layout: pagination, rulers, status bar, zoom | approved |
 | M4 — Home tab: character and paragraph formatting, styles, lists, find | approved |
-| M5 — Layout and Design tabs, headers/footers, sections | in progress |
+| M5 — Layout and Design tabs, headers/footers, sections | awaiting approval |
 | M6 — Tables | todo |
 | M7 — Insert tab: pictures, shapes, text boxes, links, symbols | todo |
 | M8 — References | todo |
@@ -167,3 +167,37 @@ Known limitations:
 - Paste Options: the floating button disappears at the next edit or selection change; Merge Formatting keeps bold/italic/underline and links only.
 - The Find formatting filter offers bold, italic, underline, highlight and strikethrough (not arbitrary Font-dialog formatting).
 - The Navigation pane's Pages tab shows page tiles, not live thumbnails.
+
+## M5 — Layout and Design tabs, headers/footers, sections (awaiting approval)
+
+Built:
+- **Undoable document-wide changes** (`core/state-step.js`): a ProseMirror step that swaps DocumentState fields (page styles, page layouts, named styles, list styles, font faces, line numbering), so page setup, header/footer edits, style edits (M4's included) and ruler margin drags undo and redo with ordinary edits.
+- **Page Setup** (`core/page-setup.js`, `features/layout`): Margins presets (Normal, Narrow, Moderate, Wide, Mirrored — measured to the body as in Word, converted to ODF page margins when there is a header/footer), Orientation, Size (A4, A5, A3, Letter, Legal, B5), Page Setup dialog (margins, mirror margins, paper size, custom size, header/footer distances, different first / odd & even, apply to this section or whole document). A page style shared by several sections is copied so only the current section changes.
+- **Sections**: Breaks ▸ Next Page / Even Page / Odd Page create a new page style (master page) copied from the current one (`Section 2`…; even/odd use a left-/right-only page style that continues with a normal one, and a blank page is inserted when needed). Each section can have its own size, orientation, margins, headers and footers; pages of other widths (landscape) are centred, and their text is laid out at their own width (`layout/regions.js`). Continuous breaks start a `text:section`.
+- **Columns** (One, Two, Three, Left, Right, More Columns… with spacing, line between, apply to selection / section / this point forward), saved as `text:section` column styles (page-level columns from LibreOffice files are laid out too). Multi-column text is split across pages with `column-span: all` spacers; each pass measures where the browser actually put them and corrects the split (`paginator.js` layoutRegion), so every line stays inside a page body.
+- **Breaks**: Page (also Ctrl+Enter), Column, Text Wrapping (`loext:clear`).
+- **Line Numbers**: None, Continuous, Restart Each Page, Restart Each Section (`text:line-number` restarts), Suppress for Current Paragraph, options (start, distance from text, count by); numbers drawn in the margin after each layout.
+- **Hyphenation**: None / Automatic / options (hyphenate capitals, consecutive hyphen limit); automatic hyphenation uses bundled en-GB Liang patterns (`hyphen`, ISC) as soft-hyphen widgets in paragraphs with `fo:hyphenate`.
+- **Text Direction** for table cells (rotate 90° / 270°, `style:writing-mode`).
+- **Layout ▸ Paragraph** spin boxes follow the selection and set indents/spacing (↑/↓ steps).
+- **Headers and footers** (`ui/header-footer.js`, `core/hf-content.js`): double-click a header/footer area (or Insert ▸ Header ▸ Edit Header) to edit in place with a full editor (all Home formatting works there); the body dims and is read-only; Esc, Close Header and Footer or double-clicking the body returns. Changes are written to the page style (with automatic styles MP/MT in styles.xml, unused ones pruned) as undoable steps. Adding a header keeps the body where it was. Contextual **Header & Footer** tab: Header ▾ / Footer ▾ galleries (Blank, Three Columns, Title and Page Number, Simple Rule / Page Number Centred, Page X of Y), Page Number ▾, Date & Time, Document Info (author, file name, title, number of pages), Go to Header/Footer, Previous/Next section, Link to Previous, Different First Page, Different Odd & Even Pages, Show Document Text, Header/Footer distance spins, Close.
+- **Page numbers**: Top / Bottom of Page (left, centre, right), Current Position (body page-number fields show their own page's number), Format Page Numbers (1, a, A, i, I; continue or start at N per section), Remove Page Numbers.
+- **Design tab** (`features/design`): Themes (Classic, Harbour, Meadow, Ember, Ink, Dune: colours + font pairs), Style Sets (Default, Basic, Elegant, Formal, Lines, Minimal, Shaded), Colours, Fonts, Paragraph Spacing (Default, No Paragraph Space, Compact, Tight, Open, Relaxed, Double), Set as Default (new documents use the styles), Watermark (CONFIDENTIAL, DO NOT COPY, DRAFT, SAMPLE, URGENT, ASAP, custom text/picture, remove — written as LibreOffice-style fontwork/picture in the header), Page Colour, Page Borders (box / shadow, style, width, colour).
+- Ribbon: contextual tabs (hidden until active); a long-standing tooltip bug that printed "nullnull" is fixed.
+- Tests: 50 unit + 102 e2e (9 new M5 tests). Each saves, re-opens (identical model) and, where it matters, has **LibreOffice open and re-save** our file to prove it keeps sections/columns, master pages, header text, page-number fields and watermarks. Performance: 50 pages ≈3.2 ms per keystroke main thread (4–5 of 40 keystrokes miss a frame in headless Chromium), 100 pages ≈4 ms.
+- Screenshots: `reference/compare/m5-*.png` (columns menu, watermarked pages, header editing with the contextual tab, Page Setup, Design themes) in dark and light.
+
+Decisions:
+- Columns use `text:section` (Word's "section columns"); page-level columns already in a file are kept and laid out.
+- Even/odd section breaks use a left-/right-only page style followed by a normal copy (so LibreOffice doesn't insert blank pages between every page of the section).
+- Text Direction applies to table cells; rotated body text isn't offered.
+- Watermark shapes are kept out of the header editor and re-attached when the header is saved. (An earlier version's fontwork path referenced undefined formula values and crashed LibreOffice; caught by the LibreOffice round-trip test and fixed.)
+- Margin presets keep Word's meaning (distance to the body text) even with a header or footer.
+
+Known limitations:
+- Columns are laid out in the browser and balanced per page; a single paragraph taller than a column isn't split across pages inside a column region.
+- Line numbers count body paragraphs only (not tables, text boxes or notes).
+- Hyphenation patterns are British English only.
+- Design ▸ Effects (shape effects) is "Coming soon" (M7). Insert ▸ Page Number ▸ Page Margins is "Coming soon" (needs frames, M7).
+- Different first page / odd & even apply to the page style; "Link to Previous" copies the previous section's header/footer (ODF has no linking), and is checked while they are identical.
+- Side to Side view still uses the first page style's size.

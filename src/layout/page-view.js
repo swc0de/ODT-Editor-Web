@@ -69,7 +69,7 @@ export function createPageView({ getPictureUrl } = {}) {
       if (!url) return null;
       el.append(h('img', { src: url, alt: '', style: { width: `${w.width}px`, height: `${w.height}px`, opacity: String(w.opacity) } }));
     } else {
-      el.append(h('span', { class: 'pg-watermark-text', style: { color: w.colour, opacity: String(w.opacity), transform: `rotate(${w.angle}deg)`, fontSize: `${Math.max(24, Math.min(160, w.width / Math.max(4, w.text.length) * 1.6))}px` } }, w.text));
+      el.append(h('span', { class: 'pg-watermark-text', style: { color: w.colour, opacity: String(w.opacity), transform: `rotate(${w.angle}deg)`, ...(w.font ? { fontFamily: `"${w.font}", "Carlito", sans-serif` } : {}), fontSize: `${Math.max(24, Math.min(160, w.width / Math.max(4, w.text.length) * 1.6))}px` } }, w.text));
     }
     return el;
   }

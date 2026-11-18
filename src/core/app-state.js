@@ -63,4 +63,6 @@ export const INITIAL_APP_STATE = Object.freeze({
   contextual: null, // contextual ribbon tab shown ('headerFooter', …)
   hfEditing: null,
   paraSpins: null,
+  designTheme: 'classic', designColours: 'classic', designFonts: 'carlito', designSet: null, designSpacing: null,
+  lastPageColour: '#f2f2f2',
 });

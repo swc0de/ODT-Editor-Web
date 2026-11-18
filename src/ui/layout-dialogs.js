@@ -145,3 +145,52 @@ export async function dateTimeDialog() {
   if (!ok) return null;
   return { format: list.value || 'long', fixed: !update.input.checked };
 }
+
+/**
+ * Custom watermark: returns null (no watermark), a spec for setWatermark, or
+ * undefined when cancelled.
+ */
+export async function watermarkDialog({ addPicture }) {
+  const kind = radios('wm-kind', [['none', t('wm.none')], ['image', t('wm.picture')], ['text', t('wm.text')]], 'text');
+  const file = h('input', { type: 'file', accept: 'image/*', class: 'fm-input', 'aria-label': t('wm.selectPicture') });
+  const textIn = h('input', { type: 'text', class: 'fm-input', value: 'DRAFT', list: 'wm-texts', 'aria-label': t('wm.text') });
+  const texts = h('datalist', { id: 'wm-texts' }, ['ASAP', 'CONFIDENTIAL', 'DO NOT COPY', 'DRAFT', 'ORIGINAL', 'PERSONAL', 'SAMPLE', 'TOP SECRET', 'URGENT'].map((x) => h('option', { value: x })));
+  const font = select(['Carlito', 'Caladea', 'Liberation Sans', 'Liberation Serif', 'Liberation Mono'].map((f) => [f, f]), 'Carlito');
+  const colourIn = h('input', { type: 'color', class: 'fm-colour', value: '#c0c0c0', 'aria-label': t('bd.colour') });
+  const semi = check(t('wm.semi'), true);
+  const layout = radios('wm-layout', [['diagonal', t('wm.diagonal')], ['horizontal', t('wm.horizontal')]], 'diagonal');
+  const body = h('div', { class: 'wm' }, texts, kind,
+    group(t('wm.picture'), field(t('wm.selectPicture'), file, { wide: true })),
+    group(t('wm.text'), row(field(t('wm.text'), textIn, { wide: true })), row(field(t('fd.font'), font), field(t('bd.colour'), colourIn)), semi, layout));
+  const ok = await showDialog({ title: t('wm.title'), message: body, buttons: okCancel, cancelValue: false });
+  if (!ok) return undefined;
+  const k = kind.value();
+  if (k === 'none') return null;
+  if (k === 'image') {
+    const f = file.files?.[0];
+    if (!f) return undefined;
+    const bytes = new Uint8Array(await f.arrayBuffer());
+    const path = addPicture(bytes, f.type || 'image/png');
+    const img = await new Promise((resolve) => { const i = new Image(); i.onload = () => resolve(i); i.onerror = () => resolve(null); i.src = URL.createObjectURL(f); });
+    const ratio = img && img.naturalWidth ? img.naturalHeight / img.naturalWidth : 1;
+    const w = 14;
+    return { kind: 'image', path, width: w, height: +(w * ratio).toFixed(2) };
+  }
+  return { kind: 'text', text: textIn.value.trim() || 'DRAFT', font: font.value, colour: colourIn.value, semi: semi.input.checked, layout: layout.value() };
+}
+
+/** Page Borders: null (none), { style, width, colour, shadow, applyTo }, or undefined when cancelled. */
+export async function pageBordersDialog(cur) {
+  const has = cur['fo:border'] && cur['fo:border'] !== 'none';
+  const [w0, s0, c0] = String(has ? cur['fo:border'] : '0.5pt solid #000000').split(/\s+/);
+  const setting = radios('pb-setting', [['none', t('bd.none')], ['box', t('bd.box')], ['shadow', t('pb.shadow')]], has ? (cur['style:shadow'] && cur['style:shadow'] !== 'none' ? 'shadow' : 'box') : 'none');
+  const style = select([['solid', t('bd.solid')], ['dotted', t('bd.dotted')], ['dashed', t('bd.dashed')], ['double', t('bd.double')]], s0 || 'solid');
+  const width = select(['0.5pt', '0.75pt', '1pt', '1.5pt', '2.25pt', '3pt', '4.5pt', '6pt'].map((v) => [v, v]), w0 || '0.5pt');
+  const colourIn = h('input', { type: 'color', class: 'fm-colour', value: /^#/.test(c0 || '') ? c0 : '#000000', 'aria-label': t('bd.colour') });
+  const applyTo = select([['whole', t('ps.wholeDocument')], ['section', t('ps.thisSection')]], 'whole');
+  const body = h('div', {}, row(group(t('bd.setting'), setting), h('div', {}, field(t('bd.style'), style), field(t('bd.width'), width), field(t('bd.colour'), colourIn))), row(field(t('ps.applyTo'), applyTo)));
+  const ok = await showDialog({ title: t('pb.title'), message: body, buttons: okCancel, cancelValue: false });
+  if (!ok) return undefined;
+  if (setting.value() === 'none') return null;
+  return { style: style.value, width: width.value, colour: colourIn.value, shadow: setting.value() === 'shadow', applyTo: applyTo.value };
+}
