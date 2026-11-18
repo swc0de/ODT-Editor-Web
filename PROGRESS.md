@@ -9,8 +9,8 @@ The memory between sessions. Statuses: `todo`, `in progress`, `awaiting approval
 | M2 — Document model and ODT open/save | approved |
 | M3 — Print Layout: pagination, rulers, status bar, zoom | approved |
 | M4 — Home tab: character and paragraph formatting, styles, lists, find | approved |
-| M5 — Layout and Design tabs, headers/footers, sections | awaiting approval |
-| M6 — Tables | todo |
+| M5 — Layout and Design tabs, headers/footers, sections | approved |
+| M6 — Tables | in progress |
 | M7 — Insert tab: pictures, shapes, text boxes, links, symbols | todo |
 | M8 — References | todo |
 | M9 — Review: comments, track changes, proofing | todo |
@@ -168,7 +168,7 @@ Known limitations:
 - The Find formatting filter offers bold, italic, underline, highlight and strikethrough (not arbitrary Font-dialog formatting).
 - The Navigation pane's Pages tab shows page tiles, not live thumbnails.
 
-## M5 — Layout and Design tabs, headers/footers, sections (awaiting approval)
+## M5 — Layout and Design tabs, headers/footers, sections (approved)
 
 Built:
 - **Undoable document-wide changes** (`core/state-step.js`): a ProseMirror step that swaps DocumentState fields (page styles, page layouts, named styles, list styles, font faces, line numbering), so page setup, header/footer edits, style edits (M4's included) and ruler margin drags undo and redo with ordinary edits.
