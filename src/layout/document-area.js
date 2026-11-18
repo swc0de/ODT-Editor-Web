@@ -217,5 +217,6 @@ export function createDocumentArea({ store, getEditor, getSession, onPagesChange
     get styleIndex() { return styleIndex; },
     get model() { return model; },
     pageAt: (pos) => paginator?.pageAt(pos) ?? 0,
+    get layoutPending() { return !!paginator?.pending; },
   };
 }

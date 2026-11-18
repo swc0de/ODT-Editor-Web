@@ -5,9 +5,10 @@ browser from **one self-contained HTML file**: `dist/odt-editor.html`.
 No server, no uploads, no analytics — open the file (even from `file://`, even
 offline) and everything happens locally.
 
-> **Status: milestone M2 (open, edit, save).** Open .odt/.ott files, edit
-> text (continuous view), paste from other apps, and save — with autosave and
-> crash recovery. Formatting commands, pagination and the other ribbon
+> **Status: milestone M3 (Print Layout).** Open .odt/.ott files and edit
+> them on real pages (headers, footers, page numbers, breaks, widows/orphans,
+> tables split across pages), with live rulers, zoom and an autosaving,
+> crash-safe save/open workflow. Formatting commands and the other ribbon
 > features arrive in later milestones — see [MILESTONES.md](MILESTONES.md) and
 > [PROGRESS.md](PROGRESS.md). Controls for features that aren't built yet are
 > dimmed with a "Coming soon" tooltip.
@@ -110,12 +111,22 @@ UI inspired by the open-source WordCraft project (MIT/Apache-2.0).
 - **F6 / Shift+F6**: move between the tab bar, ribbon, document and status bar.
 - Arrow keys move between tabs and between ribbon controls; menus support ↑ ↓ → ← Home End and type-ahead.
 
-## Known limitations (M2)
+## Print Layout
 
-- Continuous view: no pagination yet, headers and footers aren't shown (they
-  are kept in the file). Rulers and the zoom slider are static (M3).
+- Pages, headers/footers and page numbers follow the document's page styles.
+- Rulers: drag the margins, the indent markers and tab stops; click the ruler
+  to add a tab stop of the type shown in the corner selector.
+- Zoom: Ctrl+wheel, the status bar slider, View ▸ Zoom (or One Page / Page
+  Width / Multiple Pages). View ▸ Side to Side lays pages out horizontally.
+
+## Known limitations (M3)
+
+- Headers and footers are shown but not editable yet (M5); all pages use the
+  first page style's width; page-level columns and footnotes at the page
+  bottom aren't laid out yet; table header rows aren't repeated (M6).
 - Formatting commands (bold, styles, lists…) aren't wired up yet (M4); pasted
-  and opened formatting is shown and kept.
+  and opened formatting is shown and kept. Paragraph indents and tab stops
+  can be set from the ruler.
 - Numbered lists don't yet render continue/restart numbering across separate
   lists (kept in the file).
 - Footnotes, comments, text boxes, tables of contents and tracked changes are

@@ -43,7 +43,10 @@
 .ruler-tab.removing { opacity: 0.35; }
 .ruler-tab .icon { width: 9px; height: 9px; }
 .ruler-edge { position: absolute; z-index: 1; touch-action: none; }
-.ruler-edge.h { top: 0; bottom: 0; width: 8px; transform: translateX(-4px); cursor: col-resize; }
+.ruler-edge.h { top: 0; bottom: 0; width: 6px; cursor: col-resize; z-index: 3; }
+/* Beside the indent markers, inside the shaded margin. */
+.ruler-edge.h.left { transform: translateX(-11px); }
+.ruler-edge.h.right { transform: translateX(5px); }
 .ruler-edge.v { left: 0; right: 0; height: 8px; transform: translateY(-4px); cursor: row-resize; }
 .hruler { cursor: default; }
 .ruler-guide { position: fixed; z-index: 1900; pointer-events: none; border-left: 1px dashed var(--accent); }

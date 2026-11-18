@@ -84,8 +84,8 @@ export function createRulers(o) {
   const hTabs = h('div', { class: 'hruler-tabs' });
   const mLeft = h('div', { class: 'hruler-margin left' });
   const mRight = h('div', { class: 'hruler-margin right' });
-  const edgeL = h('span', { class: 'ruler-edge h', 'data-tip': t('ruler.leftMargin') });
-  const edgeR = h('span', { class: 'ruler-edge h', 'data-tip': t('ruler.rightMargin') });
+  const edgeL = h('span', { class: 'ruler-edge h left', 'data-tip': t('ruler.leftMargin') });
+  const edgeR = h('span', { class: 'ruler-edge h right', 'data-tip': t('ruler.rightMargin') });
   const hruler = h('div', { class: 'hruler', role: 'group', 'aria-label': t('ruler.horizontal') }, mLeft, hBody, mRight, hTicks, hTabs, edgeL, edgeR, firstLine, hanging, leftIndent, rightIndent);
   const hstrip = h('div', { class: 'hruler-strip' }, hruler);
 
@@ -160,6 +160,8 @@ export function createRulers(o) {
   };
   const hideGuide = () => { guide?.remove(); guide = null; };
   const snap = (v, e) => (e.altKey ? v : Math.round(v / SNAP) * SNAP);
+  /** Snaps a position measured from the page edge on the grid that starts at the left margin. */
+  const snapRel = (abs, e) => geo.page.marginLeft + snap(abs - geo.page.marginLeft, e);
 
   /** Generic drag helper: onMove(dxPx, dyPx, event) in unzoomed px; onEnd(...) commits. */
   function drag(e, { vertical = false, onMove, onEnd }) {
@@ -190,8 +192,8 @@ export function createRulers(o) {
     const ind = { ...geo.indents };
     const base = geo.page.marginLeft + ind.left + ind.firstLine;
     drag(e, {
-      onMove: (dx, _dy, ev) => preview(firstLine, 'left', base, snap(base + dx, ev) - base),
-      onEnd: (dx, _dy, ev) => o.onIndents({ firstLine: snap(base + dx, ev) - geo.page.marginLeft - ind.left }),
+      onMove: (dx, _dy, ev) => preview(firstLine, 'left', base, snapRel(base + dx, ev) - base),
+      onEnd: (dx, _dy, ev) => o.onIndents({ firstLine: snapRel(base + dx, ev) - geo.page.marginLeft - ind.left }),
     });
   });
   hanging.addEventListener('pointerdown', (e) => {
@@ -199,8 +201,8 @@ export function createRulers(o) {
     const ind = { ...geo.indents };
     const base = geo.page.marginLeft + ind.left;
     drag(e, {
-      onMove: (dx, _dy, ev) => { const v = snap(base + dx, ev) - base; preview(hanging, 'left', base, v); preview(leftIndent, 'left', base, v); },
-      onEnd: (dx, _dy, ev) => { const left = snap(base + dx, ev) - geo.page.marginLeft; o.onIndents({ left, firstLine: ind.left + ind.firstLine - left }); },
+      onMove: (dx, _dy, ev) => { const v = snapRel(base + dx, ev) - base; preview(hanging, 'left', base, v); preview(leftIndent, 'left', base, v); },
+      onEnd: (dx, _dy, ev) => { const left = snapRel(base + dx, ev) - geo.page.marginLeft; o.onIndents({ left, firstLine: ind.left + ind.firstLine - left }); },
     });
   });
   leftIndent.addEventListener('pointerdown', (e) => {
@@ -208,16 +210,16 @@ export function createRulers(o) {
     const ind = { ...geo.indents };
     const base = geo.page.marginLeft + ind.left;
     drag(e, {
-      onMove: (dx, _dy, ev) => { const v = snap(base + dx, ev) - base; for (const el of [hanging, leftIndent]) preview(el, 'left', base, v); preview(firstLine, 'left', base + ind.firstLine, v); },
-      onEnd: (dx, _dy, ev) => o.onIndents({ left: snap(base + dx, ev) - geo.page.marginLeft }),
+      onMove: (dx, _dy, ev) => { const v = snapRel(base + dx, ev) - base; for (const el of [hanging, leftIndent]) preview(el, 'left', base, v); preview(firstLine, 'left', base + ind.firstLine, v); },
+      onEnd: (dx, _dy, ev) => o.onIndents({ left: snapRel(base + dx, ev) - geo.page.marginLeft }),
     });
   });
   rightIndent.addEventListener('pointerdown', (e) => {
     const ind = { ...geo.indents };
     const base = geo.page.width - geo.page.marginRight - ind.right;
     drag(e, {
-      onMove: (dx, _dy, ev) => preview(rightIndent, 'left', base, snap(base + dx, ev) - base),
-      onEnd: (dx, _dy, ev) => o.onIndents({ right: geo.page.width - geo.page.marginRight - snap(base + dx, ev) }),
+      onMove: (dx, _dy, ev) => preview(rightIndent, 'left', base, snapRel(base + dx, ev) - base),
+      onEnd: (dx, _dy, ev) => o.onIndents({ right: geo.page.width - geo.page.marginRight - snapRel(base + dx, ev) }),
     });
   });
   const marginDrag = (edge, side) => edge.addEventListener('pointerdown', (e) => {

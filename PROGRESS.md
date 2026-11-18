@@ -7,7 +7,7 @@ The memory between sessions. Statuses: `todo`, `in progress`, `awaiting approval
 | M0 — Scaffold, build, test harness | approved |
 | M1 — App shell and complete ribbon UI (visual match) | approved |
 | M2 — Document model and ODT open/save | approved |
-| M3 — Print Layout: pagination, rulers, status bar, zoom | in progress |
+| M3 — Print Layout: pagination, rulers, status bar, zoom | awaiting approval |
 | M4 — Home tab: character and paragraph formatting, styles, lists, find | todo |
 | M5 — Layout and Design tabs, headers/footers, sections | todo |
 | M6 — Tables | todo |
@@ -107,3 +107,31 @@ Known limitations:
 - Tracked changes are kept but not shown — M9.
 - A word-count field shows our statistic, which can differ from LibreOffice's by about 1 word.
 - Native Save pickers (File System Access) only exist in Chromium-based browsers; elsewhere saving downloads the file. These pickers can't be exercised in automated tests.
+
+## M3 — Print Layout: pagination, rulers, status bar, zoom (awaiting approval)
+
+Built:
+- **Pagination** (`src/layout/paginator.js`) over the single ProseMirror flow: page backgrounds are drawn behind the editor (`page-view.js`) and gaps are inserted as decorations — a block widget before a block that moves to the next page, a line-start widget that splits a paragraph, and translateY row shifts (+ spacer) that split a table between rows (split tables switch to separate borders so cell borders move with their rows). Honours page size/margins from the master page's page layout, header/footer heights and spacing, widows/orphans (default 2), keep-together, keep-with-next, break-before/after page, master-page switches and page-number restarts.
+- **Incremental**: measurements are in "natural" coordinates (DOM position minus the gaps above). A re-layout restarts at the last clean page start before the edit and stops as soon as a page boundary coincides with the previous layout (gaps and page starts are mapped through every transaction in the plugin state). Long re-layouts are processed in 6 ms slices across frames; while typing, repagination waits for a 100 ms pause (like Word's background pagination).
+- **Headers and footers** (read-only until M5) rendered on every page from the master page — first / left / right variants, page-number and page-count fields filled in per page.
+- **Live rulers** (`ruler.js`): horizontal ruler numbered from the margin with shaded margins; drag the margin edges (page layout margins), the first-line / hanging / left / right indent markers (paragraph indents, undoable), tab stops (click to add the selector's type — left, centre, right, decimal; drag to move; drag off to remove). Tab selector also places first-line / hanging indents. Vertical ruler follows the caret's page with draggable top/bottom margins. A dashed guide line follows drags; Alt disables the 0.25 cm snap.
+- **Tab stops** (`tabs.js`): tabs render at the paragraph's real stops (left/centre/right/decimal, relative to the indent, default interval after the last stop) with dotted/dashed/solid leaders.
+- **Status bar**: Page X of Y (caret page), live word count, language, Print Layout button, zoom slider (drag/click/arrow keys, snaps to 100 %), − / + and the zoom % (opens the Zoom dialog).
+- **View tab**: Zoom dialog (200/100/75 %, page width, text width, whole page, many pages, percent), 100 %, Zoom In/Out, One Page, Multiple Pages, Page Width, Ctrl+wheel; Page Movement Vertical / Side to Side (Side to Side uses CSS columns of the body height, one per page); Show: Ruler, Gridlines (0.5 cm grid on page bodies), Hide White Space. Zoom and ruler visibility are remembered.
+- Tests: 41 unit + 80 e2e (13 new pagination/zoom/ruler tests: 50-page doc with every line inside a page body, headers/footers per page with page X of Y, page breaks at the body top, keep-with-next across a 100-page doc, widows/orphans ≥ 2 lines, table split between rows, **incremental layout after edits equals a full re-layout**, status bar page numbers, zoom via wheel/buttons/slider/dialog/page width, Side to Side, Ruler/Gridlines/Hide White Space, indent drag + undo, tab stop add/align/remove, margin drag).
+- **Performance**: 50 pages — main-thread ≈3 ms per keystroke; 100 pages — ≈4 ms (start and middle), no long tasks, scrolling the whole document at 60 fps (p95 16.7 ms frames). Page counts: 50 / 100 for the long fixtures (LibreOffice: 51 / 101).
+
+Decisions:
+- A block moved to the top of a page drops its space-before (as Word does).
+- The perf test allows up to 6 of 40 keystrokes to miss the next frame: headless Chromium's software rendering varies from run to run, while the main-thread time (the latency requirement) stays at 3–6 ms.
+- Ruler margin drags change the page style directly; they are not in the editor's undo history yet (M5 brings page setup with undo).
+- ODF has no "bar" tab, so the tab selector offers left, centre, right, decimal, first-line indent and hanging indent.
+
+Known limitations:
+- All pages use the first master page's width and left/right margins; a master page with a different width (e.g. landscape) changes height, top/bottom margins and headers/footers only (M5).
+- Page-level columns (in the page layout) aren't laid out yet; multi-column sections are kept on one page rather than split (M5).
+- Table header rows aren't repeated on following pages yet; a row taller than a page isn't split (M6).
+- Footnotes aren't placed at the page bottom yet (M8).
+- In a justified paragraph split across pages, the last line before the break isn't justified.
+- Side to Side uses one page size for all pages and the browser's own fragmentation.
+- Read Mode / Web Layout / Focus buttons and the Language dialog remain "Coming soon" (M12 / M9).

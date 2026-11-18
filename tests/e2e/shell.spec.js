@@ -197,7 +197,7 @@ test.describe('app shell', () => {
   });
 
   test('rulers line up with the page', async ({ page }) => {
-    const [ruler, pageBox] = await Promise.all([page.locator('.hruler').boundingBox(), page.locator('.page').boundingBox()]);
+    const [ruler, pageBox] = await Promise.all([page.locator('.hruler').boundingBox(), page.locator('.pg').first().boundingBox()]);
     expect(Math.abs(ruler.x - pageBox.x)).toBeLessThan(1);
     expect(Math.abs(ruler.width - pageBox.width)).toBeLessThan(1);
     const vr = await page.locator('.vruler').boundingBox();

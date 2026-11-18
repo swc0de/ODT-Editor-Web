@@ -7,7 +7,7 @@ const APP_NAME = readFileSync('src/config.js', 'utf8').match(/export const APP_N
 test('loads from file:// with no errors and no network requests', async ({ page }) => {
   const problems = await openApp(page);
   await expect(page).toHaveTitle(new RegExp(`^Document1 - ${APP_NAME}$`));
-  await expect(page.locator('.page')).toBeVisible();
+  await expect(page.locator('.pg').first()).toBeVisible();
   // Let any late async work (fonts, timers) settle.
   await page.waitForTimeout(300);
   expect(problems.pageErrors).toEqual([]);
@@ -79,7 +79,7 @@ test('command registry and i18n are wired up', async ({ page }) => {
 
 test('the page is A4 at 96 dpi', async ({ page }) => {
   await openApp(page);
-  const box = await page.locator('.page').boundingBox();
+  const box = await page.locator('.pg').first().boundingBox();
   expect(Math.round(box.width)).toBe(794);
   expect(Math.round(box.height)).toBe(1123);
 });

@@ -185,6 +185,7 @@ export function createPaginator(o) {
   const { view } = o;
   const props = createPropsCache(o.getIndex);
   let frame = 0;
+  let idle = 0;
   let job = null;
 
   const st = () => paginationKey.getState(view.state);
@@ -417,9 +418,14 @@ export function createPaginator(o) {
 
   function finish(pages, newGaps) {
     newGaps.sort((a, b) => gapPos(a) - gapPos(b));
+    // A table that becomes split switches to separate borders (see gapDecorations),
+    // which changes its row heights slightly: lay it out once more from there.
+    const wasSplit = new Set(st().gaps.filter((g) => g.type === 'rows').map((g) => g.tablePos));
+    const newlySplit = newGaps.filter((g) => g.type === 'rows' && !wasSplit.has(g.tablePos)).map((g) => g.tablePos);
     const decos = gapDecorations(view.state.doc, newGaps);
-    view.dispatch(view.state.tr.setMeta(paginationKey, { decos, gaps: newGaps, pages, dirtyFrom: null }).setMeta('addToHistory', false).setMeta('pagination', true));
+    view.dispatch(view.state.tr.setMeta(paginationKey, { decos, gaps: newGaps, pages, dirtyFrom: newlySplit.length ? Math.min(...newlySplit) : null }).setMeta('addToHistory', false).setMeta('pagination', true));
     o.onLayout?.(pages);
+    if (newlySplit.length) { cancelAnimationFrame(frame); frame = requestAnimationFrame(() => run(Math.min(...newlySplit))); }
   }
 
   /** Starts (or restarts) a layout from the page containing `fromPos` (null = everything). */
@@ -456,13 +462,18 @@ export function createPaginator(o) {
   return {
     /** Re-layout after a document change (from the first changed position). */
     update() {
+      // Like Word, repaginate in the background: wait for a short pause in
+      // typing so keystrokes never wait for pages after the caret.
       cancelAnimationFrame(frame);
-      frame = requestAnimationFrame(() => { const d = st().dirtyFrom; if (d != null) run(d); });
+      clearTimeout(idle);
+      idle = setTimeout(() => { frame = requestAnimationFrame(() => { const d = st().dirtyFrom; if (d != null) run(d); }); }, 100);
     },
     /** Full re-layout (styles, page setup, zoom, fonts, images changed). */
-    relayout() { props.reset(); cancelAnimationFrame(frame); frame = requestAnimationFrame(() => run(null)); },
+    relayout() { props.reset(); clearTimeout(idle); cancelAnimationFrame(frame); frame = requestAnimationFrame(() => run(null)); },
     relayoutNow() { props.reset(); run(null); },
     get pages() { return st().pages; },
+    /** True while a re-layout is scheduled or running. */
+    get pending() { return !!job || st().dirtyFrom != null; },
     pageAt(pos) {
       const pages = st().pages;
       for (let i = pages.length - 1; i >= 0; i--) if (pages[i].startPos <= pos) return i;
