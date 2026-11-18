@@ -28,6 +28,8 @@ button { cursor: default; }
 .icon .ink { stroke: #1f1f1f; fill: #1f1f1f; stroke-width: 2.4; }
 .icon .dots { stroke-dasharray: 1.2 2.2; }
 .icon .dash { stroke-dasharray: 2.5 2; }
+.icon .thick { stroke-width: 3; }
+.icon .rs { stroke: var(--icon-red); }
 .icon .it { font-family: var(--font-ui); stroke: none; dominant-baseline: auto; }
 .sr-only { position: absolute !important; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 [hidden] { display: none !important; }

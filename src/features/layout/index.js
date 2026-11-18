@@ -9,6 +9,7 @@ import {
 } from '../../core/page-setup.js';
 import { sections, currentSection, changePages, masterChain, PAGE_KEYS, bodyView } from './sections.js';
 import { selectedTextblocks, setParagraphAttrs, effectiveParagraphProps } from '../../core/commands/paragraph.js';
+import { cellProps, updateCells, changeAuto, nodeAuto } from '../../core/commands/tables.js';
 import { pageSetupDialog, columnsDialog, lineNumbersDialog, hyphenationDialog } from '../../ui/layout-dialogs.js';
 import { toPx } from '../../layout/units.js';
 
@@ -253,30 +254,11 @@ function cellAt(state) {
 const cellMode = (c) => {
   const cell = c.editor && cellAt(V(c).state);
   if (!cell) return null;
-  const tree = c.session.state.contentAutoStyles.find((x) => x.n === 'style:style' && x.a['style:family'] === 'table-cell' && x.a['style:name'] === cell.node.attrs.styleName);
-  const cp = tree && (tree.c || []).find((x) => x.n === 'style:table-cell-properties');
-  return cp?.a['style:writing-mode'] || 'lr-tb';
+  return cellProps(cell.node, c.session.state)['style:writing-mode'] || 'lr-tb';
 };
 function setCellDirection(c, mode) {
-  const view = V(c);
-  const cell = cellAt(view.state);
-  if (!cell) return;
-  let name;
-  editState(view, c.session.state, ['contentAutoStyles'], (st) => {
-    const autos = [...st.contentAutoStyles];
-    const old = autos.find((x) => x.n === 'style:style' && x.a['style:family'] === 'table-cell' && x.a['style:name'] === cell.node.attrs.styleName);
-    const taken = new Set(autos.map((x) => x.a?.['style:name']));
-    let i = 1;
-    while (taken.has(`CeDir${i}`)) i++;
-    name = `CeDir${i}`;
-    const tree = old ? structuredClone(old) : { n: 'style:style', a: { 'style:family': 'table-cell' }, c: [] };
-    tree.a = { ...tree.a, 'style:name': name };
-    tree.c = tree.c || [];
-    let cp = tree.c.find((x) => x.n === 'style:table-cell-properties');
-    if (!cp) { cp = { n: 'style:table-cell-properties', a: {} }; tree.c.unshift(cp); }
-    if (mode === 'lr-tb') delete cp.a['style:writing-mode']; else cp.a['style:writing-mode'] = mode;
-    st.contentAutoStyles = [...autos, tree];
-  }, (tr) => tr.setNodeMarkup(cell.pos, null, { ...cell.node.attrs, styleName: name }));
+  const v = V(c);
+  updateCells(v.state, v.dispatch, c.session.state, (n) => ({ auto: changeAuto(nodeAuto(n, c.session.state, 'table-cell'), 'style:table-cell-properties', { 'style:writing-mode': mode === 'lr-tb' ? null : mode }) }));
 }
 const dirCmd = (mode) => ({ isEnabled: (c) => canEdit(c) && !!cellAt(V(c).state), isChecked: (c) => cellMode(c) === mode, run: (c) => setCellDirection(c, mode) });
 

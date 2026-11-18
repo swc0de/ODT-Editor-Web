@@ -20,6 +20,7 @@ export function blockMaster(node, index) {
     return node.attrs.auto?.styleAttrs?.['style:master-page-name'] || index?.families.get('paragraph')?.get(node.attrs.styleName)?.a['style:master-page-name'] || null;
   }
   if (name === 'section') return node.firstChild ? blockMaster(node.firstChild, index) : null;
+  if (name === 'table' && node.attrs.auto) return node.attrs.auto.styleAttrs?.['style:master-page-name'] || null;
   if (name === 'table' && node.attrs.styleName) {
     const t = index?.autos.get(`table:${node.attrs.styleName}`);
     return t ? autoFromTree(t).auto?.styleAttrs?.['style:master-page-name'] || t.a['style:master-page-name'] || null : null;

@@ -189,7 +189,8 @@ export function createRibbon({ registry, store, tabs, toast }) {
   function applyState(state, changed) {
     // Contextual tabs (Header & Footer, Table Design…) show while their object is active.
     if (!changed || changed.includes('contextual')) {
-      for (const d of tabs) if (d.contextual) tabButtons.get(d.id).hidden = state.contextual !== d.contextual;
+      const shown = String(state.contextual || '').split(' ');
+      for (const d of tabs) if (d.contextual) tabButtons.get(d.id).hidden = !shown.includes(d.contextual);
     }
     if (!changed || changed.includes('activeTab')) showTab(state.activeTab);
     ribbon.classList.toggle('is-collapsed', state.ribbonCollapsed);

@@ -68,3 +68,15 @@
 /* Page fields in the body show the number of the page they are on. */
 .odt-doc .odt-field[data-shown] > .odt-field-text { display: none; }
 .odt-doc .odt-field[data-shown]::before { content: attr(data-shown); }
+/* Tables (M6) */
+.odt-doc .ProseMirror.tbl-col-resize { cursor: col-resize; }
+.odt-doc .ProseMirror.tbl-row-resize { cursor: row-resize; }
+.odt-doc .ProseMirror.tbl-mode-draw { cursor: crosshair; }
+.odt-doc .ProseMirror.tbl-mode-paint td { cursor: cell; }
+.odt-doc .ProseMirror.tbl-mode-erase td { cursor: not-allowed; }
+.odt-doc .ProseMirror td.selectedCell { background-image: linear-gradient(rgba(122, 147, 240, 0.28), rgba(122, 147, 240, 0.28)); }
+.odt-doc.no-gridlines :where(.ProseMirror td) { border-color: transparent; }
+.table-guide { position: fixed; z-index: 2600; pointer-events: none; }
+.table-guide.v { width: 0; border-left: 1px dashed #333; }
+.table-guide.h { height: 0; border-top: 1px dashed #333; }
+.table-draw-box { position: fixed; z-index: 2600; border: 1px dashed #333; pointer-events: none; }

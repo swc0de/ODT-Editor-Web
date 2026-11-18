@@ -141,9 +141,10 @@ export function sectionColumns(node, getIndex) {
 }
 
 function tableProps(node, getIndex) {
-  const t = node.attrs.styleName && getIndex()?.autos.get(`table:${node.attrs.styleName}`);
-  const tp = t ? autoFromTree(t).auto?.props?.['style:table-properties']?.a || {} : {};
-  const master = t?.a?.['style:master-page-name'] || null;
+  const t = !node.attrs.auto && node.attrs.styleName && getIndex()?.autos.get(`table:${node.attrs.styleName}`);
+  const auto = node.attrs.auto || (t ? autoFromTree(t).auto : null);
+  const tp = auto?.props?.['style:table-properties']?.a || {};
+  const master = auto?.styleAttrs?.['style:master-page-name'] || null;
   return { breakBefore: tp['fo:break-before'] === 'page' || !!master, master };
 }
 

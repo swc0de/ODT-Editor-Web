@@ -16,7 +16,7 @@
  * All attrs are plain JSON so documents can be autosaved and compared.
  */
 import { Schema } from 'prosemirror-model';
-import { autoToCss } from './odt/css.js';
+import { autoToCss, tableAutoCss } from './odt/css.js';
 import { inheritedTextProps, htmlBlockAttrs } from './clipboard.js';
 
 const BLOCK = 'paragraph | heading | list | table | section | opaque_block';
@@ -111,16 +111,20 @@ export const nodes = {
     content: 'table_row+',
     tableRole: 'table',
     isolating: true,
-    attrs: { styleName: { default: null }, columns: { default: [] }, extra: EXTRA },
+    // styleName: a named table style; auto: the table's own (automatic) formatting.
+    // columns: [{ styleName, auto, repeat, defaultCellStyle, extra, width }].
+    attrs: { styleName: { default: null }, auto: AUTO, columns: { default: [] }, extra: EXTRA },
     parseDOM: [{
       tag: 'table[data-odt-table]', priority: 60,
-      getAttrs: (dom) => ({ styleName: dom.getAttribute('data-style') || null, columns: parseJson(dom.getAttribute('data-columns')) || [], extra: parseJson(dom.getAttribute('data-extra')) }),
+      getAttrs: (dom) => ({ styleName: dom.getAttribute('data-style') || null, auto: parseJson(dom.getAttribute('data-auto')), columns: parseJson(dom.getAttribute('data-columns')) || [], extra: parseJson(dom.getAttribute('data-extra')) }),
     }, { tag: 'table', getAttrs: () => ({ styleName: null, columns: [], extra: null }) }],
     toDOM: (node) => {
       const cols = [];
       for (const col of node.attrs.columns) for (let i = 0; i < (col.repeat || 1); i++) cols.push(['col', col.width ? { style: `width:${col.width}` } : {}]);
       return ['table', {
         'data-odt-table': '', 'data-style': node.attrs.styleName || null, class: node.attrs.styleName ? `ts-${sanitize(node.attrs.styleName)}` : null,
+        style: node.attrs.auto ? tableAutoCss(node.attrs.auto, 'table') || null : null,
+        'data-auto': node.attrs.auto ? json(node.attrs.auto) : null,
         'data-columns': json(node.attrs.columns), 'data-extra': node.attrs.extra ? json(node.attrs.extra) : null,
       }, ['colgroup', ...cols], ['tbody', 0]];
     },
@@ -129,11 +133,13 @@ export const nodes = {
   table_row: {
     content: 'table_cell+',
     tableRole: 'row',
-    attrs: { styleName: { default: null }, header: { default: false }, extra: EXTRA },
-    parseDOM: [{ tag: 'tr[data-odt-row]', priority: 60, getAttrs: (dom) => ({ styleName: dom.getAttribute('data-style') || null, header: dom.hasAttribute('data-header'), extra: parseJson(dom.getAttribute('data-extra')) }) },
+    attrs: { styleName: { default: null }, auto: AUTO, header: { default: false }, extra: EXTRA },
+    parseDOM: [{ tag: 'tr[data-odt-row]', priority: 60, getAttrs: (dom) => ({ styleName: dom.getAttribute('data-style') || null, auto: parseJson(dom.getAttribute('data-auto')), header: dom.hasAttribute('data-header'), extra: parseJson(dom.getAttribute('data-extra')) }) },
       { tag: 'tr', getAttrs: (dom) => ({ styleName: null, header: dom.parentElement?.tagName === 'THEAD', extra: null }) }],
     toDOM: (node) => ['tr', {
       'data-odt-row': '', 'data-style': node.attrs.styleName || null, 'data-header': node.attrs.header ? '' : null,
+      style: node.attrs.auto ? tableAutoCss(node.attrs.auto, 'table-row') || null : null,
+      'data-auto': node.attrs.auto ? json(node.attrs.auto) : null,
       'data-extra': node.attrs.extra ? json(node.attrs.extra) : null,
     }, 0],
   },
@@ -142,17 +148,19 @@ export const nodes = {
     content: `(${BLOCK})+`,
     tableRole: 'cell',
     isolating: true,
-    attrs: { styleName: { default: null }, colspan: { default: 1 }, rowspan: { default: 1 }, colwidth: { default: null }, extra: EXTRA },
+    attrs: { styleName: { default: null }, auto: AUTO, colspan: { default: 1 }, rowspan: { default: 1 }, colwidth: { default: null }, extra: EXTRA },
     parseDOM: [{
       tag: 'td[data-odt-cell]', priority: 60,
       getAttrs: (dom) => ({
-        styleName: dom.getAttribute('data-style') || null, colspan: Number(dom.getAttribute('colspan')) || 1,
+        styleName: dom.getAttribute('data-style') || null, auto: parseJson(dom.getAttribute('data-auto')), colspan: Number(dom.getAttribute('colspan')) || 1,
         rowspan: Number(dom.getAttribute('rowspan')) || 1, extra: parseJson(dom.getAttribute('data-extra')),
       }),
     }, ...['td', 'th'].map((tag) => ({ tag, getAttrs: (dom) => ({ styleName: null, colspan: Number(dom.getAttribute('colspan')) || 1, rowspan: Number(dom.getAttribute('rowspan')) || 1, colwidth: null, extra: null }) }))],
     toDOM: (node) => ['td', {
       'data-odt-cell': '', 'data-style': node.attrs.styleName || null, class: node.attrs.styleName ? `tc-${sanitize(node.attrs.styleName)}` : null,
       colspan: node.attrs.colspan > 1 ? String(node.attrs.colspan) : null, rowspan: node.attrs.rowspan > 1 ? String(node.attrs.rowspan) : null,
+      style: node.attrs.auto ? tableAutoCss(node.attrs.auto, 'table-cell') || null : null,
+      'data-auto': node.attrs.auto ? json(node.attrs.auto) : null,
       'data-extra': node.attrs.extra ? json(node.attrs.extra) : null,
     }, 0],
   },

@@ -24,6 +24,7 @@ import { STYLE_GALLERY, STYLE_SET_GALLERY, styleTile, styleSetTile } from './gal
 import { isFontAvailable } from '../../layout/fonts.js';
 import { DEFAULT_BODY_FONT } from '../../config.js';
 import { fontList } from '../format-dialogs.js';
+import { TABLE_STYLES } from '../../core/commands/tables.js';
 import { FONT_SIZES } from '../../core/commands/text.js';
 
 const CARET = () => h('span', { class: 'caret', 'aria-hidden': 'true' });
@@ -208,6 +209,7 @@ export function createControlFactory(env) {
   function gallery(spec, tab) {
     const id = resolve(tab, spec.cmd);
     const isStyles = spec.id === 'styles';
+    if (spec.id === 'tableStyles') return tableStyleGallery(spec, tab, id);
     const list = isStyles ? STYLE_GALLERY : STYLE_SET_GALLERY;
     const tiles = h('div', { class: 'gal-tiles', role: 'listbox', 'aria-label': registry.label(id) });
     list.forEach((item, i) => {
@@ -259,6 +261,38 @@ export function createControlFactory(env) {
       next.setAttribute('tabindex', '0');
       next.focus();
     });
+    return el;
+  }
+
+  /** Table Design ▸ Table Styles: small table previews of each style. */
+  function tableStyleGallery(spec, tab, id) {
+    const tiles = h('div', { class: 'gal-tiles tbl-tiles', role: 'listbox', 'aria-label': registry.label(id) });
+    Object.entries(TABLE_STYLES).forEach(([sid, def], i) => {
+      const cell = (role) => ({ ...(def.all?.cell || {}), ...(def[role]?.cell || {}) });
+      const css = (c) => {
+        const out = {};
+        for (const [k, v] of Object.entries(c)) {
+          if (k === 'fo:background-color') out.background = v;
+          else if (k.startsWith('fo:border')) out[k === 'fo:border' ? 'border' : `border${k.slice(10, 11).toUpperCase()}${k.slice(11)}`] = v === 'none' ? 'none' : v.replace(/[\d.]+pt/, '1px');
+        }
+        return out;
+      };
+      const rows = [0, 1, 2, 3].map((r) => h('tr', {}, [0, 1, 2].map(() => h('td', { style: css(cell(r === 0 ? 'header' : (r % 2 ? 'band' : 'body'))) }))));
+      const tile = h('button', { type: 'button', class: 'gal-tile tbl-tile', role: 'option', 'data-command': id, 'data-gallery-item': sid, 'data-tip-label': t(`tbl.style.${sid}`), 'aria-label': t(`tbl.style.${sid}`), tabindex: i === 0 ? '0' : '-1' },
+        h('table', { class: 'tbl-prev' }, h('tbody', {}, rows)));
+      tile.addEventListener('click', () => { if (registry.isEnabled(id)) registry.run(id, sid); else activate(id, tile, spec, tab); });
+      tiles.append(tile);
+    });
+    const scroll = (dir) => tiles.scrollBy({ top: dir * tiles.clientHeight, behavior: 'smooth' });
+    const up = h('button', { type: 'button', class: 'gal-btn', 'aria-label': t('ribbon.galleryUp'), onclick: () => scroll(-1), html: iconSvg('chevron-up', { size: 12 }) });
+    const down = h('button', { type: 'button', class: 'gal-btn', 'aria-label': t('ribbon.galleryDown'), onclick: () => scroll(1), html: iconSvg('chevron-down', { size: 12 }) });
+    const more = h('button', { type: 'button', class: 'gal-btn gal-more', 'aria-label': t('ribbon.galleryMore'), 'data-menu-button': '', 'aria-haspopup': 'true', 'aria-expanded': 'false', html: iconSvg('more', { size: 12 }) });
+    const el = h('div', { class: 'gal tables' }, tiles, h('div', { class: 'gal-scroll' }, up, down, more));
+    more.addEventListener('click', () => openGalleryPopup(el, tiles, more, spec, tab));
+    el._sync = () => {
+      const cur = store.get().tableStyleId;
+      for (const tile of tiles.children) tile.setAttribute('aria-selected', String(tile.dataset.galleryItem === cur));
+    };
     return el;
   }
 

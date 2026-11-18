@@ -65,4 +65,11 @@ export const INITIAL_APP_STATE = Object.freeze({
   paraSpins: null,
   designTheme: 'classic', designColours: 'classic', designFonts: 'carlito', designSet: null, designSpacing: null,
   lastPageColour: '#f2f2f2',
+  // M6
+  tableMode: null, // 'draw' | 'erase' | 'paint'
+  tablePen: { style: 'solid', width: '0.5pt', colour: '#000000' },
+  tableGridlines: true,
+  lastTableShading: '#d9d9d9',
+  lastTableBorder: 'all',
+  inTable: false,
 });

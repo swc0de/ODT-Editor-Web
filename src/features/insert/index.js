@@ -3,6 +3,8 @@ import { defineCommands } from '../define.js';
 import { applyPreset, pageNumberAt, removePageNumbers, fields, insertInline, pageNumberFormat, setPageNumberFormat } from '../headerfooter/actions.js';
 import { insertDateTime } from '../headerfooter/index.js';
 import { pageNumberDialog } from '../../ui/layout-dialogs.js';
+import { insertNewTable, convertSelectionToTable, insertQuickTable } from '../table/insert.js';
+import { insertTableDialog } from '../../ui/table-dialogs.js';
 
 const canEdit = (c) => !!c.editor && c.state.editingMode !== 'viewing';
 
@@ -11,12 +13,12 @@ export const commands = defineCommands('insert', {
   removeCoverPage: {},
   blankPage: { icon: 'blank-page' },
   pageBreak: { icon: 'page-break', shortcut: 'Mod-Enter', isEnabled: (c) => canEdit(c) && !c.state.hfEditing, run: (c) => c.ui.registry.run('layout.breakPage') },
-  table: { icon: 'table' },
-  tableGrid: { label: 'cmd.insert.table' },
-  insertTableDialog: { icon: 'table' },
-  drawTable: { icon: 'draw-table' },
-  convertTextToTable: {},
-  quickTables: {},
+  table: { icon: 'table', menuOnly: true },
+  tableGrid: { label: 'cmd.insert.table', isEnabled: canEdit, run: (c, size) => { if (size?.cols) insertNewTable(c, size.rows, size.cols); } },
+  insertTableDialog: { icon: 'table', isEnabled: canEdit, run: async (c) => { const r = await insertTableDialog(); if (r) insertNewTable(c, r.rows, r.cols, r.fit); } },
+  drawTable: { icon: 'draw-table', isEnabled: canEdit, isChecked: (c) => c.state.tableMode === 'draw', run: (c) => c.store.set({ tableMode: c.state.tableMode === 'draw' ? null : 'draw' }) },
+  convertTextToTable: { isEnabled: (c) => canEdit(c) && !c.editor.view.state.selection.empty, run: convertSelectionToTable },
+  quickTables: { isEnabled: canEdit, run: (c, id) => { if (typeof id === 'string') insertQuickTable(c, id); } },
   pictures: { icon: 'pictures' },
   picturesFromDevice: { icon: 'pictures' },
   shapes: { icon: 'shapes' },

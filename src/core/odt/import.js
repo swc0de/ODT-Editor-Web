@@ -226,6 +226,12 @@ export function createConverter({ ns, autoIndex, styleIndex }) {
   // List items may only hold paragraphs, headings, lists and opaque blocks.
   const asListChild = (n) => (['paragraph', 'heading', 'list', 'opaque_block'].includes(n.type) ? n : { type: 'opaque_block', attrs: { xml: '', label: n.type, text: '' } });
 
+  /** An automatic table/column/row/cell style becomes the node's `auto`; a named style stays a name. */
+  const tableStyle = (family, name) => {
+    const t = name && autoIndex.get(`${family}:${name}`);
+    return t ? { styleName: null, auto: autoFromTree(t).auto } : { styleName: name || null, auto: null };
+  };
+
   function table(el) {
     const a = attrsOf(el, ns);
     const columns = [];
@@ -235,11 +241,10 @@ export function createConverter({ ns, autoIndex, styleIndex }) {
         const n = q(c);
         if (n === 'table:table-column') {
           const ca = attrsOf(c, ns);
-          const styleName = ca['table:style-name'] || null;
-          const colStyle = styleName && autoIndex.get(`table-column:${styleName}`);
-          const width = colStyle ? (colStyle.c || []).find((p) => p.n === 'style:table-column-properties')?.a?.['style:column-width'] || null : null;
+          const cs = tableStyle('table-column', ca['table:style-name']);
+          const width = cs.auto?.props?.['style:table-column-properties']?.a?.['style:column-width'] || null;
           columns.push({
-            styleName, repeat: Number(ca['table:number-columns-repeated']) || 1,
+            ...cs, repeat: Number(ca['table:number-columns-repeated']) || 1,
             defaultCellStyle: ca['table:default-cell-style-name'] || null,
             extra: without(ca, 'table:style-name', 'table:number-columns-repeated', 'table:default-cell-style-name'), width,
           });
@@ -261,7 +266,7 @@ export function createConverter({ ns, autoIndex, styleIndex }) {
               cells.push({
                 type: 'table_cell',
                 attrs: {
-                  styleName: ca['table:style-name'] || null,
+                  ...tableStyle('table-cell', ca['table:style-name']),
                   colspan: Number(ca['table:number-columns-spanned']) || 1,
                   rowspan: Number(ca['table:number-rows-spanned']) || 1,
                   colwidth: null,
@@ -273,14 +278,14 @@ export function createConverter({ ns, autoIndex, styleIndex }) {
           }
           if (!cells.length) cells.push({ type: 'table_cell', attrs: {}, content: [{ type: 'paragraph', attrs: { styleName: 'Standard' } }] });
           for (let i = 0; i < repeat; i++) {
-            rows.push({ type: 'table_row', attrs: { styleName: ra['table:style-name'] || null, header: !!header, extra: without(ra, 'table:style-name', 'table:number-rows-repeated') }, content: structuredClone(cells) });
+            rows.push({ type: 'table_row', attrs: { ...tableStyle('table-row', ra['table:style-name']), header: !!header, extra: without(ra, 'table:style-name', 'table:number-rows-repeated') }, content: structuredClone(cells) });
           }
         }
       }
     };
     visit(el, false);
     if (!rows.length) return opaqueBlock(el);
-    return { type: 'table', attrs: { styleName: a['table:style-name'] || null, columns, extra: without(a, 'table:style-name') }, content: rows };
+    return { type: 'table', attrs: { ...tableStyle('table', a['table:style-name']), columns, extra: without(a, 'table:style-name') }, content: rows };
   }
 
   function section(el) {

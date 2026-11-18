@@ -41,6 +41,8 @@ import { createMiniToolbar, attachContextMenu } from './ui/mini-toolbar.js';
 import { createHeaderFooter } from './ui/header-footer.js';
 import { formatAt, GALLERY_STYLES, styleActions, useStyle, getListStyle } from './features/home/index.js';
 import { spinValues } from './features/layout/index.js';
+import { tableSpinValues } from './features/table/layout.js';
+import { isInTable, tableAt } from './core/commands/tables.js';
 import { textPropsCss } from './core/odt/css.js';
 import { sizePt } from './core/commands/text.js';
 import { createRepeat, createGoBack, extendSelection } from './core/navigation.js';
@@ -49,6 +51,7 @@ import { TextSelection, Plugin } from 'prosemirror-state';
 import * as pasteModes from './core/paste-modes.js';
 import { schema } from './core/schema.js';
 import { stateSteps } from './core/state-step.js';
+import { tablePlugins, tableKeymap } from './core/table-plugins.js';
 
 function boot() {
   applyTheme();
@@ -80,6 +83,14 @@ function boot() {
 
   // ------------------------------------------------------------ document
   let pictureUrls = new Map();
+  /** What the table plugins need from the app. */
+  const tableUI = {
+    zoom: () => store.get().zoom / 100,
+    docState: () => session?.state,
+    bodyWidth: () => { const m = docArea.model; const p = docArea.pages[docArea.pageAt(editor?.view.state.selection.head ?? 0)]; return (m?.masters.get(p?.master) || m?.first)?.bodyWidth || 640; },
+    mode: () => store.get().tableMode || null,
+    pen: () => { const p = store.get().tablePen; return `${p.width} ${p.style} ${p.colour}`; },
+  };
   const docArea = createDocumentArea({ store, getEditor: () => editor, getSession: () => session, pictureUrl: (p) => editorEnv.pictureUrl(p), onPagesChange: () => ui.onPages?.() });
   const editorEnv = {
     pictureUrl(path) {
@@ -108,8 +119,8 @@ function boot() {
       return path;
     },
     openFiles(files) { if (files[0]) session.openFile(files[0]).then((ok) => { if (ok) store.set({ backstageOpen: false }); }); },
-    priorityPlugins: () => [new Plugin({ props: { handleKeyDown: (_v, e) => !!ui.handleEditorKey?.(e) } }), ...editingPlugins(() => ({ ...AUTOCORRECT_DEFAULTS, ...(getSetting('autocorrect') || {}) }), makeList)],
-    extraPlugins: () => [...docArea.plugins(), searchPlugin(), listLabelsPlugin((name) => getListStyle(ctx(), name))],
+    priorityPlugins: () => [new Plugin({ props: { handleKeyDown: (_v, e) => !!ui.handleEditorKey?.(e) } }), tableKeymap, ...editingPlugins(() => ({ ...AUTOCORRECT_DEFAULTS, ...(getSetting('autocorrect') || {}) }), makeList)],
+    extraPlugins: () => [...docArea.plugins(), ...tablePlugins(tableUI), searchPlugin(), listLabelsPlugin((name) => getListStyle(ctx(), name))],
     pasteMode(event) {
       const once = clipboard?.takeMode();
       if (once) return once;
@@ -179,7 +190,19 @@ function boot() {
       const styleName = f.node?.attrs.styleName;
       const styleId = (f.charStyle && Object.keys(GALLERY_STYLES).find((k) => GALLERY_STYLES[k][1] === f.charStyle))
         || Object.keys(GALLERY_STYLES).find((k) => GALLERY_STYLES[k][0] === 'paragraph' && GALLERY_STYLES[k][1] === styleName) || null;
-      store.set({ fontName: font, fontSize: sizePt(f.text['fo:font-size']), styleId, paragraphStyle: styleName, paraSpins: spinValues(ctx()) });
+      // Contextual tabs: Header & Footer while editing one, Table Design / Layout inside a table.
+      const c2 = ctx();
+      const inTbl = isInTable(c2.editor.view.state);
+      const contextual = [store.get().hfEditing && 'headerFooter', inTbl && 'table'].filter(Boolean).join(' ') || null;
+      const tabNow = store.get().activeTab;
+      const leaveTab = !inTbl && (tabNow === 'tableDesign' || tabNow === 'tableLayout');
+      const tbl = inTbl ? tableAt(c2.editor.view.state) : null;
+      store.set({
+        fontName: font, fontSize: sizePt(f.text['fo:font-size']), styleId, paragraphStyle: styleName,
+        paraSpins: { ...spinValues(c2), ...tableSpinValues(c2) }, contextual, inTable: inTbl,
+        tableStyleId: tbl?.table.attrs.extra?.['table:template-name'] || null,
+        ...(leaveTab ? { activeTab: 'home' } : {}),
+      });
       registry.notify();
       nav?.refresh();
       stylesPane?.refresh();
@@ -258,11 +281,18 @@ function boot() {
     store, docArea, getSession: () => session, mainEditor: editor,
     editorEnv: ({ onTransaction }) => ({
       ...editorEnv,
-      extraPlugins: () => [searchPlugin(), listLabelsPlugin((name) => getListStyle(ctx(), name))],
+      extraPlugins: () => [...tablePlugins(tableUI), searchPlugin(), listLabelsPlugin((name) => getListStyle(ctx(), name))],
       onTransaction: (v, tr) => { onTransaction(v, tr); scheduleSync(tr.docChanged); },
     }),
   });
   ui.onPages = () => ui.hf.relocate();
+  // View Gridlines: dotted outlines for cells without borders.
+  const gridlines = () => docArea.view.mount.classList.toggle('no-gridlines', store.get().tableGridlines === false);
+  store.subscribe((st, changed) => {
+    if (changed.includes('tableGridlines')) gridlines();
+    if (changed.includes('tableMode')) editor.view.dispatch(editor.view.state.tr.setMeta('addToHistory', false).setMeta('tableMode', st.tableMode));
+  });
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && store.get().tableMode) store.set({ tableMode: null }); });
   ui.addPicture = (bytes, type) => editorEnv.addPicture(bytes, type);
 
   const mini = createMiniToolbar({ registry, store, editor });

@@ -207,8 +207,7 @@ test.describe('zoom and view options', () => {
     await page.locator('.ribbon-panel [data-command="view.sideToSide"]').click();
     await expect(page.locator('.page-stack')).toHaveClass(/side/);
     await expect.poll(() => page.locator('.pg').count()).toBeGreaterThanOrEqual(3);
-    const lefts = await page.locator('.pg').evaluateAll((els) => els.map((e) => parseFloat(e.style.left)));
-    expect(lefts[1]).toBeGreaterThan(lefts[0]);
+    await expect.poll(() => page.locator('.pg').evaluateAll((els) => parseFloat(els[1].style.left) - parseFloat(els[0].style.left))).toBeGreaterThan(0);
     await page.locator('.ribbon-panel [data-command="view.vertical"]').click();
     await expect(page.locator('.page-stack')).not.toHaveClass(/side/);
     await expect.poll(() => page.evaluate(() => window.odtEditor.docArea.pages.length)).toBe(3);

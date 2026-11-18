@@ -114,6 +114,28 @@ export function tablePropsCss(a = {}, out = []) {
   return out;
 }
 
+/** style:table-row-properties → CSS (heights apply to the cells). */
+export function rowPropsCss(a = {}, out = []) {
+  if (a['style:row-height']) out.push(`height:${a['style:row-height']}`);
+  else if (a['style:min-row-height']) out.push(`height:${a['style:min-row-height']}`);
+  if (a['fo:background-color'] && a['fo:background-color'] !== 'transparent') out.push(`background-color:${a['fo:background-color']}`);
+  return out;
+}
+
+/** CSS text for a table / row / cell automatic style. */
+export function tableAutoCss(auto, family) {
+  const p = auto?.props || {};
+  const out = [];
+  if (family === 'table') tablePropsCss(p['style:table-properties']?.a, out);
+  else if (family === 'table-row') rowPropsCss(p['style:table-row-properties']?.a, out);
+  else if (family === 'table-cell') {
+    cellPropsCss(p['style:table-cell-properties']?.a, out);
+    paragraphPropsCss({ 'fo:text-align': p['style:paragraph-properties']?.a?.['fo:text-align'] }, out);
+    textPropsCss(p['style:text-properties']?.a, out);
+  }
+  return out.join(';');
+}
+
 export function sectionPropsCss(a = {}, children = [], out = []) {
   if (a['fo:background-color'] && a['fo:background-color'] !== 'transparent') out.push(`background-color:${a['fo:background-color']}`);
   const cols = children.find((c) => typeof c !== 'string' && c.n === 'style:columns');

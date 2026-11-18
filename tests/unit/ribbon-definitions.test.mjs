@@ -33,7 +33,7 @@ function walk(visit) {
 test('tabs are in the reference order', () => {
   assert.deepEqual(TABS.filter((x) => !x.contextual).map((x) => x.id), ['file', 'home', 'insert', 'draw', 'design', 'layout', 'references', 'mailings', 'review', 'view', 'developer', 'zotero', 'help']);
   // Contextual tabs (shown while their object is being edited) come after Help.
-  assert.deepEqual(TABS.filter((x) => x.contextual).map((x) => x.id), ['headerFooter']);
+  assert.deepEqual(TABS.filter((x) => x.contextual).map((x) => x.id), ['headerFooter', 'tableDesign', 'tableLayout']);
   for (const tab of TABS) assert.ok(hasKey(`tab.${tab.id}`), `tab.${tab.id} missing`);
 });
 

@@ -8,6 +8,8 @@ import { h } from './dom.js';
 import { t } from '../i18n/index.js';
 import { iconSvg } from './icons.js';
 import { THEMES, COLOUR_SETS, FONT_SETS, SPACING, WATERMARKS } from '../features/design/apply.js';
+import { QUICK_TABLES } from '../features/table/insert.js';
+import { BORDER_STYLES } from '../features/table/design.js';
 
 const THEME_COLOURS = [
   ['#ffffff', '#000000', '#e8e8e8', '#0e2841', '#156082', '#e97132', '#196b24', '#0f9ed5', '#a02b93', '#4ea72e'],
@@ -68,7 +70,7 @@ function tableGrid(o) {
       const cell = h('button', { type: 'button', class: 'table-cell', tabindex: '-1', 'data-c': c, 'data-r': r, 'aria-label': t('menu.tableSize', { cols: c, rows: r }) });
       cell.addEventListener('pointerenter', () => mark(c, r));
       cell.addEventListener('focus', () => mark(c, r));
-      bind(cell, o, 'insert.tableGrid');
+      bind(cell, o, 'insert.tableGrid', () => o.registry.run('insert.tableGrid', { cols: c, rows: r }));
       cells.push(cell);
       grid.append(cell);
     }
@@ -225,6 +227,29 @@ function watermarkGallery(o) {
     })));
 }
 
+/** A miniature table preview (rows of strings). */
+function miniTable(data) {
+  return h('table', { class: 'mini-table' }, h('tbody', {}, data.slice(0, 5).map((row, i) => h('tr', { class: i === 0 ? 'head' : '' }, row.slice(0, 4).map((x) => h('td', {}, x))))));
+}
+
+function quickTables(o) {
+  return h('div', { class: 'menu-widget' }, h('div', { class: 'menu-header' }, t('menu.builtIn')),
+    h('div', { class: 'qt-list' }, Object.entries(QUICK_TABLES).map(([id, q], i) => {
+      const b = h('button', { type: 'button', class: 'qt-item', tabindex: '-1', 'data-menu-focus': i === 0 ? '' : null, 'data-quick-table': id }, miniTable(q.data), h('span', { class: 'qt-name' }, t(`tbl.quick.${id}`)));
+      bind(b, o, 'insert.quickTables', () => o.registry.run('insert.quickTables', id));
+      return b;
+    })));
+}
+
+function borderStyleGallery(o) {
+  return h('div', { class: 'menu-widget' }, h('div', { class: 'menu-header' }, t('tbl.borderStyles')),
+    h('div', { class: 'bs-grid' }, BORDER_STYLES.map(([w, st, col], i) => {
+      const b = h('button', { type: 'button', class: 'bs-item', tabindex: '-1', 'data-menu-focus': i === 0 ? '' : null, 'aria-label': `${st} ${w} ${col}` }, h('span', { style: { borderTop: `${Math.max(1, parseFloat(w) * 1.33)}px ${st} ${col}` } }));
+      bind(b, o, `tableDesign.borderStyle${i + 1}`, () => o.registry.run(`tableDesign.borderStyle${i + 1}`));
+      return b;
+    })));
+}
+
 /** Galleries whose previews are built together with their feature (later milestones). */
 function pendingGallery() {
   return h('div', { class: 'menu-widget' }, h('div', { class: 'menu-note' }, t('menu.galleryPreview')));
@@ -243,6 +268,8 @@ const WIDGETS = {
   windowList,
   headerGallery: (o) => hfGallery(o, 'header'),
   themeGallery,
+  quickTables,
+  borderStyleGallery,
   themeColours: colourSets,
   themeFonts: fontSets,
   paragraphSpacingPresets: spacingPresets,

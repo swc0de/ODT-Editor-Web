@@ -13,9 +13,11 @@ import * as developer from './developer/index.js';
 import * as zotero from './zotero/index.js';
 import * as help from './help/index.js';
 import * as headerFooter from './headerfooter/index.js';
+import * as tableDesign from './table/design.js';
+import * as tableLayout from './table/layout.js';
 import * as app from './app.js';
 
-export const TAB_MODULES = Object.freeze([file, home, insert, draw, design, layout, references, mailings, review, view, developer, zotero, help, headerFooter]);
+export const TAB_MODULES = Object.freeze([file, home, insert, draw, design, layout, references, mailings, review, view, developer, zotero, help, headerFooter, tableDesign, tableLayout]);
 export const TABS = Object.freeze(TAB_MODULES.map((m) => m.ribbon));
 
 export function registerFeatures(registry) {

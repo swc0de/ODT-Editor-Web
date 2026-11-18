@@ -123,7 +123,7 @@ export function createHeaderFooter({ store, docArea, getSession, mainEditor, edi
     active = { master: page.master, part, kind: k, pageIndex, editor, layer, box, tag, dirty: false };
     view().setProps({ editable: () => false });
     docArea.canvas.classList.add('hf-mode');
-    store.set({ contextual: 'headerFooter', activeTab: 'headerFooter', hfEditing: `${part}:${k}` });
+    store.set({ hfEditing: `${part}:${k}`, contextual: [...new Set([...String(store.get().contextual || '').split(' ').filter(Boolean), 'headerFooter'])].join(' '), activeTab: 'headerFooter' });
     layerGeometry();
     requestAnimationFrame(() => { if (active?.editor === editor) { layerGeometry(); editor.focus(); } });
   }
@@ -137,7 +137,7 @@ export function createHeaderFooter({ store, docArea, getSession, mainEditor, edi
     view().setProps({ editable: () => true });
     docArea.canvas.classList.remove('hf-mode', 'hf-hide-body');
     const s = store.get();
-    store.set({ contextual: null, hfEditing: null, ...(s.activeTab === 'headerFooter' ? { activeTab: 'home' } : {}) });
+    store.set({ hfEditing: null, contextual: String(s.contextual || '').split(' ').filter((x) => x && x !== 'headerFooter').join(' ') || null, ...(s.activeTab === 'headerFooter' ? { activeTab: 'home' } : {}) });
     if (focusBody) mainEditor.focus();
   }
 

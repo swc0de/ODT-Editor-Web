@@ -82,16 +82,19 @@ export function createBodyWriter(registry) {
     }
   }
 
+  /** Style reference of a table / column / row / cell: its automatic style, or its named style. */
+  const tstyle = (family, x) => (x.auto ? ` table:style-name="${registry.ref(family, null, x.auto)}"` : (x.styleName ? ` table:style-name="${escAttr(x.styleName)}"` : ''));
+
   function table(node) {
     const a = node.attrs;
-    let s = `<table:table${a.styleName ? ` table:style-name="${escAttr(a.styleName)}"` : ''}${attrs(a.extra)}>`;
+    let s = `<table:table${tstyle('table', a)}${attrs(a.extra)}>`;
     if (!(a.columns || []).length) {
       let w = 0;
       node.forEach((row) => { let n = 0; row.forEach((c) => { n += c.attrs.colspan; }); w = Math.max(w, n); });
       s += `<table:table-column${w > 1 ? ` table:number-columns-repeated="${w}"` : ''}/>`;
     }
     for (const col of a.columns || []) {
-      s += `<table:table-column${col.styleName ? ` table:style-name="${escAttr(col.styleName)}"` : ''}${col.repeat > 1 ? ` table:number-columns-repeated="${col.repeat}"` : ''}${col.defaultCellStyle ? ` table:default-cell-style-name="${escAttr(col.defaultCellStyle)}"` : ''}${attrs(col.extra)}/>`;
+      s += `<table:table-column${tstyle('table-column', col)}${col.repeat > 1 ? ` table:number-columns-repeated="${col.repeat}"` : ''}${col.defaultCellStyle ? ` table:default-cell-style-name="${escAttr(col.defaultCellStyle)}"` : ''}${attrs(col.extra)}/>`;
     }
     // Width of the grid (for covered cells at row ends).
     let width = (a.columns || []).reduce((n, c) => n + (c.repeat || 1), 0);
@@ -101,14 +104,14 @@ export function createBodyWriter(registry) {
     node.forEach((row, _, r) => {
       if (row.attrs.header && !inHeader) { s += '<table:table-header-rows>'; inHeader = true; }
       if (!row.attrs.header && inHeader) { s += '</table:table-header-rows>'; inHeader = false; }
-      s += `<table:table-row${row.attrs.styleName ? ` table:style-name="${escAttr(row.attrs.styleName)}"` : ''}${attrs(row.attrs.extra)}>`;
+      s += `<table:table-row${tstyle('table-row', row.attrs)}${attrs(row.attrs.extra)}>`;
       const cov = covered[r] || new Set();
       let col = 0;
       const coveredCell = () => { s += '<table:covered-table-cell/>'; col++; };
       row.forEach((cell) => {
         while (cov.has(col)) coveredCell();
         const ca = cell.attrs;
-        s += `<table:table-cell${ca.styleName ? ` table:style-name="${escAttr(ca.styleName)}"` : ''}${ca.colspan > 1 ? ` table:number-columns-spanned="${ca.colspan}"` : ''}${ca.rowspan > 1 ? ` table:number-rows-spanned="${ca.rowspan}"` : ''}${attrs(ca.extra)}>`;
+        s += `<table:table-cell${tstyle('table-cell', ca)}${ca.colspan > 1 ? ` table:number-columns-spanned="${ca.colspan}"` : ''}${ca.rowspan > 1 ? ` table:number-rows-spanned="${ca.rowspan}"` : ''}${attrs(ca.extra)}>`;
         cell.forEach((c) => { s += block(c); });
         s += '</table:table-cell>';
         for (let k = 1; k < ca.rowspan; k++) {
@@ -332,14 +335,18 @@ export function exportOdt(state, opts = {}) {
   let body = writer.body(state.doc);
   const prelude = (state.prelude || []).map(treeToXml).join('');
 
-  // Name generated automatic styles, avoiding names that are kept or used by common styles.
-  const kept = keptAutoStyles(state, body + prelude);
+  // Name generated automatic styles, avoiding names that are kept or used by
+  // common styles. Kept styles include those the generated ones refer to (data styles…).
+  const genXml = registry.entries().map((e) => treeToXml(treeFromAuto('x', e.family, e.parent, e.auto))).join('');
+  const kept = keptAutoStyles(state, body + prelude + genXml);
   const taken = new Set(kept.map((t) => t.a['style:name']));
   for (const t of state.commonStyles?.c || []) if (t.a?.['style:name']) taken.add(t.a['style:name']);
-  const counters = { paragraph: 0, text: 0 };
+  const PREFIX = { paragraph: 'P', text: 'T', table: 'Tab', 'table-column': 'TabCol', 'table-row': 'TabRow', 'table-cell': 'TabCell' };
+  const counters = {};
   const generated = [];
   for (const e of registry.entries()) {
-    const prefix = e.family === 'paragraph' ? 'P' : 'T';
+    const prefix = PREFIX[e.family] || 'X';
+    counters[e.family] = counters[e.family] || 0;
     let name;
     do { name = `${prefix}${++counters[e.family]}`; } while (taken.has(name));
     taken.add(name);

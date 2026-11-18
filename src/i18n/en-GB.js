@@ -6,5 +6,6 @@ import ui from './en-GB/ui.js';
 import file from './en-GB/file.js';
 import home from './en-GB/home.js';
 import layout from './en-GB/layout.js';
+import tables from './en-GB/tables.js';
 
-export default { ...app, ...commands, ...ribbon, ...ui, ...file, ...home, ...layout };
+export default { ...app, ...commands, ...ribbon, ...ui, ...file, ...home, ...layout, ...tables };
