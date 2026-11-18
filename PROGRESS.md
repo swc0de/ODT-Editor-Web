@@ -4,8 +4,8 @@ The memory between sessions. Statuses: `todo`, `in progress`, `awaiting approval
 
 | Milestone | Status |
 |---|---|
-| M0 — Scaffold, build, test harness | awaiting approval |
-| M1 — App shell and complete ribbon UI (visual match) | todo |
+| M0 — Scaffold, build, test harness | approved |
+| M1 — App shell and complete ribbon UI (visual match) | in progress |
 | M2 — Document model and ODT open/save | todo |
 | M3 — Print Layout: pagination, rulers, status bar, zoom | todo |
 | M4 — Home tab: character and paragraph formatting, styles, lists, find | todo |
@@ -25,7 +25,7 @@ The memory between sessions. Statuses: `todo`, `in progress`, `awaiting approval
 - **LibreOffice: installed** — `soffice` = LibreOffice 24.2.7.2 (detected by `tests/make-fixtures.mjs`). Used to produce genuine LibreOffice-written fixtures (`tests/fixtures/lo-*.odt`) and, with `--check`, to verify every fixture opens. The lo-*.odt files are committed so tests also run without LibreOffice.
 - **Reference screenshots: none supplied yet** (`reference/` is empty). M1 needs them for the pixel-close visual match.
 
-## M0 — Scaffold, build, test harness (awaiting approval)
+## M0 — Scaffold, build, test harness (approved)
 
 Built:
 - npm project: esbuild, ProseMirror packages, fflate, lucide (icons), Playwright.
