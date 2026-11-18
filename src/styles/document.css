@@ -74,3 +74,32 @@
 }
 .tab-selector:hover { background: var(--hover-bg); }
 .odt-doc .ProseMirror table.pg-split { border-collapse: separate; border-spacing: 0; }
+/* M5: spacers that end a column set (pages inside multi-column regions) */
+.pg-span { column-span: all; }
+.odt-doc.page-cols .ProseMirror { column-count: var(--page-cols); column-gap: var(--page-col-gap); }
+.odt-doc .ProseMirror > .pg-region { position: relative; }
+.pg.blank { background: var(--page-bg); }
+.pg-border { position: absolute; pointer-events: none; box-sizing: border-box; }
+.pg-watermark { position: absolute; inset: 0; display: grid; place-items: center; pointer-events: none; overflow: hidden; }
+.pg-watermark-text { font-family: "Carlito", sans-serif; font-weight: 600; white-space: nowrap; user-select: none; }
+.ln-layer { position: absolute; left: 0; top: 0; width: 100%; pointer-events: none; z-index: 1; }
+.ln-num { position: absolute; font: 10pt "Carlito", sans-serif; color: #000; text-align: right; width: 40px; }
+/* Header / footer editing */
+.canvas.hf-mode .page-flow { opacity: 0.5; }
+.canvas.hf-mode.hf-hide-body .page-flow { opacity: 0; }
+.hf-edit-page { position: absolute; pointer-events: none; z-index: 3; }
+.hf-edit-box { position: absolute; pointer-events: auto; background: var(--page-bg); min-height: 1.2em; }
+.hf-edit-box.header { border-bottom: 1px dashed #4a6fd0; }
+.hf-edit-box.footer { border-top: 1px dashed #4a6fd0; }
+.hf-edit-box .odt-doc { color: #000; }
+.hf-tag { position: absolute; left: -2px; font: 11px var(--font-ui); background: #e8edfb; color: #2b4aa0; border: 1px solid #4a6fd0; padding: 0 6px; white-space: nowrap; }
+.hf-edit-box.header .hf-tag { top: 100%; }
+.hf-edit-box.footer .hf-tag { bottom: 100%; }
+.hf-gallery { display: flex; flex-direction: column; gap: 4px; width: 300px; }
+.hf-gal-item { display: flex; flex-direction: column; gap: 3px; border: 1px solid transparent; border-radius: 4px; background: transparent; color: var(--text); padding: 6px; text-align: left; }
+.hf-gal-item:hover, .hf-gal-item:focus { background: var(--hover-bg); border-color: var(--control-border-soft); }
+.hf-prev { display: flex; justify-content: space-between; gap: 6px; background: #fff; color: #444; height: 26px; padding: 6px 10px; font: 10px var(--font-ui); border-radius: 2px; }
+.hf-prev.rule { border-bottom: 2px solid #444; }
+.hf-prev-cell { min-width: 20px; }
+.hf-gal-name { font-size: 12px; }
+.dt-list { width: 100%; height: auto; }

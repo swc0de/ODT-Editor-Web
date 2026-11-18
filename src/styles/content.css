@@ -63,3 +63,8 @@
 .zd-option { display: flex; align-items: center; gap: 6px; }
 .zd-percent-row { display: flex; align-items: center; gap: 8px; }
 .zd-percent { width: 72px; height: 26px; padding: 0 6px; border: 1px solid var(--control-border); border-radius: 4px; background: var(--control-bg); color: var(--text); user-select: text; }
+.odt-doc .ProseMirror br[data-clear] { clear: both; }
+.odt-doc .ProseMirror [data-break="column"] { break-before: column; }
+/* Page fields in the body show the number of the page they are on. */
+.odt-doc .odt-field[data-shown] > .odt-field-text { display: none; }
+.odt-doc .odt-field[data-shown]::before { content: attr(data-shown); }

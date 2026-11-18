@@ -5,5 +5,6 @@ import ribbon from './en-GB/ribbon.js';
 import ui from './en-GB/ui.js';
 import file from './en-GB/file.js';
 import home from './en-GB/home.js';
+import layout from './en-GB/layout.js';
 
-export default { ...app, ...commands, ...ribbon, ...ui, ...file, ...home };
+export default { ...app, ...commands, ...ribbon, ...ui, ...file, ...home, ...layout };

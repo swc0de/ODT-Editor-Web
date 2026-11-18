@@ -9,23 +9,31 @@ import { t } from '../i18n/index.js';
 import { createPageView } from './page-view.js';
 import { createPaginator, paginationPlugin, PAGE_GAP } from './paginator.js';
 import { createRulers } from './ruler.js';
+import { regionsPlugin, regionsKey } from './regions.js';
+import { hyphenationPlugin, hyphenKey } from './hyphenate.js';
+import { renderLineNumbers } from './line-numbers.js';
+import { fieldsPlugin, updatePageFields } from './fields.js';
+import { hyphenation } from '../core/page-setup.js';
 import { buildPageModel, measureMasters } from './page-model.js';
 import { layoutTabs, tabStopsOf, defaultTabInterval } from './tabs.js';
 import { buildStyleIndex, buildDocumentCss } from '../core/odt/styles.js';
 import { findChild } from '../core/odt/xml.js';
 import { pxToLength } from './units.js';
 import { paragraphIndents, setIndents, setTabStops, selectedTextblocks } from '../core/commands/paragraph.js';
+import { editState } from '../core/state-step.js';
 
 export const ZOOM_MIN = 10;
 export const ZOOM_MAX = 500;
 
-export function createDocumentArea({ store, getEditor, getSession, onPagesChange }) {
+export function createDocumentArea({ store, getEditor, getSession, onPagesChange, pictureUrl }) {
   const docStyle = h('style', { id: 'odt-doc-css' });
   document.head.append(docStyle);
-  const view = createPageView();
+  const view = createPageView({ getPictureUrl: (p) => pictureUrl?.(p) });
   const canvas = h('div', { class: 'canvas', 'aria-label': t('region.document'), 'data-region': 'document' }, view.el);
   let styleIndex = null;
   let model = null;
+  let hyphCaps = true;
+  let lnFrame = 0;
   let paginator = null;
   let pages = [];
 
@@ -67,9 +75,10 @@ export function createDocumentArea({ store, getEditor, getSession, onPagesChange
     if (!page || !el) return;
     const r = el.getBoundingClientRect();
     const node = selectedTextblocks(ed.view.state)[0]?.node;
+    const m = model.masters.get(page.master) || model.first;
     rulers.update({
       left: r.left, top: r.top, scale: options().zoom,
-      page: { width: model.width, height: page.box.pageHeight, marginLeft: model.marginLeft, marginRight: model.marginRight, bodyTop: page.box.top, bodyBottom: page.box.bottom },
+      page: { width: m.width, height: page.box.pageHeight, marginLeft: m.marginLeft, marginRight: m.marginRight, bodyTop: page.box.top, bodyBottom: page.box.bottom },
       indents: node ? paragraphIndents(node, styleIndex) : { left: 0, right: 0, firstLine: 0 },
       tabs: node ? tabStopsOf(node, styleIndex).map((s) => ({ pos: s.pos, type: s.type, char: s.char })) : [],
       interval: defaultTabInterval(styleIndex),
@@ -87,6 +96,11 @@ export function createDocumentArea({ store, getEditor, getSession, onPagesChange
       pages = newPages;
       view.renderPages(pages);
     }
+    if (store.get().pageMovement !== 'side') requestAnimationFrame(() => updatePageFields(getEditor().view, pages, model));
+    cancelAnimationFrame(lnFrame);
+    if (model?.lineNumbering && store.get().pageMovement !== 'side') {
+      lnFrame = requestAnimationFrame(() => renderLineNumbers({ view: getEditor().view, layer: view.lnLayer, model, pages, index: styleIndex, zoom: options().zoom, origin: () => view.stack }));
+    } else view.lnLayer.replaceChildren();
     syncRulers();
     onPagesChange?.(pages);
   }
@@ -112,6 +126,15 @@ export function createDocumentArea({ store, getEditor, getSession, onPagesChange
     measureMasters(model, view.bgs);
     view.setModel(model);
     view.setOptions(options());
+    // Page-level columns (the same count on every page style) make the whole flow multi-column.
+    const counts = new Set([...model.masters.values()].map((m) => m.columns.count));
+    const pc = counts.size === 1 ? [...counts][0] : 1;
+    view.mount.classList.toggle('page-cols', pc > 1);
+    view.mount.style.setProperty('--page-cols', String(pc));
+    view.mount.style.setProperty('--page-col-gap', `${model.first.columns.gap || 0}px`);
+    const ed = getEditor();
+    hyphCaps = hyphenation(state).caps;
+    if (ed) ed.view.dispatch(ed.view.state.tr.setMeta(regionsKey, true).setMeta(hyphenKey, true).setMeta('addToHistory', false).setMeta('pagination', true));
     paginator?.relayout();
     return styleIndex;
   }
@@ -140,9 +163,7 @@ export function createDocumentArea({ store, getEditor, getSession, onPagesChange
       if (map[side] == null) continue;
       props.a[`fo:margin-${side}`] = pxToLength(Math.max(0, map[side]), 'cm', 3);
     }
-    state.stylesAutoStyles = autos;
-    session.markDirty();
-    applyDocument(state);
+    editState(getEditor().view, state, ['stylesAutoStyles'], (st) => { st.stylesAutoStyles = autos; });
   }
 
   // ------------------------------------------------------------ zoom
@@ -201,7 +222,7 @@ export function createDocumentArea({ store, getEditor, getSession, onPagesChange
     rulers,
     attach,
     applyDocument,
-    plugin: paginationPlugin,
+    plugins: () => [paginationPlugin(), regionsPlugin(() => model, () => styleIndex), hyphenationPlugin(() => ({ index: styleIndex, caps: hyphCaps })), fieldsPlugin()],
     /** After a document change. */
     update: () => paginator?.update(),
     relayout: () => paginator?.relayout(),

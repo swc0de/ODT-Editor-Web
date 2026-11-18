@@ -97,8 +97,8 @@ test.describe('app shell', () => {
     await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
     await expect(menu).toHaveCount(0);
     // Menus of unbuilt features still open, with every item marked Coming soon.
-    await tab(page, 'Layout').click();
-    await page.locator('.ribbon-panel [data-command="layout.margins"]').click();
+    await tab(page, 'Mailings').click();
+    await page.locator('.ribbon-panel [data-command="mailings.startMailMerge"]').click();
     await expect(page.getByRole('menu').locator('.menu-soon').first()).toHaveText('Coming soon');
     await page.keyboard.press('Escape');
     await expect(page.getByRole('menu')).toHaveCount(0);

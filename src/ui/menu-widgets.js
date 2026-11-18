@@ -152,6 +152,22 @@ function windowList() {
     h('div', { class: 'menu-note' }, t('menu.noWindows')));
 }
 
+/** Header / footer galleries: small page-strip previews of each preset. */
+function hfGallery(o, part) {
+  const items = part === 'header'
+    ? [['blank', 'hf.preset.blank', ['', '']], ['blank3', 'hf.preset.blank3', ['[ ]', '[ ]', '[ ]']], ['title', 'hf.preset.title', ['Title', '', '1']], ['rule', 'hf.preset.rule', ['', 'rule']]]
+    : [['blank', 'hf.preset.blank', ['', '']], ['blank3', 'hf.preset.blank3', ['[ ]', '[ ]', '[ ]']], ['pageCentre', 'hf.preset.pageCentre', ['', '1', '']], ['pageOfTotal', 'hf.preset.pageOfTotal', ['', 'Page 1 of 3', '']]];
+  const cmdId = part === 'header' ? 'insert.header' : 'insert.footer';
+  return h('div', { class: 'menu-widget' },
+    h('div', { class: 'menu-header' }, t('hf.builtIn')),
+    h('div', { class: 'hf-gallery' }, items.map(([id, label, cells], i) => {
+      const preview = h('span', { class: `hf-prev ${part}${cells[1] === 'rule' ? ' rule' : ''}` }, cells.filter((x) => x !== 'rule').map((x) => h('span', { class: 'hf-prev-cell' }, x)));
+      const b = h('button', { type: 'button', class: 'hf-gal-item', tabindex: '-1', 'data-menu-focus': i === 0 ? '' : null, 'aria-label': t(label), 'data-preset': id }, preview, h('span', { class: 'hf-gal-name' }, t(label)));
+      bind(b, o, cmdId, () => o.registry.run(cmdId, id));
+      return b;
+    })));
+}
+
 /** Galleries whose previews are built together with their feature (later milestones). */
 function pendingGallery() {
   return h('div', { class: 'menu-widget' }, h('div', { class: 'menu-note' }, t('menu.galleryPreview')));
@@ -168,6 +184,8 @@ const WIDGETS = {
   multilevelLibrary: (o) => listLibrary(o, 'multilevel'),
   thicknessList,
   windowList,
+  headerGallery: (o) => hfGallery(o, 'header'),
+  footerGallery: (o) => hfGallery(o, 'footer'),
 };
 
 export function renderWidget(name, o) {

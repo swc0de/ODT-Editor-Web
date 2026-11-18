@@ -115,7 +115,7 @@ export function ensureListStyle(docState, levels) {
   let i = 1;
   while (taken.has(`L${i}`)) i++;
   const tree = makeListStyle(`L${i}`, levels);
-  docState.contentAutoStyles.push(tree);
+  docState.contentAutoStyles = [...docState.contentAutoStyles, tree];
   void treeToXml;
   return tree.a['style:name'];
 }

@@ -59,4 +59,8 @@ export const INITIAL_APP_STATE = Object.freeze({
   lastUnderlineColour: '#c00000',
   lastBorder: 'home.borderBottom',
   listPresets: {},
+  // M5
+  contextual: null, // contextual ribbon tab shown ('headerFooter', …)
+  hfEditing: null,
+  paraSpins: null,
 });

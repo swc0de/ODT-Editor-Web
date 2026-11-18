@@ -37,3 +37,6 @@
 .top-btn.is-dim > * { opacity: 1; }
 .top-icon { display: inline-flex; }
 .top-icon .i-editing-mode .rf { fill: var(--icon-orange); }
+/* Contextual tabs (Header & Footer, …) */
+.tab.tab-contextual .tab-text { color: var(--accent-text); }
+.tab[hidden] { display: none; }

@@ -59,14 +59,14 @@ export function length(valuePx, unit, attrs = {}) {
   return el;
 }
 
-/** Tabbed container: tabs = [[label, contentNode]]. */
-export function tabs(list) {
+/** Tabbed container: tabs = [[label, contentNode]]; `initial` = index of the tab shown first. */
+export function tabs(list, initial = 0) {
   const bar = h('div', { class: 'fm-tabs', role: 'tablist' });
   const panels = h('div', { class: 'fm-panels' });
   list.forEach(([label, content], i) => {
     const id = uid('tp');
-    const btn = h('button', { type: 'button', role: 'tab', class: 'fm-tab', 'aria-selected': String(i === 0), 'aria-controls': id }, label);
-    const panel = h('div', { role: 'tabpanel', id, class: 'fm-panel', hidden: i !== 0 }, content);
+    const btn = h('button', { type: 'button', role: 'tab', class: 'fm-tab', 'aria-selected': String(i === initial), 'aria-controls': id }, label);
+    const panel = h('div', { role: 'tabpanel', id, class: 'fm-panel', hidden: i !== initial }, content);
     btn.addEventListener('click', () => {
       bar.querySelectorAll('.fm-tab').forEach((b) => b.setAttribute('aria-selected', String(b === btn)));
       panels.querySelectorAll('.fm-panel').forEach((p) => { p.hidden = p !== panel; });

@@ -19,7 +19,7 @@ import { APP_NAME, APP_VERSION, ODT_MIME, OTT_MIME } from '../../config.js';
 const MARK = '\u0001';
 
 /** Collects automatic styles generated while writing the body. */
-function createAutoRegistry() {
+export function createAutoRegistry() {
   const byKey = new Map();
   return {
     ref(family, parent, auto) {
@@ -202,7 +202,7 @@ export function createBodyWriter(registry) {
     switch (node.type.name) {
       case 'text': return encodeText(node.text, st);
       case 'tab': st.prevSpace = false; return '<text:tab/>';
-      case 'hard_break': st.prevSpace = false; return '<text:line-break/>';
+      case 'hard_break': st.prevSpace = false; return a.clear ? `<text:line-break loext:clear="${escAttr(a.clear)}"/>` : '<text:line-break/>';
       case 'field': st.prevSpace = false; return `<${a.element}${attrsToXml(a.fieldAttrs)}>${escText(a.text)}</${a.element}>`;
       case 'frame': st.prevSpace = false; return `<draw:frame${attrsToXml(a.frameAttrs)}>${a.innerXml}</draw:frame>`;
       case 'opaque_inline': st.prevSpace = false; return a.xml;

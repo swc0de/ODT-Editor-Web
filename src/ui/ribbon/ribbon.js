@@ -21,7 +21,7 @@ export function createRibbon({ registry, store, tabs, toast }) {
   const tablist = h('div', { class: 'tabs', role: 'tablist', 'aria-label': t('ribbon.tabs') });
   for (const def of tabs) {
     const btn = h('button', {
-      type: 'button', role: 'tab', class: `tab${def.backstage ? ' tab-file' : ''}`, id: `tab-${def.id}`,
+      type: 'button', role: 'tab', class: `tab${def.backstage ? ' tab-file' : ''}${def.contextual ? ' tab-contextual' : ''}`, id: `tab-${def.id}`, hidden: !!def.contextual,
       'aria-selected': 'false', 'aria-controls': def.backstage ? 'backstage' : 'ribbon-panel', tabindex: '-1',
       'data-tab': def.id, 'data-keytip': def.keytip,
     }, h('span', { class: 'tab-text' }, t(`tab.${def.id}`)));
@@ -31,7 +31,7 @@ export function createRibbon({ registry, store, tabs, toast }) {
     tablist.append(btn);
   }
   tablist.addEventListener('keydown', (e) => {
-    const ids = tabs.map((d) => d.id);
+    const ids = tabs.filter((d) => !tabButtons.get(d.id).hidden).map((d) => d.id);
     const i = ids.indexOf(e.target.dataset?.tab);
     if (i < 0) return;
     const next = { ArrowRight: i + 1, ArrowLeft: i - 1, Home: 0, End: ids.length - 1 }[e.key];
@@ -181,12 +181,16 @@ export function createRibbon({ registry, store, tabs, toast }) {
           if (!opensMenu) el.setAttribute('aria-pressed', String(on));
         }
       }
-      root.querySelectorAll('.rb-combo, .gal').forEach((c) => c._sync?.());
+      root.querySelectorAll('.rb-combo, .gal, .rb-spins').forEach((c) => c._sync?.());
     }
   }
   registry.onChange(refresh);
 
   function applyState(state, changed) {
+    // Contextual tabs (Header & Footer, Table Design…) show while their object is active.
+    if (!changed || changed.includes('contextual')) {
+      for (const d of tabs) if (d.contextual) tabButtons.get(d.id).hidden = state.contextual !== d.contextual;
+    }
     if (!changed || changed.includes('activeTab')) showTab(state.activeTab);
     ribbon.classList.toggle('is-collapsed', state.ribbonCollapsed);
     ribbon.classList.toggle('is-peek', state.ribbonCollapsed && state.ribbonPeek);

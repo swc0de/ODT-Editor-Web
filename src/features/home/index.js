@@ -18,6 +18,7 @@ import {
 import { ensureStyles, findStyle, createStyle, setStyleFormatting, ownFormatting, updateStyleToMatch, deleteStyle, isBuiltIn } from '../../core/style-edit.js';
 import { mergeAuto } from '../../core/odt/styles.js';
 import { MultiRangeSelection, marksKey } from '../../core/editing-plugins.js';
+import { editState } from '../../core/state-step.js';
 import { dictationSupported } from '../../core/dictation.js';
 import { pxToLength } from '../../layout/units.js';
 import { showDialog } from '../../ui/dialog.js';
@@ -209,15 +210,12 @@ export const GALLERY_STYLES = {
   intenseQuote: ['paragraph', 'Intense_20_Quote'], listParagraph: ['paragraph', 'List_20_Paragraph'],
 };
 
-/** Re-renders after style definitions changed. */
-export function stylesChanged(c) {
-  c.ui.docArea.applyDocument(c.session.state);
-  c.session.markDirty();
-  c.ui.onStylesChanged?.();
-}
+const STYLE_KEYS = ['commonStyles'];
+/** Changes named styles as an undoable step (the editor re-renders on StateSteps). */
+const editStyles = (c, fn) => editState(V(c), c.session.state, STYLE_KEYS, fn);
 
 export function useStyle(c, family, name) {
-  if (ensureStyles(c.session.state, family, [name])) stylesChanged(c);
+  editStyles(c, (st) => ensureStyles(st, family, [name]));
   const view = V(c);
   if (family === 'paragraph') setParagraphStyle(view.state, view.dispatch, IX(c), name);
   else setCharStyle(view.state, view.dispatch, formatAt(c).charStyle === name ? null : name);
@@ -249,14 +247,13 @@ export const styleActions = (c) => ({
       styles: styleOptions(c, 'paragraph'), editor: c.editor, index: IX(c), isNew: true,
     });
     if (!res) return;
-    const name = createStyle(c.session.state, { displayName: res.displayName, family: 'paragraph', parent: res.parent, next: res.next, auto: res.auto });
-    stylesChanged(c);
+    const name = editStyles(c, (st) => createStyle(st, { displayName: res.displayName, family: 'paragraph', parent: res.parent, next: res.next, auto: res.auto }));
     chain(c, clearCharFormatting, clearParagraphFormatting, (s, d) => setParagraphStyle(s, d, IX(c), name));
     done(c);
   },
   async modify(family, name) {
+    editStyles(c, (s2) => ensureStyles(s2, family, [name]));
     const st = c.session.state;
-    ensureStyles(st, family, [name]);
     const tree = findStyle(st, family, name);
     if (!tree) return;
     const res = await styleDialog({
@@ -265,19 +262,18 @@ export const styleActions = (c) => ({
       styles: styleOptions(c, family).filter(([n]) => n !== name), editor: c.editor, index: IX(c), isNew: false,
     });
     if (!res) return;
-    setStyleFormatting(st, family, name, res.auto, { displayName: res.displayName, parent: res.parent, next: res.next });
-    stylesChanged(c);
+    editStyles(c, (s2) => setStyleFormatting(s2, family, name, res.auto, { displayName: res.displayName, parent: res.parent, next: res.next }));
     done(c);
   },
   update(family, name) {
-    const st = c.session.state;
-    ensureStyles(st, family, [name]);
     const direct = directFormatting(c);
-    if (family === 'text') {
-      const tp = direct?.props?.[TP];
-      updateStyleToMatch(st, family, name, tp ? { styleAttrs: {}, props: { [TP]: tp } } : null);
-    } else updateStyleToMatch(st, family, name, direct);
-    stylesChanged(c);
+    editStyles(c, (st) => {
+      ensureStyles(st, family, [name]);
+      if (family === 'text') {
+        const tp = direct?.props?.[TP];
+        updateStyleToMatch(st, family, name, tp ? { styleAttrs: {}, props: { [TP]: tp } } : null);
+      } else updateStyleToMatch(st, family, name, direct);
+    });
     if (family === 'paragraph') chain(c, clearCharFormatting, clearParagraphFormatting, (s, d) => setParagraphStyle(s, d, IX(c), name));
     else chain(c, clearCharFormatting, (s, d) => setCharStyle(s, d, name));
     done(c);
@@ -286,9 +282,8 @@ export const styleActions = (c) => ({
     if (isBuiltIn(family, name)) { c.ui.toast?.(t('sp.cannotDelete')); return; }
     const ok = await showDialog({ title: t('sp.deleteTitle'), message: t('sp.deleteConfirm', { name: IX(c)?.displayName(family, name) || name }), buttons: [{ label: t('common.yes'), value: true, primary: true }, { label: t('common.no'), value: false }], cancelValue: false });
     if (!ok) return;
-    const fallback = deleteStyle(c.session.state, family, name);
+    const fallback = editStyles(c, (st) => deleteStyle(st, family, name));
     if (fallback === false) return;
-    stylesChanged(c);
     // Re-point everything that used it.
     const view = V(c);
     const tr = view.state.tr;
@@ -386,7 +381,7 @@ const colourCmd = (stateKey, apply, extra = {}) => ({
 function ensureFontFace(docState, name) {
   docState.fontFaces = docState.fontFaces || [];
   if (docState.fontFaces.some((f) => f.a['style:name'] === name)) return;
-  docState.fontFaces.push({ n: 'style:font-face', a: { 'style:name': name, 'svg:font-family': /[\s,]/.test(name) ? `'${name}'` : name } });
+  docState.fontFaces = [...docState.fontFaces, { n: 'style:font-face', a: { 'style:name': name, 'svg:font-family': /[\s,]/.test(name) ? `'${name}'` : name } }];
 }
 
 // ------------------------------------------------------------ commands

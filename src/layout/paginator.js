@@ -28,9 +28,10 @@ export const PAGE_GAP = 16;
 
 const gapPos = (g) => (g.type === 'rows' ? g.tablePos : g.pos);
 
-function gapWidget(h, inline) {
+function gapWidget(h, inline, span = null) {
   const el = document.createElement(inline ? 'span' : 'div');
-  el.className = inline ? 'pg-gap pg-gap-inline' : 'pg-gap';
+  el.className = `${inline ? 'pg-gap pg-gap-inline' : 'pg-gap'}${span != null ? ' pg-span' : ''}`;
+  if (span != null) el.dataset.pos = String(span);
   el.style.height = `${Math.max(0, h)}px`;
   el.contentEditable = 'false';
   el.setAttribute('aria-hidden', 'true');
@@ -43,6 +44,7 @@ export function gapDecorations(doc, gaps) {
   for (const g of gaps) {
     if (g.type === 'block') decos.push(Decoration.widget(g.pos, () => gapWidget(g.h, false), { side: -1, key: `b:${g.h.toFixed(2)}`, ignoreSelection: true }));
     else if (g.type === 'inline') decos.push(Decoration.widget(g.pos, () => gapWidget(g.h, true), { side: -1, key: `i:${g.h.toFixed(2)}`, ignoreSelection: true, marks: [] }));
+    else if (g.type === 'span') decos.push(Decoration.widget(g.pos, () => gapWidget(g.h, g.inline, g.pos), { side: -1, key: `s:${g.inline ? 1 : 0}:${g.pos}:${g.h.toFixed(2)}`, ignoreSelection: true, marks: [] }));
     else {
       for (const [rowPos, s] of g.shifts) {
         const row = doc.nodeAt(rowPos);
@@ -129,12 +131,13 @@ function createPropsCache(getIndex) {
   return get;
 }
 
-function sectionHasColumns(node, getIndex) {
+/** Column count of a section (from its automatic style). */
+export function sectionColumns(node, getIndex) {
   const t = node.attrs.styleName && getIndex()?.autos.get(`section:${node.attrs.styleName}`);
-  if (!t) return false;
+  if (!t) return 1;
   const sp = (t.c || []).find((c) => c.n === 'style:section-properties');
   const cols = sp && (sp.c || []).find((c) => c.n === 'style:columns');
-  return Number(cols?.a?.['fo:column-count'] || 1) > 1;
+  return Number(cols?.a?.['fo:column-count'] || 1);
 }
 
 function tableProps(node, getIndex) {
@@ -144,31 +147,39 @@ function tableProps(node, getIndex) {
   return { breakBefore: tp['fo:break-before'] === 'page' || !!master, master };
 }
 
-/** Breakable units in document order, starting with the unit at/after `fromPos`. */
-function* units(doc, getIndex, props, fromPos) {
-  function* walk(parent, base, path) {
-    let offset = 0;
-    for (let i = 0; i < parent.childCount; i++) {
-      const node = parent.child(i);
-      const pos = base + offset;
-      offset += node.nodeSize;
-      if (pos + node.nodeSize <= fromPos) continue;
-      const p = [...path, { pos, node, index: i, parent }];
-      const name = node.type.name;
-      if (name === 'paragraph' || name === 'heading') { if (pos >= fromPos) yield { kind: 'para', pos, node, path: p, props: props(node) }; }
-      else if (name === 'list' || name === 'list_item' || (name === 'section' && !sectionHasColumns(node, getIndex))) yield* walk(node, pos + 1, p);
-      else if (name === 'table') {
-        const tp = tableProps(node, getIndex);
-        let rpos = pos + 1;
-        for (let r = 0; r < node.childCount; r++) {
-          const row = node.child(r);
-          if (rpos >= fromPos) yield { kind: 'row', pos: rpos, node: row, path: [...p, { pos: rpos, node: row, index: r, parent: node }], table: { pos, node, props: tp }, rowIndex: r };
-          rpos += row.nodeSize;
-        }
-      } else if (pos >= fromPos) yield { kind: 'block', pos, node, path: p };
-    }
+/**
+ * Breakable units in document order, starting with the unit at/after `fromPos`.
+ * A section with columns is one 'cols' unit (laid out by layoutRegion); with
+ * page-level columns the whole document is one such region.
+ */
+function* units(doc, getIndex, props, fromPos, pageColumns = 1) {
+  if (pageColumns > 1) { yield { kind: 'cols', pos: -1, node: doc, path: [], count: pageColumns, whole: true }; return; }
+  yield* walkUnits(doc, 0, [], getIndex, props, fromPos, false);
+}
+
+function* walkUnits(parent, base, path, getIndex, props, fromPos, inRegion) {
+  let offset = 0;
+  for (let i = 0; i < parent.childCount; i++) {
+    const node = parent.child(i);
+    const pos = base + offset;
+    offset += node.nodeSize;
+    if (pos + node.nodeSize <= fromPos) continue;
+    const p = [...path, { pos, node, index: i, parent }];
+    const name = node.type.name;
+    const cols = name === 'section' ? sectionColumns(node, getIndex) : 1;
+    if (name === 'paragraph' || name === 'heading') { if (pos >= fromPos) yield { kind: 'para', pos, node, path: p, props: props(node) }; }
+    else if (name === 'section' && cols > 1 && !inRegion) yield { kind: 'cols', pos, node, path: p, count: cols };
+    else if (name === 'list' || name === 'list_item' || (name === 'section' && cols <= 1)) yield* walkUnits(node, pos + 1, p, getIndex, props, fromPos, inRegion);
+    else if (name === 'table' && !inRegion) {
+      const tp = tableProps(node, getIndex);
+      let rpos = pos + 1;
+      for (let r = 0; r < node.childCount; r++) {
+        const row = node.child(r);
+        if (rpos >= fromPos) yield { kind: 'row', pos: rpos, node: row, path: [...p, { pos: rpos, node: row, index: r, parent: node }], table: { pos, node, props: tp }, rowIndex: r };
+        rpos += row.nodeSize;
+      }
+    } else if (pos >= fromPos) yield { kind: 'block', pos, node, path: p };
   }
-  yield* walk(doc, 0, []);
 }
 
 /**
@@ -187,15 +198,18 @@ export function createPaginator(o) {
   let frame = 0;
   let idle = 0;
   let job = null;
+  let fullPending = false;
 
   const st = () => paginationKey.getState(view.state);
   const zoom = () => o.getOptions().zoom || 1;
 
   function makePage(prev, unit, forcedMaster) {
     const model = o.getModel();
-    const name = forcedMaster && model.masters.has(forcedMaster) ? forcedMaster : (prev?.master || model.first.name);
+    let name = forcedMaster && model.masters.has(forcedMaster) ? forcedMaster : (prev?.master || model.first.name);
+    // A page style's "next style" (e.g. First Page → Default) applies to the following page.
+    if (prev && !forcedMaster) { const pm = model.masters.get(prev.master); if (pm?.next && model.masters.has(pm.next)) name = pm.next; }
     const master = model.masters.get(name) || model.first;
-    const continues = prev && prev.master === master.name && !forcedMaster;
+    const continues = prev && !forcedMaster && (prev.master === master.name || model.masters.get(prev.master)?.next === master.name);
     const indexInMaster = continues ? prev.indexInMaster + 1 : 0;
     const restart = unit?.kind === 'para' ? unit.props.pageNumber : null;
     const number = restart || (prev ? prev.number + 1 : 1);
@@ -206,7 +220,7 @@ export function createPaginator(o) {
   }
 
   /** Lays out from `startIndex`; yields periodically. Uses the gaps currently rendered for measuring. */
-  function* layout(startIndex) {
+  function* layout(startIndex, full = false) {
     const cur = st();
     const gaps = cur.gaps; // matches the DOM throughout this run
     const oldPages = cur.pages;
@@ -290,11 +304,20 @@ export function createPaginator(o) {
     let breakAfterPending = false;
     let rows = null; // open table split
     let count = 0;
+    let regionAgain = Infinity; // a column region needs another pass from here
 
     o.beforeMeasure?.(restartPos);
 
     const newPage = (unit, forcedMaster) => {
       page = makePage(page, unit, forcedMaster);
+      // Left-only / right-only page styles (even / odd section breaks): insert a blank page.
+      const um = o.getModel().masters.get(page.master);
+      if (forcedMaster && ((um?.usage === 'left' && page.number % 2 === 1) || (um?.usage === 'right' && page.number % 2 === 0))) {
+        page.blank = true;
+        page.clean = false;
+        pages.push(page);
+        page = makePage(page, unit, forcedMaster);
+      }
       pages.push(page);
       first = true;
       return page;
@@ -302,6 +325,7 @@ export function createPaginator(o) {
 
     /** Has the layout caught up with the previous one at this boundary? */
     const caughtUp = (pos) => {
+      if (full) return false;
       const old = oldPages[page.index];
       if (!old || old.startPos !== pos || Math.abs(old.D - page.D) > 0.5 || old.master !== page.master || old.number !== page.number || Math.abs(old.top - page.top) > 0.5 || !old.clean || !page.clean) return false;
       // The boundary's own gap is already in newGaps; reuse everything after it.
@@ -341,8 +365,169 @@ export function createPaginator(o) {
 
     };
 
-    for (const u of units(view.state.doc, o.getIndex, props, restartPos)) {
+    /**
+     * A multi-column region (section with columns, or the whole flow with
+     * page-level columns). The browser balances columns; pages are made by
+     * inserting `column-span: all` spacers, which end one column set and push
+     * the next to the following page. Lengths are measured as if the content
+     * were a single column; a spacer's exact height needs it to be rendered,
+     * so new spacers ask for a second pass (`regionAgain`).
+     */
+    function* layoutRegion(u, m) {
+      const dom = u.whole ? view.dom : m.dom;
+      const rr = dom.getBoundingClientRect();
+      const N = u.count;
+      const top0 = t0();
+      const own = gaps.filter((g) => g.type === 'span' && (u.whole || (g.pos > u.pos && g.pos < u.pos + u.node.nodeSize)));
+      const regionTopVis = u.whole ? (rr.top - top0) / k + (parseFloat(getComputedStyle(dom).paddingTop) || 0) : m.top + page.D;
+      const visBottom = (rr.bottom - top0) / k;
+      // Fits as it is: nothing to split.
+      if (!own.length && visBottom <= bodyBottom(page) + 0.5) {
+        return null;
+      }
+      // Single-column pieces in order: lines of paragraphs, other blocks whole.
+      const pieces = [];
+      const colGap = parseFloat(getComputedStyle(dom).columnGap) || 0;
+      const pitch = (rr.width + colGap) / N;
+      const colOf = (r) => Math.max(0, Math.min(N - 1, Math.floor((r.left + 1 - rr.left) / pitch)));
+      // Lines are ordered by column set (sets are separated by spacers), column, then top.
+      const spanTops = [...dom.querySelectorAll('.pg-span')].map((e) => e.getBoundingClientRect().top);
+      const setOf = (r) => spanTops.filter((y) => y < r.top).length;
+      const inner = u.whole ? walkUnits(u.node, 0, [], o.getIndex, props, 0, true) : walkUnits(u.node, u.pos + 1, u.path, o.getIndex, props, 0, true);
+      for (const v of inner) {
+        const vd = view.nodeDOM(v.pos);
+        if (!vd || vd.nodeType !== 1) continue;
+        const mm = margins(vd);
+        if (v.kind === 'para') {
+          const range = document.createRange();
+          range.selectNodeContents(vd);
+          const rects = [...range.getClientRects()].filter((r) => r.height > 0 && r.width > 0);
+          rects.sort((a, b) => setOf(a) - setOf(b) || colOf(a) - colOf(b) || a.top - b.top);
+          const ls = [];
+          for (const r of rects) {
+            const last = ls[ls.length - 1];
+            if (last && colOf(r) === last.col && setOf(r) === last.set && r.top < last.b - 2) { last.b = Math.max(last.b, r.bottom); continue; }
+            ls.push({ col: colOf(r), set: setOf(r), t: r.top, b: r.bottom, left: r.left, mid: r.top + Math.min(r.height / 2, 6) });
+          }
+          const end = v.pos + v.node.nodeSize - 1;
+          // A line's share is the distance to the next line's top (its line height), not its glyph box.
+          const lh = parseFloat(getComputedStyle(vd).lineHeight) * k || 0;
+          const pitch2 = (l, i) => {
+            const nx = ls[i + 1];
+            if (nx && nx.col === l.col && nx.set === l.set && nx.t > l.t) return nx.t - l.t;
+            return Math.max(l.b - l.t, lh);
+          };
+          ls.forEach((l, i) => pieces.push({
+            set: l.set,
+            h: pitch2(l, i) / k + (i === 0 ? mm.mt : 0) + (i === ls.length - 1 ? mm.mb : 0),
+            forced: i === 0 && v.props.breakBefore, inline: i > 0, unit: v,
+            pos: () => {
+              if (i === 0) return v.pos;
+              const hit = view.posAtCoords({ left: l.left + 1, top: l.mid });
+              return hit ? Math.max(v.pos + 1, Math.min(end, hit.pos)) : v.pos;
+            },
+          }));
+          if (!ls.length) pieces.push({ set: setOf(vd.getBoundingClientRect()), h: (vd.getBoundingClientRect().height) / k + mm.mt + mm.mb, unit: v, pos: () => v.pos });
+        } else {
+          let hh = 0;
+          for (const r of vd.getClientRects()) hh += r.height;
+          pieces.push({ set: setOf(vd.getBoundingClientRect()), h: hh / k + mm.mt + mm.mb, unit: v, pos: () => v.pos });
+        }
+      }
+      if (!pieces.length) return null;
+      const line = Math.min(...pieces.map((x) => x.h).filter((x) => x > 4), 24);
+      // Spacers rendered by the previous pass, in order, with their tops as
+      // they will be once the gaps above take their new heights.
+      const ownEls = [...dom.querySelectorAll('.pg-span')].sort((a, b2) => a.getBoundingClientRect().top - b2.getBoundingClientRect().top);
+      let chunkTop = regionTopVis;
+      let i = 0;
+      let firstChunk = true;
+      let chunkNo = 0;
+      const sumNew = () => newGaps.reduce((acc2, g) => acc2 + (g.h || 0), 0);
+      while (i < pieces.length) {
+        const avail = bodyBottom(page) - chunkTop;
+        const cap = N * Math.max(0, avail - line);
+        let j = i;
+        let acc = 0;
+        while (j < pieces.length && (j === i || !pieces[j].forced) && acc + pieces[j].h <= cap + 0.5) { acc += pieces[j].h; j++; }
+        // Where the previous pass split this chunk, and how far its spacer ended
+        // up from the body bottom: move the split by that much.
+        const prevEl = ownEls[chunkNo];
+        let measuredTop = null;
+        if (prevEl) {
+          const jp = pieces.findIndex((x, idx) => idx > i && x.set > chunkNo);
+          if (jp > i) {
+            const ppos = Number(prevEl.dataset.pos);
+            measuredTop = (prevEl.getBoundingClientRect().top - top0) / k - prefix(ppos, true) + sumNew();
+            const err = measuredTop - bodyBottom(page);
+            j = jp;
+            if (err > 0.5) {
+              let removed = 0;
+              while (j > i + 1 && removed < err * N) { j--; removed += pieces[j].h; }
+              measuredTop = null;
+            } else if (err < -line * 1.2) {
+              let added = 0;
+              while (j < pieces.length && !pieces[j].forced && added + pieces[j].h <= (-err - line * 0.2) * N) { added += pieces[j].h; j++; }
+              if (added > 0) measuredTop = null;
+            }
+          }
+        }
+        if (j >= pieces.length) break; // the rest fits on this page
+        if (j === i) {
+          // Not even one line fits: start the region on the next page (or force a line).
+          if (firstChunk && !first && !u.whole) {
+            moveToNewPage(u, m.top, null);
+            page.clean = false;
+            chunkTop = bodyTop(page);
+            firstChunk = false;
+            continue;
+          }
+          j = i + 1;
+        }
+        if (++count % 10 === 0) yield;
+        const piece = pieces[j];
+        const pos = piece.pos();
+        const before = page;
+        newPage(piece.unit, null);
+        page.clean = false;
+        page.startPos = pos;
+        let h;
+        if (measuredTop != null && prevEl && Number(prevEl.dataset.pos) === pos) {
+          h = bodyTop(page) - measuredTop;
+          const old = gaps.find((g) => g.type === 'span' && g.pos === pos);
+          if (!old || Math.abs(h - old.h) > 0.5) regionAgain = Math.min(regionAgain, u.whole ? 0 : u.pos);
+        } else {
+          // New or moved split: estimate, then check on the next pass.
+          h = bodyTop(page) - Math.min(bodyBottom(before), chunkTop + acc / N + line);
+          regionAgain = Math.min(regionAgain, u.whole ? 0 : u.pos);
+        }
+        newGaps.push({ type: 'span', pos, h, inline: !!piece.inline });
+        chunkTop = bodyTop(page);
+        firstChunk = false;
+        chunkNo++;
+        i = j;
+      }
+      // Spacers that disappeared change the balance too: check again.
+      if (own.some((g) => !newGaps.some((n) => n.type === 'span' && n.pos === g.pos))) regionAgain = Math.min(regionAgain, u.whole ? 0 : u.pos);
+      page.D = newGaps.reduce((sum, g) => sum + (g.h || 0), 0);
+      return null;
+    }
+
+    for (const u of units(view.state.doc, o.getIndex, props, restartPos, pageColumns())) {
       if (++count % 30 === 0) yield;
+      if (u.kind === 'cols') {
+        const rm = u.whole ? { top: 0, bottom: 0, dom: view.dom } : measure(u.pos, u.node, 'block');
+        if (!rm) continue;
+        // A section that starts with a page (style) break.
+        const fp = !u.whole && u.node.firstChild?.isTextblock ? props(u.node.firstChild) : null;
+        if (fp && !first && (fp.breakBefore || breakAfterPending)) { moveToNewPage(u, rm.top, fp.master); rm.top = bodyTop(page) - page.D; }
+        else if (fp?.master && page.index === 0 && first && fp.master !== page.master && o.getModel().masters.has(fp.master)) { page = makePage(null, u, fp.master); pages[0] = page; }
+        breakAfterPending = false;
+        yield* layoutRegion(u, rm);
+        first = false;
+        prevUnit = u;
+        continue;
+      }
       const m = measure(u.pos, u.node, u.kind);
       if (!m) continue;
 
@@ -359,7 +544,7 @@ export function createPaginator(o) {
       if (forced) {
         const master = u.kind === 'para' ? u.props.master : (u.kind === 'row' ? u.table.props.master : null);
         moveToNewPage(u, m.top, master);
-        if (u.kind === 'row') { rows.shifts.set(u.pos, page.D - rows.base); rows.h = page.D - rows.base; } else if (caughtUp(u.pos)) return { pages, gaps: newGaps };
+        if (u.kind === 'row') { rows.shifts.set(u.pos, page.D - rows.base); rows.h = page.D - rows.base; } else if (caughtUp(u.pos)) return { pages, gaps: newGaps, again: Number.isFinite(regionAgain) ? regionAgain : null };
       }
 
       const fits = m.bottom + page.D <= bodyBottom(page) + 0.5;
@@ -405,7 +590,7 @@ export function createPaginator(o) {
             if (pm) { mover = prevUnit; moverTop = pm.top; }
           }
           moveToNewPage(mover, moverTop, null);
-          if (u.kind === 'row') { rows.shifts.set(u.pos, page.D - rows.base); rows.h = page.D - rows.base; } else if (caughtUp(mover.pos)) return { pages, gaps: newGaps };
+          if (u.kind === 'row') { rows.shifts.set(u.pos, page.D - rows.base); rows.h = page.D - rows.base; } else if (caughtUp(mover.pos)) return { pages, gaps: newGaps, again: Number.isFinite(regionAgain) ? regionAgain : null };
         }
       }
       first = false;
@@ -413,19 +598,29 @@ export function createPaginator(o) {
       if (u.kind === 'para' && u.props.breakAfter) breakAfterPending = true;
     }
     if (rows) rows.h = page.D - rows.base;
-    return { pages, gaps: newGaps };
+    return { pages, gaps: newGaps, again: Number.isFinite(regionAgain) ? regionAgain : null };
   }
 
-  function finish(pages, newGaps) {
+  /** Page-level columns are laid out when every page style uses the same count. */
+  function pageColumns() {
+    const counts = new Set([...(o.getModel()?.masters.values() || [])].map((m) => m.columns?.count || 1));
+    return counts.size === 1 ? [...counts][0] : 1;
+  }
+
+  let regionPasses = 0;
+  function finish(pages, newGaps, again = null) {
     newGaps.sort((a, b) => gapPos(a) - gapPos(b));
+    if (again != null && ++regionPasses > 8) again = null;
+    if (again == null) regionPasses = 0;
     // A table that becomes split switches to separate borders (see gapDecorations),
     // which changes its row heights slightly: lay it out once more from there.
     const wasSplit = new Set(st().gaps.filter((g) => g.type === 'rows').map((g) => g.tablePos));
     const newlySplit = newGaps.filter((g) => g.type === 'rows' && !wasSplit.has(g.tablePos)).map((g) => g.tablePos);
     const decos = gapDecorations(view.state.doc, newGaps);
-    view.dispatch(view.state.tr.setMeta(paginationKey, { decos, gaps: newGaps, pages, dirtyFrom: newlySplit.length ? Math.min(...newlySplit) : null }).setMeta('addToHistory', false).setMeta('pagination', true));
+    const redo = [...newlySplit, ...(again != null ? [again] : [])];
+    view.dispatch(view.state.tr.setMeta(paginationKey, { decos, gaps: newGaps, pages, dirtyFrom: redo.length ? Math.min(...redo) : null }).setMeta('addToHistory', false).setMeta('pagination', true));
     o.onLayout?.(pages);
-    if (newlySplit.length) { cancelAnimationFrame(frame); frame = requestAnimationFrame(() => run(Math.min(...newlySplit))); }
+    if (redo.length) { cancelAnimationFrame(frame); frame = requestAnimationFrame(() => run(Math.min(...redo))); }
   }
 
   /** Starts (or restarts) a layout from the page containing `fromPos` (null = everything). */
@@ -440,12 +635,12 @@ export function createPaginator(o) {
       return;
     }
     let startIndex = 0;
-    if (fromPos != null && cur.pages.length) {
+    if (fromPos != null && cur.pages.length && pageColumns() <= 1) {
       for (let i = cur.pages.length - 1; i >= 0; i--) if (cur.pages[i].startPos <= fromPos) { startIndex = i; break; }
       startIndex = Math.max(0, startIndex - 1); // an edit can pull content back onto the previous page
       while (startIndex > 0 && !cur.pages[startIndex].clean) startIndex--;
     }
-    const gen = layout(startIndex);
+    const gen = layout(startIndex, fromPos == null);
     job = gen;
     const step = () => {
       if (job !== gen) return;
@@ -454,7 +649,7 @@ export function createPaginator(o) {
       while (!r.done && performance.now() - start < 6) r = gen.next();
       if (!r.done) { frame = requestAnimationFrame(step); return; }
       job = null;
-      finish(r.value.pages, r.value.gaps);
+      finish(r.value.pages, r.value.gaps, r.value.again);
     };
     step();
   }
@@ -462,6 +657,8 @@ export function createPaginator(o) {
   return {
     /** Re-layout after a document change (from the first changed position). */
     update() {
+      // A full re-layout is already scheduled: it covers this change.
+      if (fullPending) return;
       // Like Word, repaginate in the background: wait for a short pause in
       // typing so keystrokes never wait for pages after the caret.
       cancelAnimationFrame(frame);
@@ -469,11 +666,11 @@ export function createPaginator(o) {
       idle = setTimeout(() => { frame = requestAnimationFrame(() => { const d = st().dirtyFrom; if (d != null) run(d); }); }, 100);
     },
     /** Full re-layout (styles, page setup, zoom, fonts, images changed). */
-    relayout() { props.reset(); clearTimeout(idle); cancelAnimationFrame(frame); frame = requestAnimationFrame(() => run(null)); },
+    relayout() { props.reset(); clearTimeout(idle); cancelAnimationFrame(frame); fullPending = true; frame = requestAnimationFrame(() => { fullPending = false; run(null); }); },
     relayoutNow() { props.reset(); run(null); },
     get pages() { return st().pages; },
     /** True while a re-layout is scheduled or running. */
-    get pending() { return !!job || st().dirtyFrom != null; },
+    get pending() { return !!job || fullPending || st().dirtyFrom != null; },
     pageAt(pos) {
       const pages = st().pages;
       for (let i = pages.length - 1; i >= 0; i--) if (pages[i].startPos <= pos) return i;

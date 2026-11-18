@@ -38,7 +38,9 @@ import { createDictation } from './core/dictation.js';
 import { createDock, createNavigationPane, createStylesPane } from './ui/panes.js';
 import { createFindDialog } from './ui/find-dialog.js';
 import { createMiniToolbar, attachContextMenu } from './ui/mini-toolbar.js';
+import { createHeaderFooter } from './ui/header-footer.js';
 import { formatAt, GALLERY_STYLES, styleActions, useStyle, getListStyle } from './features/home/index.js';
+import { spinValues } from './features/layout/index.js';
 import { textPropsCss } from './core/odt/css.js';
 import { sizePt } from './core/commands/text.js';
 import { createRepeat, createGoBack, extendSelection } from './core/navigation.js';
@@ -46,6 +48,7 @@ import { findWrapping } from 'prosemirror-transform';
 import { TextSelection, Plugin } from 'prosemirror-state';
 import * as pasteModes from './core/paste-modes.js';
 import { schema } from './core/schema.js';
+import { stateSteps } from './core/state-step.js';
 
 function boot() {
   applyTheme();
@@ -54,10 +57,12 @@ function boot() {
   let editor = null;
   let session = null;
   let clipboard = null;
-  const registry = new CommandRegistry({ translate: t, context: () => ({ store, state: store.get(), ui, editor, session, clipboard }) });
+  // Commands act on the active editor: the body, or a header/footer being edited.
+  const activeEditor = () => ui.hf?.activeEditor() || editor;
+  const registry = new CommandRegistry({ translate: t, context: () => ({ store, state: store.get(), ui, editor: activeEditor(), mainEditor: editor, session, clipboard }) });
   ui.registry = registry;
   ui.toast = (msg) => toast(msg);
-  const ctx = () => ({ store, state: store.get(), ui, editor, session, clipboard });
+  const ctx = () => ({ store, state: store.get(), ui, editor: activeEditor(), mainEditor: editor, session, clipboard });
   registerFeatures(registry);
   store.subscribe((s, changed) => {
     if (changed.includes('ribbonCollapsed')) setSetting('ribbonCollapsed', s.ribbonCollapsed);
@@ -75,7 +80,7 @@ function boot() {
 
   // ------------------------------------------------------------ document
   let pictureUrls = new Map();
-  const docArea = createDocumentArea({ store, getEditor: () => editor, getSession: () => session });
+  const docArea = createDocumentArea({ store, getEditor: () => editor, getSession: () => session, pictureUrl: (p) => editorEnv.pictureUrl(p), onPagesChange: () => ui.onPages?.() });
   const editorEnv = {
     pictureUrl(path) {
       if (!path || !session?.state) return '';
@@ -104,7 +109,7 @@ function boot() {
     },
     openFiles(files) { if (files[0]) session.openFile(files[0]).then((ok) => { if (ok) store.set({ backstageOpen: false }); }); },
     priorityPlugins: () => [new Plugin({ props: { handleKeyDown: (_v, e) => !!ui.handleEditorKey?.(e) } }), ...editingPlugins(() => ({ ...AUTOCORRECT_DEFAULTS, ...(getSetting('autocorrect') || {}) }), makeList)],
-    extraPlugins: () => [docArea.plugin(), searchPlugin(), listLabelsPlugin((name) => getListStyle(ctx(), name))],
+    extraPlugins: () => [...docArea.plugins(), searchPlugin(), listLabelsPlugin((name) => getListStyle(ctx(), name))],
     pasteMode(event) {
       const once = clipboard?.takeMode();
       if (once) return once;
@@ -137,6 +142,13 @@ function boot() {
   };
   editorEnv.onTransaction = (view, tr) => {
     if (tr.getMeta('pagination')) return;
+    // Page styles / named styles changed (or were undone): apply and re-render.
+    const ss = stateSteps(tr);
+    if (ss.length) {
+      for (const s of ss) session.state[s.key] = s.after;
+      docArea.applyDocument(session.state);
+      ui.onStylesChanged?.();
+    }
     if (tr.docChanged && !tr.getMeta('load')) { session?.markDirty(); updateStats(); }
     if (tr.getMeta('load')) updateStats();
     if (tr.docChanged) docArea.update();
@@ -167,7 +179,7 @@ function boot() {
       const styleName = f.node?.attrs.styleName;
       const styleId = (f.charStyle && Object.keys(GALLERY_STYLES).find((k) => GALLERY_STYLES[k][1] === f.charStyle))
         || Object.keys(GALLERY_STYLES).find((k) => GALLERY_STYLES[k][0] === 'paragraph' && GALLERY_STYLES[k][1] === styleName) || null;
-      store.set({ fontName: font, fontSize: sizePt(f.text['fo:font-size']), styleId, paragraphStyle: styleName });
+      store.set({ fontName: font, fontSize: sizePt(f.text['fo:font-size']), styleId, paragraphStyle: styleName, paraSpins: spinValues(ctx()) });
       registry.notify();
       nav?.refresh();
       stylesPane?.refresh();
@@ -240,6 +252,17 @@ function boot() {
     },
   });
   ui.stylesPane = stylesPane;
+
+  // Header / footer editing: a second editor with the same editing behaviour.
+  ui.hf = createHeaderFooter({
+    store, docArea, getSession: () => session, mainEditor: editor,
+    editorEnv: ({ onTransaction }) => ({
+      ...editorEnv,
+      extraPlugins: () => [searchPlugin(), listLabelsPlugin((name) => getListStyle(ctx(), name))],
+      onTransaction: (v, tr) => { onTransaction(v, tr); scheduleSync(tr.docChanged); },
+    }),
+  });
+  ui.onPages = () => ui.hf.relocate();
 
   const mini = createMiniToolbar({ registry, store, editor });
   attachContextMenu({ registry, editor, mini });

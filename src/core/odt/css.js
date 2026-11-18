@@ -97,6 +97,9 @@ export function paragraphPropsCss(a = {}, out = []) {
 export function cellPropsCss(a = {}, out = []) {
   boxCss(a, out);
   if (a['style:vertical-align']) out.push(`vertical-align:${a['style:vertical-align'] === 'automatic' ? 'top' : a['style:vertical-align']}`);
+  // Rotated cell text (Layout ▸ Text Direction).
+  if (a['style:writing-mode'] === 'tb-rl') out.push('writing-mode:vertical-rl');
+  else if (a['style:writing-mode'] === 'bt-lr') out.push('writing-mode:sideways-lr');
   return out;
 }
 

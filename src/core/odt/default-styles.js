@@ -82,10 +82,10 @@ export const DEFAULT_STYLES_XML = `<?xml version="1.0" encoding="UTF-8"?>
    <style:text-properties fo:font-size="9pt" fo:font-style="italic" fo:color="#0e2841"/>
   </style:style>
   <style:style style:name="Header" style:family="paragraph" style:parent-style-name="Standard" style:class="extra">
-   <style:paragraph-properties fo:margin-bottom="0cm" fo:line-height="100%"/>
+   <style:paragraph-properties fo:margin-bottom="0cm" fo:line-height="100%"><style:tab-stops><style:tab-stop style:position="7.96cm" style:type="center"/><style:tab-stop style:position="15.92cm" style:type="right"/></style:tab-stops></style:paragraph-properties>
   </style:style>
   <style:style style:name="Footer" style:family="paragraph" style:parent-style-name="Standard" style:class="extra">
-   <style:paragraph-properties fo:margin-bottom="0cm" fo:line-height="100%"/>
+   <style:paragraph-properties fo:margin-bottom="0cm" fo:line-height="100%"><style:tab-stops><style:tab-stop style:position="7.96cm" style:type="center"/><style:tab-stop style:position="15.92cm" style:type="right"/></style:tab-stops></style:paragraph-properties>
   </style:style>
   <style:style style:name="Footnote" style:family="paragraph" style:parent-style-name="Standard" style:class="extra">
    <style:paragraph-properties fo:margin-bottom="0cm" fo:line-height="100%"/>

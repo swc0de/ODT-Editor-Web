@@ -1,11 +1,16 @@
 /** Insert tab: Pages, Tables, Illustrations, Links, Comments, Header & Footer, Text, Symbols. */
 import { defineCommands } from '../define.js';
+import { applyPreset, pageNumberAt, removePageNumbers, fields, insertInline, pageNumberFormat, setPageNumberFormat } from '../headerfooter/actions.js';
+import { insertDateTime } from '../headerfooter/index.js';
+import { pageNumberDialog } from '../../ui/layout-dialogs.js';
+
+const canEdit = (c) => !!c.editor && c.state.editingMode !== 'viewing';
 
 export const commands = defineCommands('insert', {
   coverPage: { icon: 'cover-page' },
   removeCoverPage: {},
   blankPage: { icon: 'blank-page' },
-  pageBreak: { icon: 'page-break', shortcut: 'Mod-Enter' },
+  pageBreak: { icon: 'page-break', shortcut: 'Mod-Enter', isEnabled: (c) => canEdit(c) && !c.state.hfEditing, run: (c) => c.ui.registry.run('layout.breakPage') },
   table: { icon: 'table' },
   tableGrid: { label: 'cmd.insert.table' },
   insertTableDialog: { icon: 'table' },
@@ -24,19 +29,25 @@ export const commands = defineCommands('insert', {
   bookmark: { icon: 'bookmark' },
   crossReference: { icon: 'cross-reference' },
   comment: { icon: 'comment', shortcut: 'Mod-Alt-m' },
-  header: { icon: 'header' },
-  editHeader: {},
-  removeHeader: {},
-  footer: { icon: 'footer' },
-  editFooter: {},
-  removeFooter: {},
-  pageNumber: { icon: 'page-number' },
-  pageNumberTop: {},
-  pageNumberBottom: {},
+  header: { icon: 'header', isEnabled: canEdit, run: (c, preset) => (typeof preset === 'string' ? applyPreset(c, 'header', preset) : c.ui.hf.open({ part: 'header' })) },
+  editHeader: { isEnabled: canEdit, run: (c) => c.ui.hf.open({ part: 'header' }) },
+  removeHeader: { isEnabled: canEdit, run: (c) => c.ui.hf.remove('header') },
+  footer: { icon: 'footer', isEnabled: canEdit, run: (c, preset) => (typeof preset === 'string' ? applyPreset(c, 'footer', preset) : c.ui.hf.open({ part: 'footer' })) },
+  editFooter: { isEnabled: canEdit, run: (c) => c.ui.hf.open({ part: 'footer' }) },
+  removeFooter: { isEnabled: canEdit, run: (c) => c.ui.hf.remove('footer') },
+  pageNumber: { icon: 'page-number', menuOnly: true },
+  pageNumberTop: { menuOnly: true },
+  pageNumberTopLeft: { isEnabled: canEdit, run: (c) => pageNumberAt(c, 'header', 'start') },
+  pageNumberTopCentre: { isEnabled: canEdit, run: (c) => pageNumberAt(c, 'header', 'center') },
+  pageNumberTopRight: { isEnabled: canEdit, run: (c) => pageNumberAt(c, 'header', 'end') },
+  pageNumberBottom: { menuOnly: true },
+  pageNumberBottomLeft: { isEnabled: canEdit, run: (c) => pageNumberAt(c, 'footer', 'start') },
+  pageNumberBottomCentre: { isEnabled: canEdit, run: (c) => pageNumberAt(c, 'footer', 'center') },
+  pageNumberBottomRight: { isEnabled: canEdit, run: (c) => pageNumberAt(c, 'footer', 'end') },
   pageNumberMargins: {},
-  pageNumberCurrent: {},
-  pageNumberFormat: {},
-  removePageNumbers: {},
+  pageNumberCurrent: { isEnabled: canEdit, run: (c) => insertInline(c, fields.pageNumber(c)) },
+  pageNumberFormat: { isEnabled: canEdit, run: async (c) => { const r = await pageNumberDialog(pageNumberFormat(c)); if (r) setPageNumberFormat(c, r); } },
+  removePageNumbers: { isEnabled: canEdit, run: removePageNumbers },
   textBox: { icon: 'text-box' },
   drawTextBox: {},
   quickParts: { icon: 'quick-parts' },
@@ -50,7 +61,7 @@ export const commands = defineCommands('insert', {
   dropCapInMargin: {},
   dropCapOptions: {},
   signatureLine: { icon: 'signature-line' },
-  dateTime: { icon: 'date-time' },
+  dateTime: { icon: 'date-time', isEnabled: canEdit, run: insertDateTime },
   object: { icon: 'object' },
   textFromFile: {},
   equation: { icon: 'equation' },
@@ -83,7 +94,7 @@ export const ribbon = {
       controls: [
         { t: 'large', cmd: 'header', menu: [{ custom: 'headerGallery' }, '-', 'editHeader', 'removeHeader'] },
         { t: 'large', cmd: 'footer', menu: [{ custom: 'footerGallery' }, '-', 'editFooter', 'removeFooter'] },
-        { t: 'large', cmd: 'pageNumber', label: 'label.insert.pageNumber', menu: ['pageNumberTop', 'pageNumberBottom', 'pageNumberMargins', 'pageNumberCurrent', '-', 'pageNumberFormat', 'removePageNumbers'] },
+        { t: 'large', cmd: 'pageNumber', label: 'label.insert.pageNumber', menu: [{ cmd: 'pageNumberTop', sub: ['pageNumberTopLeft', 'pageNumberTopCentre', 'pageNumberTopRight'] }, { cmd: 'pageNumberBottom', sub: ['pageNumberBottomLeft', 'pageNumberBottomCentre', 'pageNumberBottomRight'] }, 'pageNumberMargins', 'pageNumberCurrent', '-', 'pageNumberFormat', 'removePageNumbers'] },
       ],
     },
     {

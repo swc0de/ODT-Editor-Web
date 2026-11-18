@@ -352,7 +352,7 @@ export function createConverter({ ns, autoIndex, styleIndex }) {
         switch (name) {
           case 'text:s': pushText(' '.repeat(Math.max(1, Number(a['text:c']) || 1)), marks); st.lastSpace = true; break;
           case 'text:tab': atom({ type: 'tab' }); break;
-          case 'text:line-break': atom({ type: 'hard_break' }); break;
+          case 'text:line-break': atom(a['loext:clear'] ? { type: 'hard_break', attrs: { clear: a['loext:clear'] } } : { type: 'hard_break' }); break;
           case 'text:span': walk(node, spanMarks(a['text:style-name'], marks)); break;
           case 'text:a': {
             const link = { type: 'link', attrs: { href: a['xlink:href'] || '', extra: without(a, 'xlink:href', 'xlink:type') } };

@@ -181,10 +181,12 @@ export const nodes = {
 
   text: { group: 'inline' },
 
+  /** Line break; `clear` (Text Wrapping Break) moves below floating objects (LibreOffice's loext:clear). */
   hard_break: {
     group: 'inline', inline: true, selectable: false,
-    parseDOM: [{ tag: 'br' }],
-    toDOM: () => ['br'],
+    attrs: { clear: { default: null } },
+    parseDOM: [{ tag: 'br', getAttrs: (dom) => ({ clear: dom.getAttribute('data-clear') || null }) }],
+    toDOM: (node) => ['br', node.attrs.clear ? { 'data-clear': node.attrs.clear } : {}],
   },
 
   tab: {
@@ -250,7 +252,7 @@ export const nodes = {
     group: 'inline', inline: true, atom: true,
     attrs: { element: { default: 'text:page-number' }, fieldAttrs: { default: {} }, text: { default: '' } },
     parseDOM: [{ tag: 'span[data-odt-field]', priority: 60, getAttrs: (dom) => ({ ...parseJson(dom.getAttribute('data-field')) }) }],
-    toDOM: (node) => ['span', { 'data-odt-field': '', 'data-field': json(node.attrs), class: `odt-field f-${node.attrs.element.replace(':', '-')}` }, node.attrs.text || '​'],
+    toDOM: (node) => ['span', { 'data-odt-field': '', 'data-field': json(node.attrs), 'data-num-format': node.attrs.fieldAttrs?.['style:num-format'] ?? null, class: `odt-field f-${node.attrs.element.replace(':', '-')}` }, ['span', { class: 'odt-field-text' }, node.attrs.text || '​']],
     leafText: (node) => node.attrs.text,
   },
 

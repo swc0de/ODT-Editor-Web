@@ -154,16 +154,39 @@ export function createControlFactory(env) {
   }
 
   function spins(spec, tab) {
-    return h('div', { class: 'rb-spins' },
+    const wrap = h('div', { class: 'rb-spins' },
       h('div', { class: 'rb-spins-header' }, t(spec.header)),
       spec.items.map((it) => {
         const id = resolve(tab, it.cmd);
+        const fmt = (v) => `${(+v).toFixed(it.decimals)} ${it.unit}`;
         const input = h('input', {
           class: 'rb-spin-input', type: 'text', inputmode: 'decimal', 'data-command': id, 'aria-label': registry.label(id),
-          value: `${it.value.toFixed(it.decimals)} ${it.unit}`, role: 'spinbutton', 'aria-valuenow': String(it.value),
+          value: fmt(it.value), role: 'spinbutton', 'aria-valuenow': String(it.value),
         });
+        const commit = (v) => {
+          if (!Number.isFinite(v) || !registry.isEnabled(id)) return;
+          const clamped = it.unit === 'pt' ? Math.max(0, v) : v;
+          registry.run(id, clamped);
+          input.value = fmt(clamped);
+        };
+        input.addEventListener('change', () => commit(parseFloat(input.value)));
+        input.addEventListener('keydown', (e) => {
+          if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
+            e.preventDefault();
+            const cur = parseFloat(input.value) || 0;
+            commit(Math.round((cur + (e.key === 'ArrowUp' ? 1 : -1) * it.step) * 100) / 100);
+          } else if (e.key === 'Enter') { e.preventDefault(); input.blur(); }
+        });
+        input._sync = () => {
+          const v = store.get().paraSpins?.[id];
+          if (v == null || document.activeElement === input) return;
+          input.value = fmt(v);
+          input.setAttribute('aria-valuenow', String(+(+v).toFixed(it.decimals)));
+        };
         return h('label', { class: 'rb-spin' }, h('span', { class: 'rb-spin-label' }, t(it.label)), input);
       }));
+    wrap._sync = () => wrap.querySelectorAll('.rb-spin-input').forEach((i) => i._sync());
+    return wrap;
   }
 
   function number(spec, tab) {

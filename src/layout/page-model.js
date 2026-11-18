@@ -27,9 +27,49 @@ function layoutOf(state, master) {
   return { layout, p, hp, fp };
 }
 
+/** Is a header child a watermark (a fontwork shape or picture named like LibreOffice's)? */
+export const isWatermark = (t) => typeof t !== 'string' && /^(draw:custom-shape|draw:frame)$/.test(t.n) && /^PowerPlusWaterMarkObject/.test(t.a?.['draw:name'] || '');
+
+/** Watermark shapes inside a header part's paragraphs. */
+function findWatermark(tree) {
+  for (const p of tree?.c || []) {
+    if (typeof p === 'string') continue;
+    for (const c of p.c || []) if (isWatermark(c)) return c;
+  }
+  return null;
+}
+
+/** Header content without the watermark shapes. */
+function withoutWatermark(tree) {
+  return {
+    ...tree,
+    c: (tree.c || []).map((p) => (typeof p === 'string' ? p : { ...p, c: (p.c || []).filter((c) => !isWatermark(c)) })),
+  };
+}
+
+/** Watermark description for rendering: { kind:'text', text, colour, opacity, font, angle } or { kind:'image', href, opacity }. */
+function watermarkInfo(shape, state) {
+  if (!shape) return null;
+  const gs = (state.stylesAutoStyles?.c || []).find((t) => t.n === 'style:style' && t.a['style:family'] === 'graphic' && t.a['style:name'] === shape.a['draw:style-name']);
+  const gp = gs ? findChild(gs, 'style:graphic-properties')?.a || {} : {};
+  const opacity = gp['draw:opacity'] ? parseFloat(gp['draw:opacity']) / 100 : 0.5;
+  const m = /rotate\s*\(\s*(-?[\d.]+)\s*\)/.exec(shape.a['draw:transform'] || '');
+  const angle = m ? -Number(m[1]) * 180 / Math.PI : 0;
+  if (shape.n === 'draw:frame') {
+    const img = findChild(shape, 'draw:image');
+    return { kind: 'image', href: img?.a?.['xlink:href'] || '', opacity, angle, width: px(shape.a['svg:width'], 300), height: px(shape.a['svg:height'], 300) };
+  }
+  const text = (shape.c || []).filter((c) => typeof c !== 'string' && c.n === 'text:p').map((c) => (c.c || []).filter((x) => typeof x === 'string').join('')).join(' ');
+  return {
+    kind: 'text', text, colour: gp['draw:fill-color'] || '#c0c0c0', opacity, angle,
+    width: px(shape.a['svg:width'], 600), height: px(shape.a['svg:height'], 150),
+  };
+}
+
 /** Renders header/footer XML trees into DOM with the document's styles. */
 function renderPart(tree, converter, nsExtra) {
   if (!tree || tree.a?.['style:display'] === 'false') return null;
+  tree = withoutWatermark(tree);
   const xml = `<root${nsDeclarations(ROOT_PREFIXES, nsExtra)}>${(tree.c || []).map((c) => (typeof c === 'string' ? '' : treeToXml(c))).join('')}</root>`;
   const el = parseXml(xml).documentElement;
   const blocks = converter.blocks(el);
@@ -56,12 +96,25 @@ export function buildPageModel(state, styleIndex) {
   const converter = createConverter({ ns: createNsContext(), autoIndex, styleIndex });
   const masters = new Map();
   for (const m of masterTrees) {
-    const { p, hp, fp } = layoutOf(state, m);
+    const { layout, p, hp, fp } = layoutOf(state, m);
     const part = (name) => renderPart(findChild(m, name), converter, state.nsExtra);
     const header = { right: part('style:header'), left: part('style:header-left'), first: part('style:header-first') };
     const footer = { right: part('style:footer'), left: part('style:footer-left'), first: part('style:footer-first') };
+    const cols = layout && findChild(findChild(layout, 'style:page-layout-properties') || {}, 'style:columns');
+    const wm = findWatermark(findChild(m, 'style:header')) || findWatermark(findChild(m, 'style:header-first')) || findWatermark(findChild(m, 'style:header-left'));
+    const border = {};
+    for (const k of ['fo:border', 'fo:border-top', 'fo:border-bottom', 'fo:border-left', 'fo:border-right', 'fo:padding', 'fo:padding-top', 'fo:padding-bottom', 'fo:padding-left', 'fo:padding-right', 'style:shadow']) if (p[k]) border[k] = p[k];
     masters.set(m.a['style:name'], {
       name: m.a['style:name'],
+      displayName: m.a['style:display-name'] || m.a['style:name'],
+      layoutName: m.a['style:page-layout-name'] || null,
+      next: m.a['style:next-style-name'] || null,
+      usage: layout?.a?.['style:page-usage'] || 'all',
+      numFormat: p['style:num-format'] ?? '1',
+      columns: cols ? { count: Number(cols.a['fo:column-count'] || 1), gap: px(cols.a['fo:column-gap'], 0) } : { count: 1, gap: 0 },
+      writingMode: p['style:writing-mode'] || 'lr-tb',
+      border: Object.keys(border).length ? border : null,
+      watermark: watermarkInfo(wm, state),
       width: px(p['fo:page-width'], 793.7),
       height: px(p['fo:page-height'], 1122.5),
       marginTop: px(p['fo:margin-top'], 75.6),
@@ -80,19 +133,31 @@ export function buildPageModel(state, styleIndex) {
     masters.set('Standard', {
       name: 'Standard', width: 793.7, height: 1122.5, marginTop: 96, marginBottom: 96, marginLeft: 96, marginRight: 96,
       background: null, header: {}, footer: {}, headerMin: 0, headerGap: 0, footerMin: 0, footerGap: 0,
+      displayName: 'Standard', layoutName: null, next: null, usage: 'all', numFormat: '1', columns: { count: 1, gap: 0 }, writingMode: 'lr-tb', border: null, watermark: null,
       headerH: { right: 0, left: 0, first: 0 }, footerH: { right: 0, left: 0, first: 0 },
     });
   }
   const first = masters.get('Standard') || masters.values().next().value;
-  return { masters, first, width: first.width, marginLeft: first.marginLeft, marginRight: first.marginRight };
+  for (const m of masters.values()) {
+    m.bodyWidth = m.width - m.marginLeft - m.marginRight;
+  }
+  // The page stack is as wide as the widest page; narrower pages are centred.
+  const width = Math.max(...[...masters.values()].map((m) => m.width));
+  for (const m of masters.values()) m.x = (width - m.width) / 2;
+  const ln = findChild(state.commonStyles || { c: [] }, 'text:linenumbering-configuration');
+  const lineNumbering = ln && ln.a['text:number-lines'] !== 'false' ? {
+    increment: Number(ln.a['text:increment'] || 1), restartOnPage: ln.a['text:restart-on-page'] === 'true',
+    offset: px(ln.a['text:offset'], 13), countEmpty: ln.a['text:count-empty-lines'] !== 'false', position: ln.a['text:number-position'] || 'left',
+  } : null;
+  return { masters, first, width, marginLeft: first.marginLeft, marginRight: first.marginRight, lineNumbering };
 }
 
 /** Measures header/footer heights by rendering them off-screen at the body width. */
 export function measureMasters(model, host) {
   const probe = document.createElement('div');
-  probe.style.cssText = `position:absolute;visibility:hidden;left:-10000px;top:0;width:${model.width - model.marginLeft - model.marginRight}px`;
   host.append(probe);
   for (const m of model.masters.values()) {
+    probe.style.cssText = `position:absolute;visibility:hidden;left:-10000px;top:0;width:${m.bodyWidth}px`;
     for (const kind of ['right', 'left', 'first']) {
       for (const [part, store] of [['header', 'headerH'], ['footer', 'footerH']]) {
         const el = m[part][kind];
