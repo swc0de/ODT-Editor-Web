@@ -10,8 +10,8 @@ The memory between sessions. Statuses: `todo`, `in progress`, `awaiting approval
 | M3 — Print Layout: pagination, rulers, status bar, zoom | approved |
 | M4 — Home tab: character and paragraph formatting, styles, lists, find | approved |
 | M5 — Layout and Design tabs, headers/footers, sections | approved |
-| M6 — Tables | awaiting approval |
-| M7 — Insert tab: pictures, shapes, text boxes, links, symbols | todo |
+| M6 — Tables | approved |
+| M7 — Insert tab: pictures, shapes, text boxes, links, symbols | in progress |
 | M8 — References | todo |
 | M9 — Review: comments, track changes, proofing | todo |
 | M10 — Draw tab | todo |
@@ -202,7 +202,7 @@ Known limitations:
 - Different first page / odd & even apply to the page style; "Link to Previous" copies the previous section's header/footer (ODF has no linking), and is checked while they are identical.
 - Side to Side view still uses the first page style's size.
 
-## M6 — Tables (awaiting approval)
+## M6 — Tables (approved)
 
 Built:
 - **Table model** (`core/odt/import.js`, `export.js`, `schema.js`): automatic table, column, row and cell styles become direct formatting on the nodes (`auto`); named styles stay named. On save they're regenerated and de-duplicated (`Tab1`, `TabCol1`, `TabRow1`, `TabCell1`); merged cells (`number-columns/rows-spanned` + covered cells), column widths (absolute + relative), heading rows (`table:table-header-rows`), nested tables, formulas and cell values round-trip.
