@@ -102,7 +102,7 @@ function renderItem(item, resolve, tab, entry) {
   const reg = ctx.registry;
   if (item === '-') return h('div', { class: 'menu-sep', role: 'separator' });
   if (item.header) return h('div', { class: 'menu-header', role: 'presentation' }, t(item.header));
-  if (item.custom) return renderWidget(item.custom, { registry: reg, close: closeAllMenus, toast: ctx.toast });
+  if (item.custom) return renderWidget(item.custom, { registry: reg, close: closeAllMenus, toast: ctx.toast, cmd: item.cmd ? resolve(item.cmd) : null });
 
   if (typeof item === 'object' && !item.cmd) {
     // Ad-hoc item.

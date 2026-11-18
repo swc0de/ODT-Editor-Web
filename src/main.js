@@ -14,7 +14,7 @@ import { registerFeatures, TABS } from './features/index.js';
 import { resolveId } from './features/define.js';
 import { defaultBodyFont, loadBundledFonts } from './layout/fonts.js';
 import { initTooltips } from './ui/tooltip.js';
-import { initMenus, isMenuOpen } from './ui/menu.js';
+import { initMenus, isMenuOpen, openMenu } from './ui/menu.js';
 import { toast } from './ui/toast.js';
 import { createRibbon } from './ui/ribbon/ribbon.js';
 import { createStatusBar } from './ui/statusbar.js';
@@ -30,6 +30,22 @@ import { autoFromTree } from './core/odt/styles.js';
 import { createEditor } from './core/editor.js';
 import { createSession } from './core/session.js';
 import { createClipboardActions } from './core/clipboard-actions.js';
+import { editingPlugins, AUTOCORRECT_DEFAULTS } from './core/editing-plugins.js';
+import { searchPlugin } from './core/search.js';
+import { listLabelsPlugin, ensureListStyle, LIST_LIBRARY } from './core/commands/lists.js';
+import { createFormatPainter } from './core/format-painter.js';
+import { createDictation } from './core/dictation.js';
+import { createDock, createNavigationPane, createStylesPane } from './ui/panes.js';
+import { createFindDialog } from './ui/find-dialog.js';
+import { createMiniToolbar, attachContextMenu } from './ui/mini-toolbar.js';
+import { formatAt, GALLERY_STYLES, styleActions, useStyle, getListStyle } from './features/home/index.js';
+import { textPropsCss } from './core/odt/css.js';
+import { sizePt } from './core/commands/text.js';
+import { createRepeat, createGoBack, extendSelection } from './core/navigation.js';
+import { findWrapping } from 'prosemirror-transform';
+import { TextSelection, Plugin } from 'prosemirror-state';
+import * as pasteModes from './core/paste-modes.js';
+import { schema } from './core/schema.js';
 
 function boot() {
   applyTheme();
@@ -39,6 +55,9 @@ function boot() {
   let session = null;
   let clipboard = null;
   const registry = new CommandRegistry({ translate: t, context: () => ({ store, state: store.get(), ui, editor, session, clipboard }) });
+  ui.registry = registry;
+  ui.toast = (msg) => toast(msg);
+  const ctx = () => ({ store, state: store.get(), ui, editor, session, clipboard });
   registerFeatures(registry);
   store.subscribe((s, changed) => {
     if (changed.includes('ribbonCollapsed')) setSetting('ribbonCollapsed', s.ribbonCollapsed);
@@ -84,9 +103,29 @@ function boot() {
       return path;
     },
     openFiles(files) { if (files[0]) session.openFile(files[0]).then((ok) => { if (ok) store.set({ backstageOpen: false }); }); },
-    extraPlugins: () => [docArea.plugin()],
+    priorityPlugins: () => [new Plugin({ props: { handleKeyDown: (_v, e) => !!ui.handleEditorKey?.(e) } }), ...editingPlugins(() => ({ ...AUTOCORRECT_DEFAULTS, ...(getSetting('autocorrect') || {}) }), makeList)],
+    extraPlugins: () => [docArea.plugin(), searchPlugin(), listLabelsPlugin((name) => getListStyle(ctx(), name))],
+    pasteMode(event) {
+      const once = clipboard?.takeMode();
+      if (once) return once;
+      const html = event?.clipboardData?.getData?.('text/html') || '';
+      return (html.includes('data-pm-slice') ? getSetting('pasteWithin') : getSetting('pasteOther')) || 'keep';
+    },
+    onPasted: (info) => pasteOptions(info),
     onImageLoad: () => docArea.relayout(),
   };
+
+  /** AutoCorrect "* " / "1. ": wraps the paragraph of tr's selection in a list. */
+  function makeList(tr, kind, match) {
+    let levels = LIST_LIBRARY[kind === 'bullet' ? 'bullet' : 'number'][0];
+    if (kind === 'bullet' && match[0].trim() === '-') levels = [{ bullet: '–' }, ...levels.slice(1)];
+    if (kind === 'number') levels = [{ format: match[1].replace(/[1]/, '1'), suffix: match[2] }, ...levels.slice(1)];
+    const name = ensureListStyle(session.state, levels);
+    const range = tr.selection.$from.blockRange();
+    const wrapping = range && findWrapping(range, schema.nodes.list, { styleName: name, ordered: kind !== 'bullet', extra: null });
+    if (!wrapping) return null;
+    return tr.wrap(range, wrapping);
+  }
 
   const ribbon = createRibbon({ registry, store, tabs: TABS, toast });
   const status = createStatusBar({ registry, store, toast });
@@ -104,11 +143,148 @@ function boot() {
     if (tr.docChanged || tr.selectionSet) requestAnimationFrame(docArea.syncRulers);
     const hasSelection = !view.state.selection.empty;
     if (hasSelection !== store.get().hasSelection) store.set({ hasSelection });
-    else if (tr.docChanged) registry.notify();
+    ui.trackEdit?.(tr, view.state);
+    scheduleSync(tr.docChanged && !tr.getMeta('load'));
   };
+
+  // Ribbon state (font, size, style, toggles) follows the selection, once per frame.
+  // While typing, wait for a pause so keystrokes stay within a frame.
+  let syncFrame = 0;
+  let syncTimer = 0;
+  function scheduleSync(typing = false) {
+    if (typing) {
+      clearTimeout(syncTimer);
+      cancelAnimationFrame(syncFrame);
+      syncFrame = 0;
+      syncTimer = setTimeout(() => scheduleSync(false), 120);
+      return;
+    }
+    if (syncFrame) return;
+    syncFrame = requestAnimationFrame(() => {
+      syncFrame = 0;
+      const f = formatAt(ctx());
+      const font = String(f.text['style:font-name'] || f.text['fo:font-family'] || 'Carlito').replace(/^['"]|['"]$/g, '');
+      const styleName = f.node?.attrs.styleName;
+      const styleId = (f.charStyle && Object.keys(GALLERY_STYLES).find((k) => GALLERY_STYLES[k][1] === f.charStyle))
+        || Object.keys(GALLERY_STYLES).find((k) => GALLERY_STYLES[k][0] === 'paragraph' && GALLERY_STYLES[k][1] === styleName) || null;
+      store.set({ fontName: font, fontSize: sizePt(f.text['fo:font-size']), styleId, paragraphStyle: styleName });
+      registry.notify();
+      nav?.refresh();
+      stylesPane?.refresh();
+    });
+  }
+
+  /** Style gallery samples rendered from the document's own styles. */
+  function updateStyleSamples() {
+    const index = docArea.styleIndex;
+    if (!index) return;
+    const samples = {};
+    for (const [id, [family, name]] of Object.entries(GALLERY_STYLES)) {
+      const a = index.effective(family, name, { includeDefault: false })?.props?.['style:text-properties']?.a || {};
+      const css = {};
+      if (a['fo:color']) css.color = a['fo:color'];
+      if (a['fo:font-weight']) css.fontWeight = a['fo:font-weight'] === 'bold' ? '700' : a['fo:font-weight'];
+      if (a['fo:font-style']) css.fontStyle = a['fo:font-style'];
+      if (a['style:font-name']) css.fontFamily = textPropsCss({ 'style:font-name': a['style:font-name'] })[0].slice('font-family:'.length);
+      samples[id] = css;
+    }
+    store.set({ styleSamples: samples });
+  }
   editor = createEditor(docArea.view.mount, editorEnv);
   docArea.attach(editor);
   clipboard = createClipboardActions(editor, toast);
+  ui.painter = createFormatPainter({ editor, store });
+  ui.dictation = createDictation({ editor, store, toast, t });
+  const repeat = createRepeat(registry);
+  ui.repeat = repeat.run;
+  ui.canRepeat = repeat.can;
+  const goBack = createGoBack(editor);
+  ui.goBack = goBack.run;
+  ui.trackEdit = goBack.track;
+  ui.extendSelection = () => extendSelection(editor);
+  ui.onStylesChanged = () => { updateStyleSamples(); stylesPane.refresh(); };
+
+  // Panes: Navigation (left) and Styles (right).
+  const relayoutDocks = () => requestAnimationFrame(() => docArea.syncRulers());
+  const leftDock = createDock('left', { onResize: relayoutDocks });
+  const rightDock = createDock('right', { onResize: relayoutDocks });
+  ui.findDialog = createFindDialog({ editor, docArea, toast });
+  const nav = createNavigationPane({ dock: leftDock, editor, docArea, store, openReplace: (tab, q) => ui.findDialog.open(tab, q) });
+  ui.nav = nav;
+  const stylesPane = createStylesPane({
+    dock: rightDock, store,
+    listStyles: () => {
+      const index = docArea.styleIndex;
+      if (!index) return [];
+      const used = new Set();
+      editor.view.state.doc.descendants((n) => {
+        if (n.isTextblock) used.add(`paragraph:${n.attrs.styleName}`);
+        if (n.isText) for (const m of n.marks) if (m.type.name === 'charStyle') used.add(`text:${m.attrs.name}`);
+        return true;
+      });
+      const out = [];
+      for (const family of ['paragraph', 'text']) {
+        for (const name of index.families.get(family)?.keys() || []) out.push({ family, name, display: index.displayName(family, name), inUse: used.has(`${family}:${name}`) });
+      }
+      return out.sort((a, b) => a.display.localeCompare(b.display));
+    },
+    current: () => { const f = formatAt(ctx()); return { paragraph: f.node?.attrs.styleName, text: f.charStyle }; },
+    apply: (family, name) => useStyle(ctx(), family, name),
+    actions: new Proxy({}, { get: (_o, k) => (...a) => styleActions(ctx())[k](...a) }),
+    previewCss: (family, name) => {
+      const a = docArea.styleIndex?.effective(family, name, { includeDefault: false })?.props?.['style:text-properties']?.a || {};
+      const decl = textPropsCss(a).filter((d) => !/^(font-size|display|transform)/.test(d));
+      const pt = sizePt(a['fo:font-size']);
+      decl.push(`font-size:${Math.min(16, Math.max(9, pt * 0.9))}pt`);
+      return decl.join(';');
+    },
+  });
+  ui.stylesPane = stylesPane;
+
+  const mini = createMiniToolbar({ registry, store, editor });
+  attachContextMenu({ registry, editor, mini });
+
+  // Paste Options button after a paste: re-paste the same content in another mode.
+  let pasteBtn = null;
+  function pasteOptions(info) {
+    pasteBtn?.remove();
+    let range = { from: info.from, to: info.to };
+    const original = info.slice;
+    const btn = h('button', { type: 'button', class: 'paste-options', 'aria-label': t('home.pasteOptions'), 'data-tip': t('home.pasteOptions'), 'aria-haspopup': 'menu' }, t('home.pasteCtrl'));
+    pasteBtn = btn;
+    const place = () => {
+      try {
+        const c = editor.view.coordsAtPos(Math.min(range.to, editor.view.state.doc.content.size));
+        btn.style.left = `${c.left + 4}px`;
+        btn.style.top = `${c.bottom + 2}px`;
+      } catch { btn.remove(); }
+    };
+    const repaste = (mode) => {
+      const view = editor.view;
+      const { sliceForMode } = pasteModes;
+      const tr = view.state.tr.setSelection(TextSelection.create(view.state.doc, range.from, range.to));
+      const st = view.state.apply(tr);
+      const { slice } = sliceForMode(original, mode, st);
+      tr.replaceSelection(slice);
+      range = { from: range.from, to: tr.selection.to };
+      view.dispatch(tr.scrollIntoView().setMeta('pasteOptions', true));
+      place();
+    };
+    btn.addEventListener('mousedown', (e) => e.preventDefault());
+    btn.addEventListener('click', () => openMenu({
+      anchor: btn,
+      items: [['keep', 'cmd.home.pasteKeepSource'], ['merge', 'cmd.home.pasteMerge'], ['text', 'cmd.home.pasteTextOnly']].map(([m, k]) => ({ label: t(k), run: () => repaste(m) })),
+    }));
+    document.body.append(btn);
+    requestAnimationFrame(place);
+    pasteTracker = (tr) => {
+      if (tr.getMeta('pasteOptions')) return;
+      if (tr.docChanged || tr.selectionSet) { btn.remove(); pasteTracker = null; }
+    };
+  }
+  let pasteTracker = null;
+  const baseOnTransaction = editorEnv.onTransaction;
+  editorEnv.onTransaction = (view, tr) => { if (pasteTracker && !tr.getMeta('paste')) pasteTracker(tr); baseOnTransaction(view, tr); };
 
   session = createSession({
     editor,
@@ -117,6 +293,7 @@ function boot() {
       for (const url of pictureUrls.values()) URL.revokeObjectURL(url);
       pictureUrls = new Map();
       docArea.applyDocument(state);
+      updateStyleSamples();
     },
     onChange(info) { store.set({ docTitle: info.name, dirty: info.dirty }); },
   });
@@ -126,7 +303,7 @@ function boot() {
   const keytips = createKeyTips({ ribbon, store, openCommandSearch: () => search.open() });
 
   // Regions cycled by F6 / Shift+F6.
-  const regions = () => [ribbon.tabbar, ribbon.ribbon, docArea.canvas, status.el].filter((r) => !r.hidden && r.getClientRects().length);
+  const regions = () => [ribbon.tabbar, ribbon.ribbon, leftDock.el, docArea.canvas, rightDock.el, status.el].filter((r) => !r.hidden && r.getClientRects().length);
   ui.openCommandSearch = () => search.open();
   ui.showKeyTips = () => keytips.start();
   ui.docArea = docArea;
@@ -142,7 +319,8 @@ function boot() {
   };
 
   const root = document.getElementById('app');
-  const shell = h('div', { class: 'shell' }, ribbon.tabbar, ribbon.ribbon, docArea.el, status.el);
+  const work = h('div', { class: 'work' }, leftDock.el, docArea.el, rightDock.el);
+  const shell = h('div', { class: 'shell' }, ribbon.tabbar, ribbon.ribbon, work, status.el);
   root.replaceChildren(shell, backstage.el);
   store.subscribe((s, changed) => {
     if (changed.includes('backstageOpen')) {
@@ -153,16 +331,21 @@ function boot() {
 
   // Global shortcuts (Ctrl+F1, Alt+Q, F6…). Inside text fields only
   // modifier/function-key shortcuts apply, so typing stays untouched.
-  document.addEventListener('keydown', (e) => {
-    if (e.defaultPrevented || keytips.isActive() || isMenuOpen() || search.isOpen() || document.querySelector('.dlg-overlay')) return;
+  function appKey(e) {
+    if (keytips.isActive() || isMenuOpen() || search.isOpen() || document.querySelector('.dlg-overlay')) return null;
     if (store.get().backstageOpen && e.key !== 'F6') {
-      if (!(e.ctrlKey || e.metaKey || e.altKey || /^F\d+$/.test(e.key))) return;
+      if (!(e.ctrlKey || e.metaKey || e.altKey || /^F\d+$/.test(e.key))) return null;
     }
-    if (isTextInput(e.target) && !(e.ctrlKey || e.metaKey || e.altKey || /^F\d+$/.test(e.key))) return;
+    if (isTextInput(e.target) && !(e.ctrlKey || e.metaKey || e.altKey || /^F\d+$/.test(e.key))) return null;
     const id = registry.handleKeydown(e);
     if (id && !registry.isEnabled(id) && registry.get(id).comingSoon) toast(t('toast.comingSoon', { name: registry.label(id) }));
     if (e.key === 'Escape' && store.get().ribbonPeek) store.set({ ribbonPeek: false });
-  });
+    return id;
+  }
+  // In the document, app shortcuts go first: ProseMirror would otherwise
+  // swallow Ctrl+B / I (it blocks the browser's own contenteditable formatting).
+  ui.handleEditorKey = (e) => !!appKey(e);
+  document.addEventListener('keydown', (e) => { if (!e.defaultPrevented) appKey(e); });
 
   // Drag and drop an .odt anywhere to open it.
   const hasFiles = (e) => [...(e.dataTransfer?.types || [])].includes('Files');
@@ -191,6 +374,7 @@ function boot() {
   window.odtEditor = Object.freeze({
     io: { importOdt, exportOdt, stateToJSON, createBlankState }, registry, store, t, ready, version: APP_VERSION, appName: APP_NAME,
     tabs: TABS, search, keytips, ribbon, editor, session, docArea,
+    pm: { TextSelection },
   });
 }
 

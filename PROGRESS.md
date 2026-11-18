@@ -8,7 +8,7 @@ The memory between sessions. Statuses: `todo`, `in progress`, `awaiting approval
 | M1 — App shell and complete ribbon UI (visual match) | approved |
 | M2 — Document model and ODT open/save | approved |
 | M3 — Print Layout: pagination, rulers, status bar, zoom | approved |
-| M4 — Home tab: character and paragraph formatting, styles, lists, find | in progress |
+| M4 — Home tab: character and paragraph formatting, styles, lists, find | awaiting approval |
 | M5 — Layout and Design tabs, headers/footers, sections | todo |
 | M6 — Tables | todo |
 | M7 — Insert tab: pictures, shapes, text boxes, links, symbols | todo |
@@ -101,7 +101,7 @@ Decisions:
 
 Known limitations:
 - Continuous view only: no page breaks between pages, headers/footers not shown yet (all kept in the file) — M3/M5.
-- List numbering: restart/continue across separate lists isn't rendered yet (kept in the file) — M4.
+- List numbering: restart/continue across separate lists isn't rendered yet (kept in the file) — M4 (done in M4).
 - Content inside covered (merged-away) table cells, which is rare, is not kept; repeated rows/cells are written out individually.
 - Image effects (opacity, crop, rotation) aren't rendered yet — M7.
 - Tracked changes are kept but not shown — M9.
@@ -135,3 +135,35 @@ Known limitations:
 - In a justified paragraph split across pages, the last line before the break isn't justified.
 - Side to Side uses one page size for all pages and the browser's own fragmentation.
 - Read Mode / Web Layout / Focus buttons and the Language dialog remain "Coming soon" (M12 / M9).
+
+## M4 — Home tab: character and paragraph formatting, styles, lists, find (awaiting approval)
+
+Built:
+- **Character formatting** (`core/commands/text.js`): every Font-group control works on all selection ranges (and on the stored marks for the next typed text). Font name/size combos follow the selection (the font list includes the bundled fonts; choosing a font adds its `style:font-face`), Grow/Shrink (Ctrl+] / Ctrl+[), Change Case ▾ (+ Shift+F3 cycling), Clear All Formatting, Bold/Italic/Underline (+ double/thick/dotted/dashed/wave, underline colour), Strikethrough, Sub/Superscript (Ctrl+= / Ctrl+Shift+=), Character Border, Text Effects ▾ Outline/Shadow, Highlight and Font Colour palettes (the split button repeats the last colour), Ctrl+Space clears character formatting. Direct formatting is stored as ODF text properties; values equal to the style's (or the initial value) are dropped, so turning bold off removes the property.
+- **Font dialog** (Ctrl+D / launcher): font, style, size, colour, underline style + colour, strikethrough / double, super/subscript, small caps, all caps, hidden, outline, shadow; Advanced: scale, character spacing (expanded/condensed by), raised/lowered position, kerning; live preview.
+- **Paragraph formatting** (`core/commands/paragraph.js`): align (Ctrl+L/E/R/J, toggling back to left), LTR/RTL, line spacing presets (Ctrl+1/2/5) and Add/Remove space, Shading palette, Borders ▾ (bottom/top/left/right/none/all/outside, horizontal line), Increase/Decrease indent (Ctrl+M / Ctrl+Shift+M; changes the list level inside lists), Sort, Ctrl+Q. **Paragraph dialog**: alignment, direction, indents (left/right/first line/hanging), spacing before/after, line spacing (single/1.5/double/at least/exactly/multiple), widow/orphan control, keep with next, keep lines together, page break before; **Tabs dialog** (positions, alignment, dot/dash/line leaders, clear/clear all); **Borders and Shading** dialog (box/custom sides, style, width, colour, fill; paragraph or text).
+- **Show ¶** (Ctrl+Shift+8): pilcrows, space dots, tab arrows and hidden text (hidden text is otherwise hidden, as in Word).
+- **Lists** (`core/commands/lists.js`): Bullets / Numbering / Multilevel galleries (6 presets each, de-duplicated automatic list styles L1, L2…), Define New Bullet / Number Format / Multilevel List, Set Numbering Value, Restart at 1 and Continue Numbering (context menu), Tab / Shift+Tab level changes, Enter on an empty item or Backspace at the start leaves the list. Labels are computed by a plugin from the ODF list styles (levels, prefixes/suffixes, display-levels, start values, continue-numbering, continue-list, list headers).
+- **Styles**: the gallery is live (selection shows the current style; samples use the document's style colours/fonts), applies paragraph styles (headings become `text:h` with their outline level) and character styles; Ctrl+Shift+N, Ctrl+Alt+1/2/3; Create a Style, Clear Formatting, Apply Styles…. **Styles pane** (launcher, Ctrl+Alt+Shift+S): every paragraph/character style, show preview, only styles in use, and per style Update to Match Selection, Modify… (name, based on, next style, bold/italic/underline, Font… and Paragraph… dialogs), Delete (text goes back to the parent style); New Style…, Clear All. Changes are written to `office:styles` with inheritance (parent-style-name) and next-style kept as ODF; missing built-in styles are added on first use.
+- **Find** (Ctrl+F): Navigation pane (left dock, resizable) with Headings / Pages / Results tabs, live highlights, result snippets, previous/next, options (match case, whole words, wildcards, regex). **Find and Replace** (Ctrl+H, modeless, draggable): match case, whole words, Word-style wildcards (? * [ ] [! ] < > @ {n,m}), regular expressions with $1 groups, find formatting and replace formatting, Replace / Replace All (one undo step). **Go To** (Ctrl+G): page (absolute or ±), heading, bookmark.
+- **Select ▾**: Select All, Select Objects (cycles frames), Select Text with Similar Formatting (a real multi-range selection; formatting commands apply to every range).
+- **Clipboard**: Paste ▾ Keep Source Formatting / Merge Formatting / Keep Text Only, Paste Special…, Set Default Paste… (within the document / from other programs), a floating Paste Options button after every paste that re-pastes the same content in another mode. **Format Painter** (Ctrl+Shift+C): click to apply once, double-click to lock, Esc to stop; copies paragraph formatting when the source is a caret or whole paragraphs.
+- **AutoCorrect** as you type (`core/editing-plugins.js`): smart quotes, `--` / spaced ` - ` → en dash, `---` → em dash, `...` → …, (c) (r) (tm), -> <-, `* ` / `- ` bullets, `1. ` `a) ` `i. ` numbering, capitalise the first letter of sentences; Backspace right after a correction undoes it.
+- **Mini-toolbar** on mouse selections (font, size, grow/shrink, clear, B I U, highlight, colour, bullets, numbering, painter, styles; fades with distance) and a **context menu** (cut/copy/paste options, Font…, Paragraph…, list numbering items, Find, link, comment).
+- **Dictate** (Web Speech API, en-GB, spoken punctuation); disabled where unsupported.
+- Shortcuts from the brief: F4 repeats the last formatting command, F8 extends the selection (word → sentence → paragraph → document), Shift+F5 returns to previous edit locations. App shortcuts now run before ProseMirror's own key handling in the document.
+- Tests: 50 unit + 93 e2e (12 new Home tests). The formatting round-trip test applies every character and paragraph formatting type, saves, re-opens (identical model) and has LibreOffice convert the file to HTML to prove it reads bold, italic, super/subscript, colours, alignment, headings and lists. Lists and styles have their own round-trips (custom style with inheritance in styles.xml).
+- Performance: 50 pages ≈2.7 ms per keystroke (main thread; 1–2 of 40 keystrokes miss a frame in headless Chromium), 100 pages ≈4 ms. The ribbon's state sync waits for a typing pause, and list labels / nested-list kinds are recomputed only when blocks change, not while typing inside a paragraph.
+- Screenshots: `reference/compare/m4-*.png` (panes, Font/Paragraph dialogs, Replace, mini-toolbar, Bullets menu) in dark and light.
+
+Decisions:
+- Shift+F3 cycles lowercase → Capitalise Each Word → UPPERCASE → lowercase (Word's order).
+- Clear All Formatting resets to Normal; Ctrl+Space clears character formatting only (as in Word).
+- Built-in styles can't be deleted; a deleted custom style's paragraphs go to its parent.
+- Nested lists without their own style follow the outer list's bullet/number kind (as the importer does).
+
+Known limitations:
+- Coming soon: Clipboard pane (launcher), Phonetic Guide, Enclose Characters, Text Effects ▸ Glow, Editor (spelling pane, M9), Layout ▸ Selection Pane (M5/M7).
+- Paste Options: the floating button disappears at the next edit or selection change; Merge Formatting keeps bold/italic/underline and links only.
+- The Find formatting filter offers bold, italic, underline, highlight and strikethrough (not arbitrary Font-dialog formatting).
+- The Navigation pane's Pages tab shows page tiles, not live thumbnails.

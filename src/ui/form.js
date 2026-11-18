@@ -1,0 +1,81 @@
+/**
+ * Small form-building helpers for dialogs: labelled inputs, selects,
+ * checkboxes, radio groups, colour inputs, length spinners and tabs.
+ */
+import { h, uid } from './dom.js';
+
+export function field(label, control, { wide = false } = {}) {
+  const id = control.id || uid('f');
+  control.id = id;
+  return h('div', { class: `fm-field${wide ? ' wide' : ''}` }, h('label', { for: id, class: 'fm-label' }, label), control);
+}
+
+export const text = (value = '', attrs = {}) => h('input', { type: 'text', class: 'fm-input', value, spellcheck: 'false', ...attrs });
+export const number = (value, attrs = {}) => h('input', { type: 'number', class: 'fm-input fm-num', value: String(value), ...attrs });
+
+export function select(options, value, attrs = {}) {
+  const el = h('select', { class: 'fm-select', ...attrs });
+  for (const o of options) {
+    const [v, label] = Array.isArray(o) ? o : [o, o];
+    const opt = h('option', { value: v }, label);
+    if (v === value) opt.selected = true;
+    el.append(opt);
+  }
+  return el;
+}
+
+export function check(label, checked = false, attrs = {}) {
+  const input = h('input', { type: 'checkbox', ...attrs });
+  input.checked = !!checked;
+  const el = h('label', { class: 'fm-check' }, input, label);
+  el.input = input;
+  return el;
+}
+
+export function radios(name, options, value) {
+  const wrap = h('div', { class: 'fm-radios', role: 'radiogroup' });
+  for (const [v, label] of options) {
+    const input = h('input', { type: 'radio', name, value: v });
+    if (v === value) input.checked = true;
+    wrap.append(h('label', { class: 'fm-check' }, input, label));
+  }
+  wrap.value = () => wrap.querySelector('input:checked')?.value ?? null;
+  return wrap;
+}
+
+export const colour = (value = '#000000', attrs = {}) => h('input', { type: 'color', class: 'fm-colour', value, ...attrs });
+
+/** A length input in a unit (cm/pt) that accepts "1.5 cm", "12pt" or a bare number. */
+export function length(valuePx, unit, attrs = {}) {
+  const factor = unit === 'pt' ? 96 / 72 : 96 / 2.54;
+  const el = h('input', { type: 'text', class: 'fm-input fm-len', value: `${+(valuePx / factor).toFixed(unit === 'pt' ? 1 : 2)} ${unit}`, ...attrs });
+  el.px = () => {
+    const m = String(el.value).trim().match(/^(-?[\d.]+)\s*(cm|mm|pt|in|")?$/);
+    if (!m) return null;
+    const n = parseFloat(m[1]);
+    const u = m[2] === '"' ? 'in' : (m[2] || unit);
+    return n * ({ cm: 96 / 2.54, mm: 96 / 25.4, pt: 96 / 72, in: 96 }[u]);
+  };
+  return el;
+}
+
+/** Tabbed container: tabs = [[label, contentNode]]. */
+export function tabs(list) {
+  const bar = h('div', { class: 'fm-tabs', role: 'tablist' });
+  const panels = h('div', { class: 'fm-panels' });
+  list.forEach(([label, content], i) => {
+    const id = uid('tp');
+    const btn = h('button', { type: 'button', role: 'tab', class: 'fm-tab', 'aria-selected': String(i === 0), 'aria-controls': id }, label);
+    const panel = h('div', { role: 'tabpanel', id, class: 'fm-panel', hidden: i !== 0 }, content);
+    btn.addEventListener('click', () => {
+      bar.querySelectorAll('.fm-tab').forEach((b) => b.setAttribute('aria-selected', String(b === btn)));
+      panels.querySelectorAll('.fm-panel').forEach((p) => { p.hidden = p !== panel; });
+    });
+    bar.append(btn);
+    panels.append(panel);
+  });
+  return h('div', { class: 'fm-tabbed' }, bar, panels);
+}
+
+export const row = (...children) => h('div', { class: 'fm-row' }, ...children);
+export const group = (title, ...children) => h('fieldset', { class: 'fm-group' }, h('legend', {}, title), ...children);

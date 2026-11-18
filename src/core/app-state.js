@@ -45,4 +45,18 @@ export const INITIAL_APP_STATE = Object.freeze({
   docTitle: null,
   dirty: false,
   words: 0,
+  // Home tab (M4)
+  styleId: 'normal',
+  styleSamples: null,
+  showMarks: false,
+  formatPainter: false,
+  dictating: false,
+  navigationPane: false,
+  stylesPane: false,
+  lastHighlight: '#ffff00',
+  lastFontColour: '#c00000',
+  lastShading: '#d9d9d9',
+  lastUnderlineColour: '#c00000',
+  lastBorder: 'home.borderBottom',
+  listPresets: {},
 });

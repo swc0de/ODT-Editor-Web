@@ -38,7 +38,8 @@ export function textPropsCss(a = {}, out = []) {
   if (a['fo:letter-spacing'] && a['fo:letter-spacing'] !== 'normal') out.push(`letter-spacing:${a['fo:letter-spacing']}`);
   if (a['fo:text-shadow'] && a['fo:text-shadow'] !== 'none') out.push(`text-shadow:${a['fo:text-shadow']} rgba(0,0,0,.45)`);
   if (a['style:text-outline'] === 'true') out.push(`-webkit-text-stroke:0.6px ${a['fo:color'] && a['fo:color'] !== 'transparent' ? a['fo:color'] : '#000'};color:transparent`);
-  if (a['text:display'] === 'none') out.push('text-decoration:underline dotted;opacity:.55');
+  // Hidden text shows (dotted) only while formatting marks are shown.
+  if (a['text:display'] === 'none') out.push('display:var(--odt-hidden,none);text-decoration:underline dotted');
   if (a['style:text-scale'] && a['style:text-scale'] !== '100%') out.push(`display:inline-block;transform:scaleX(${parseFloat(a['style:text-scale']) / 100});transform-origin:left`);
   const ul = a['style:text-underline-style'];
   const lt = a['style:text-line-through-style'];

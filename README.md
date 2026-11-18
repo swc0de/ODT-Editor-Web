@@ -5,13 +5,14 @@ browser from **one self-contained HTML file**: `dist/odt-editor.html`.
 No server, no uploads, no analytics — open the file (even from `file://`, even
 offline) and everything happens locally.
 
-> **Status: milestone M3 (Print Layout).** Open .odt/.ott files and edit
-> them on real pages (headers, footers, page numbers, breaks, widows/orphans,
-> tables split across pages), with live rulers, zoom and an autosaving,
-> crash-safe save/open workflow. Formatting commands and the other ribbon
-> features arrive in later milestones — see [MILESTONES.md](MILESTONES.md) and
-> [PROGRESS.md](PROGRESS.md). Controls for features that aren't built yet are
-> dimmed with a "Coming soon" tooltip.
+> **Status: milestone M4 (Home tab).** Open .odt/.ott files and edit them on
+> real pages with the whole Home tab: character and paragraph formatting and
+> their dialogs, lists, styles and the Styles pane, find and replace, Format
+> Painter, paste options, AutoCorrect, the mini-toolbar and context menu —
+> plus live rulers, zoom and an autosaving, crash-safe save/open workflow.
+> Other ribbon tabs arrive in later milestones — see [MILESTONES.md](MILESTONES.md)
+> and [PROGRESS.md](PROGRESS.md). Controls for features that aren't built yet
+> are dimmed with a "Coming soon" tooltip.
 
 ## Working with files
 
@@ -119,16 +120,30 @@ UI inspired by the open-source WordCraft project (MIT/Apache-2.0).
 - Zoom: Ctrl+wheel, the status bar slider, View ▸ Zoom (or One Page / Page
   Width / Multiple Pages). View ▸ Side to Side lays pages out horizontally.
 
-## Known limitations (M3)
+## Home tab
 
+- Formatting: Ctrl+B/I/U, Ctrl+= / Ctrl+Shift+= (sub/superscript), Ctrl+] / Ctrl+[
+  (font size), Shift+F3 (change case), Ctrl+Space (clear character formatting),
+  Ctrl+D (Font dialog), Ctrl+L/E/R/J (align), Ctrl+1/2/5 (line spacing),
+  Ctrl+M / Ctrl+Shift+M (indent), Ctrl+Q (clear paragraph formatting),
+  Ctrl+Shift+8 (Show ¶), Ctrl+Shift+C (Format Painter; double-click the button
+  to lock it), F4 (repeat).
+- Styles: Ctrl+Shift+N (Normal), Ctrl+Alt+1/2/3 (headings), Ctrl+Alt+Shift+S
+  (Styles pane). Styles you create or modify are saved as ODF styles.
+- Lists: type `* `, `- `, `1. ` or `a) ` to start a list; Tab / Shift+Tab
+  change the level; Enter on an empty item ends the list.
+- Find: Ctrl+F (Navigation pane), Ctrl+H (Find and Replace with match case,
+  whole words, wildcards, regular expressions and formatting), Ctrl+G (Go To).
+- F8 extends the selection; Shift+F5 goes back to where you last edited.
+- Dictate uses the browser's speech recognition where available.
+
+## Known limitations (M4)
+
+- Coming soon on the Home tab: the Clipboard pane, Phonetic Guide, Enclose
+  Characters, Glow, the Editor (spelling) pane.
 - Headers and footers are shown but not editable yet (M5); all pages use the
   first page style's width; page-level columns and footnotes at the page
   bottom aren't laid out yet; table header rows aren't repeated (M6).
-- Formatting commands (bold, styles, lists…) aren't wired up yet (M4); pasted
-  and opened formatting is shown and kept. Paragraph indents and tab stops
-  can be set from the ruler.
-- Numbered lists don't yet render continue/restart numbering across separate
-  lists (kept in the file).
 - Footnotes, comments, text boxes, tables of contents and tracked changes are
   kept and displayed but not editable yet.
 - Content inside merged-away table cells (rare) is not kept.

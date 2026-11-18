@@ -28,7 +28,7 @@ export const commands = defineCommands('file', {
   close: { icon: 'close', shortcut: 'Mod-w', run: (ctx) => { ctx.session.close().then((ok) => { if (ok) ctx.store.set({ backstageOpen: false }); }); } },
   undo: { icon: 'undo', shortcutHint: 'Mod-z', run: (ctx) => ctx.editor.undo(), isEnabled: (ctx) => ctx.editor.canUndo() },
   redo: { icon: 'redo', shortcutHint: 'Mod-y', run: (ctx) => ctx.editor.redo(), isEnabled: (ctx) => ctx.editor.canRedo() },
-  repeat: { shortcut: 'F4' },
+  repeat: { shortcut: 'F4', isEnabled: (ctx) => !!ctx.ui.canRepeat?.(), run: (ctx) => ctx.ui.repeat() },
   share: { icon: 'share' },
   shareDownload: { icon: 'download', run: (ctx) => { ctx.session.downloadCopy(); } },
   shareExportPdf: { icon: 'export' },

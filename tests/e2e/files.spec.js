@@ -127,6 +127,6 @@ test.describe('files', () => {
     await page.evaluate(() => { window.odtEditor.session.openBytes(new TextEncoder().encode('not a zip'), { name: 'bad.odt' }); });
     await expect(page.getByRole('alertdialog')).toContainText('couldn’t be opened');
     await page.getByRole('alertdialog').getByRole('button', { name: 'OK' }).click();
-    expect(await firstText(page)).toBe('keep me');
+    expect(await firstText(page)).toBe('Keep me'); // AutoCorrect capitalises the sentence
   });
 });

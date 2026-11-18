@@ -44,13 +44,13 @@ test.describe('app shell', () => {
   });
 
   test('unbuilt commands are disabled with a "Coming soon" tooltip', async ({ page }) => {
-    const bold = page.locator('.ribbon-panel [data-command="home.bold"]');
-    await expect(bold).toHaveAttribute('aria-disabled', 'true');
-    await bold.hover();
-    await expect(page.locator('.tooltip')).toContainText('Bold (Ctrl+B)');
+    const enclose = page.locator('.ribbon-panel [data-command="home.enclosedCharacters"]');
+    await expect(enclose).toHaveAttribute('aria-disabled', 'true');
+    await enclose.hover();
+    await expect(page.locator('.tooltip')).toContainText('Enclose Characters');
     await expect(page.locator('.tooltip')).toContainText('Coming soon');
-    await bold.click({ force: true });
-    await expect(page.locator('.toast')).toContainText('Bold — coming soon');
+    await enclose.click({ force: true });
+    await expect(page.locator('.toast')).toContainText('Enclose Characters — coming soon');
   });
 
   test('Ctrl+F1 and double-clicking a tab collapse the ribbon; clicking a tab peeks', async ({ page }) => {

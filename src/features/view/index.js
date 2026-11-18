@@ -16,7 +16,7 @@ export const commands = defineCommands('view', {
   sideToSide: { icon: 'side-to-side', run: (ctx) => ctx.store.set({ pageMovement: 'side' }), isChecked: (ctx) => ctx.state.pageMovement === 'side' },
   ruler: { run: (ctx) => ctx.store.set((s) => ({ showRuler: !s.showRuler })), isChecked: (ctx) => ctx.state.showRuler },
   gridlines: { run: (ctx) => ctx.store.set((s) => ({ gridlines: !s.gridlines })), isChecked: (ctx) => ctx.state.gridlines },
-  navigationPane: { isChecked: () => false },
+  navigationPane: { run: (ctx) => ctx.ui.nav.toggle(), isChecked: (ctx) => !!ctx.state.navigationPane },
   hideWhiteSpace: {
     run: (ctx) => ctx.store.set((s) => ({ hideWhiteSpace: !s.hideWhiteSpace })),
     isChecked: (ctx) => ctx.state.hideWhiteSpace,

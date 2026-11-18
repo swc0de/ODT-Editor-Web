@@ -181,7 +181,7 @@ export function createRibbon({ registry, store, tabs, toast }) {
           if (!opensMenu) el.setAttribute('aria-pressed', String(on));
         }
       }
-      root.querySelectorAll('.rb-combo').forEach((c) => c._sync?.());
+      root.querySelectorAll('.rb-combo, .gal').forEach((c) => c._sync?.());
     }
   }
   registry.onChange(refresh);
@@ -192,7 +192,8 @@ export function createRibbon({ registry, store, tabs, toast }) {
     ribbon.classList.toggle('is-peek', state.ribbonCollapsed && state.ribbonPeek);
     ribbon.hidden = state.ribbonCollapsed && !state.ribbonPeek;
     tabbar.classList.toggle('ribbon-collapsed', state.ribbonCollapsed);
-    if (!ribbon.hidden) requestAnimationFrame(layout);
+    const relayout = !changed || ['activeTab', 'ribbonCollapsed', 'ribbonPeek'].some((k) => changed.includes(k));
+    if (!ribbon.hidden && relayout) requestAnimationFrame(layout);
     refresh();
   }
   store.subscribe(applyState);

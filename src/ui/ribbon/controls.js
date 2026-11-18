@@ -23,6 +23,8 @@ import { openMenu } from '../menu.js';
 import { STYLE_GALLERY, STYLE_SET_GALLERY, styleTile, styleSetTile } from './galleries.js';
 import { isFontAvailable } from '../../layout/fonts.js';
 import { DEFAULT_BODY_FONT } from '../../config.js';
+import { fontList } from '../format-dialogs.js';
+import { FONT_SIZES } from '../../core/commands/text.js';
 
 const CARET = () => h('span', { class: 'caret', 'aria-hidden': 'true' });
 
@@ -118,19 +120,23 @@ export function createControlFactory(env) {
       if (e.key === 'Escape') { input.value = isFont ? store.get().fontName : String(store.get().fontSize); input.blur(); }
     });
     input.addEventListener('change', () => {
-      // Applying fonts to text arrives with editing (M4); until then the combo
-      // only records the chosen value for the next document.
-      if (isFont) store.set({ fontName: input.value.trim() || store.get().fontName });
-      else {
+      if (isFont) {
+        const name = input.value.trim();
+        if (name && registry.isEnabled(id)) registry.run(id, name);
+        else if (name) store.set({ fontName: name });
+      } else {
         const n = parseFloat(input.value);
-        if (n >= 1 && n <= 1638) store.set({ fontSize: Math.round(n * 2) / 2 });
+        if (n >= 1 && n <= 1638) {
+          const v = Math.round(n * 2) / 2;
+          if (registry.isEnabled(id)) registry.run(id, v); else store.set({ fontSize: v });
+        }
         input.value = String(store.get().fontSize);
       }
       updateWarn();
     });
     const items = isFont
-      ? ['Aptos', 'Carlito', 'Caladea', 'Liberation Sans', 'Liberation Serif', 'Liberation Mono'].map((f) => ({ label: f, checked: f === store.get().fontName, run: () => { input.value = f; input.dispatchEvent(new Event('change')); } }))
-      : [8, 9, 10, 10.5, 11, 12, 14, 16, 18, 20, 22, 24, 26, 28, 36, 48, 72].map((n) => ({ label: String(n), checked: n === store.get().fontSize, run: () => { input.value = String(n); input.dispatchEvent(new Event('change')); } }));
+      ? fontList().map((f) => ({ label: f, checked: f === store.get().fontName, run: () => { input.value = f; input.dispatchEvent(new Event('change')); } }))
+      : FONT_SIZES.map((n) => ({ label: String(n), checked: n === store.get().fontSize, run: () => { input.value = String(n); input.dispatchEvent(new Event('change')); } }));
     arrow.addEventListener('click', () => openMenu({ anchor: arrow, items: items.map((i) => ({ ...i, checked: i.label === input.value })), tab, label: registry.label(id) }));
     wrap._sync = () => { if (document.activeElement !== input) input.value = isFont ? store.get().fontName : String(store.get().fontSize); updateWarn(); };
     return wrap;
@@ -187,7 +193,9 @@ export function createControlFactory(env) {
         'data-gallery-item': item.id, 'data-tip-label': t(item.name), 'aria-label': t(item.name), tabindex: i === 0 ? '0' : '-1',
         'aria-selected': String(isStyles ? item.id === 'normal' : item.id === 'default'),
       }, isStyles ? styleTile(item, t) : styleSetTile(item, t));
-      tile.addEventListener('click', () => activate(id, tile, spec, tab));
+      tile.addEventListener('click', () => {
+        if (registry.isEnabled(id)) registry.run(id, item.id); else activate(id, tile, spec, tab);
+      });
       tiles.append(tile);
     });
     const scroll = (dir) => {
@@ -198,6 +206,22 @@ export function createControlFactory(env) {
     const down = h('button', { type: 'button', class: 'gal-btn', 'aria-label': t('ribbon.galleryDown'), 'data-tip': t('ribbon.galleryDown'), onclick: () => scroll(1), html: iconSvg('chevron-down', { size: 12 }) });
     const more = h('button', { type: 'button', class: 'gal-btn gal-more', 'aria-label': t('ribbon.galleryMore'), 'data-tip': t('ribbon.galleryMore'), 'data-menu-button': '', 'aria-haspopup': 'true', 'aria-expanded': 'false', html: iconSvg('more', { size: 12 }) });
     const el = h('div', { class: `gal${isStyles ? ' styles' : ' sets'}` }, tiles, h('div', { class: 'gal-scroll' }, up, down, more));
+    if (isStyles) {
+      // Live gallery: the current style is selected; samples follow the document's styles.
+      let samples = null;
+      el._sync = () => {
+        const s = store.get();
+        for (const tile of tiles.children) tile.setAttribute('aria-selected', String(tile.dataset.galleryItem === s.styleId));
+        if (s.styleSamples && s.styleSamples !== samples) {
+          samples = s.styleSamples;
+          for (const tile of tiles.children) {
+            const css = samples[tile.dataset.galleryItem];
+            const sample = tile.querySelector('.gal-sample');
+            if (css && sample) Object.assign(sample.style, css);
+          }
+        }
+      };
+    }
     more.addEventListener('click', () => openGalleryPopup(el, tiles, more, spec, tab));
     // Arrow keys move between tiles (roving tabindex).
     tiles.addEventListener('keydown', (e) => {

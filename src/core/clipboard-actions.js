@@ -6,6 +6,7 @@
 import { t } from '../i18n/index.js';
 
 export function createClipboardActions(editor, toast) {
+  let once = null;
   const exec = (cmd, blockedKey) => {
     editor.focus();
     let ok = false;
@@ -16,7 +17,10 @@ export function createClipboardActions(editor, toast) {
   return {
     cut: () => exec('cut', 'file.copyBlocked'),
     copy: () => exec('copy', 'file.copyBlocked'),
-    async paste() {
+    /** One-shot paste mode for the next paste (ribbon paste options). */
+    takeMode() { const m = once; once = null; return m; },
+    async paste(mode = null) {
+      once = mode;
       editor.focus();
       try {
         if (navigator.clipboard?.read) {
@@ -33,6 +37,7 @@ export function createClipboardActions(editor, toast) {
       } catch (e) {
         console.warn('Clipboard read failed:', e.message);
       }
+      once = null;
       toast(t('file.pasteBlocked'));
       return false;
     },

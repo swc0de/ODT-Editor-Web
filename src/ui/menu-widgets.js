@@ -40,11 +40,11 @@ function bind(el, { registry, close, toast }, cmdId, run) {
 
 function swatch(colour, o, cmdId, title = colour) {
   const el = h('button', { type: 'button', class: 'swatch', style: { background: colour }, title, 'aria-label': title, tabindex: '-1', 'data-menu-focus': '' });
-  bind(el, o, cmdId);
+  bind(el, o, cmdId, () => o.registry.run(cmdId, colour));
   return el;
 }
 
-function colourPalette(o, cmdId = 'home.fontColour') {
+function colourPalette(o, cmdId = o.cmd || 'home.fontColour') {
   return h('div', { class: 'menu-widget palette' },
     h('div', { class: 'menu-header' }, t('menu.themeColours')),
     h('div', { class: 'swatch-grid' }, THEME_COLOURS.flat().map((c) => swatch(c, o, cmdId))),
@@ -129,7 +129,7 @@ function listLibrary(o, kind) {
     h('div', { class: 'list-grid' }, samples.map((marks, i) => {
       const b = h('button', { type: 'button', class: 'list-cell', tabindex: '-1', 'data-menu-focus': i === 0 ? '' : null, 'aria-label': marks.join(' ') },
         marks.map((m, lvl) => h('span', { class: 'list-line', style: { paddingLeft: `${kind === 'multilevel' ? lvl * 8 : 0}px` } }, h('span', { class: 'list-mark' }, m), h('span', { class: 'list-bar' }))));
-      bind(b, o, cmdId);
+      bind(b, o, cmdId, () => o.registry.run(cmdId, i));
       return b;
     })));
 }
@@ -159,7 +159,7 @@ function pendingGallery() {
 
 const WIDGETS = {
   colourPalette: (o) => colourPalette(o),
-  highlightPalette: (o) => h('div', { class: 'menu-widget palette' }, h('div', { class: 'swatch-grid five' }, HIGHLIGHTS.map((c) => swatch(c, o, 'home.highlight')))),
+  highlightPalette: (o) => h('div', { class: 'menu-widget palette' }, h('div', { class: 'swatch-grid five' }, HIGHLIGHTS.map((c) => swatch(c, o, o.cmd || 'home.highlight')))),
   tableGrid,
   symbolGrid,
   shapesGallery,

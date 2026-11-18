@@ -16,6 +16,7 @@ import { schema } from './schema.js';
 import { cleanPastedHTML } from './clipboard.js';
 import { toPx } from '../layout/units.js';
 import { escAttr } from './odt/xml.js';
+import { sliceForMode } from './paste-modes.js';
 
 const insertNode = (type) => (state, dispatch) => {
   if (dispatch) dispatch(state.tr.replaceSelectionWith(type.create()).scrollIntoView());
@@ -140,7 +141,7 @@ export function createEditor(mount, env) {
   function makeState(doc) {
     return EditorState.create({
       doc,
-      plugins: [history({ newGroupDelay: 500 }), editorKeymap, keymap(baseKeymap), dropCursor({ color: '#7a93f0' }), gapCursor(), notifyPlugin, ...(env.extraPlugins?.() || [])],
+      plugins: [history({ newGroupDelay: 500 }), ...(env.priorityPlugins?.() || []), editorKeymap, keymap(baseKeymap), dropCursor({ color: '#7a93f0' }), gapCursor(), notifyPlugin, ...(env.extraPlugins?.() || [])],
     });
   }
 
@@ -151,20 +152,24 @@ export function createEditor(mount, env) {
     transformPastedHTML: cleanPastedHTML,
     transformPasted: adoptPastedImages,
     handleDrop: (_v, event) => (event.dataTransfer?.files?.length ? handleFilesDrop(event.dataTransfer.files) : false),
-    // Pasting into an empty paragraph takes the pasted paragraph's style
-    // (ProseMirror would otherwise keep the empty paragraph's).
-    handlePaste(v, _event, slice) {
+    // Paste options apply here. Pasting into an empty paragraph takes the
+    // pasted paragraph's style (ProseMirror would otherwise keep the empty one's).
+    handlePaste(v, event, rawSlice) {
+      const mode = env.pasteMode?.(event) || 'keep';
+      const { slice, adoptStyle } = sliceForMode(rawSlice, mode, v.state);
       const { $from, empty } = v.state.selection;
+      const start = v.state.selection.from;
       const first = slice.content.firstChild;
-      if (!empty || !$from.parent.isTextblock || $from.parent.content.size || slice.openStart < 1 || !first?.isTextblock) return false;
-      const before = $from.before();
       const tr = v.state.tr.replaceSelection(slice);
-      const pos = tr.mapping.map(before, -1);
-      const target = tr.doc.nodeAt(pos);
-      if (target?.isTextblock && (target.type !== first.type || JSON.stringify(target.attrs) !== JSON.stringify(first.attrs))) {
-        try { tr.setNodeMarkup(pos, first.type, first.attrs); } catch { /* incompatible: keep */ }
+      if (adoptStyle && empty && $from.parent.isTextblock && !$from.parent.content.size && slice.openStart >= 1 && first?.isTextblock) {
+        const pos = tr.mapping.map($from.before(), -1);
+        const target = tr.doc.nodeAt(pos);
+        if (target?.isTextblock && (target.type !== first.type || JSON.stringify(target.attrs) !== JSON.stringify(first.attrs))) {
+          try { tr.setNodeMarkup(pos, first.type, first.attrs); } catch { /* incompatible: keep */ }
+        }
       }
       v.dispatch(tr.scrollIntoView().setMeta('paste', true).setMeta('uiEvent', 'paste'));
+      env.onPasted?.({ from: tr.mapping.map(start, -1), to: v.state.selection.to, slice: rawSlice, mode });
       return true;
     },
     dispatchTransaction(tr) {
