@@ -5,13 +5,15 @@ browser from **one self-contained HTML file**: `dist/odt-editor.html`.
 No server, no uploads, no analytics — open the file (even from `file://`, even
 offline) and everything happens locally.
 
-> **Status: milestone M6 (Tables).** Open .odt/.ott files and edit
+> **Status: milestone M7 (Insert tab).** Open .odt/.ott files and edit
 > them on real pages with the Home, Layout and Design tabs: formatting, lists,
 > styles, find and replace; page setup, sections with their own page size and
 > orientation, columns, breaks, line numbers, hyphenation; editable headers and
 > footers with page numbers; themes, style sets, watermarks, page colour and
-> borders; tables with the Table Design and Table Layout tabs — plus live
-> rulers, zoom and an autosaving, crash-safe workflow.
+> borders; tables with the Table Design and Table Layout tabs; pictures,
+> shapes, text boxes, WordArt, icons, links, bookmarks, fields, symbols,
+> equations and charts — plus live rulers, zoom and an autosaving,
+> crash-safe workflow.
 > Other ribbon tabs arrive in later milestones — see [MILESTONES.md](MILESTONES.md)
 > and [PROGRESS.md](PROGRESS.md). Controls for features that aren't built yet
 > are dimmed with a "Coming soon" tooltip.
@@ -102,6 +104,7 @@ reference/             UI reference screenshots; compare/ holds generated compar
 - Bundled fonts: Carlito, Caladea, Liberation Sans/Serif/Mono — SIL Open Font
   License 1.1 (see `assets/fonts/LICENSE.md`).
 - Libraries bundled into the HTML file: ProseMirror incl. prosemirror-tables (MIT), fflate (MIT),
+  MathLive (MIT; the equation editor, with the KaTeX maths fonts, MIT),
   Lucide icons (ISC), hyphen (ISC) with British English hyphenation patterns
   from CTAN (hyph-en-gb).
 
@@ -169,12 +172,40 @@ UI inspired by the open-source WordCraft project (MIT/Apache-2.0).
   header rows (they repeat on every page the table continues on), convert to
   text and formulas such as `=SUM(ABOVE)`.
 
-## Known limitations (M6)
+## Pictures, shapes and other objects
+
+- Insert ▸ Pictures (or drag a picture file onto the page, or paste one): it
+  goes in line with text and the **Picture Format** tab opens. Drag the
+  handles to resize (corners keep the proportions) or rotate; Wrap Text and
+  Position make it float, then drag it or nudge it with the arrow keys.
+  Crop shows crop handles (Esc to finish).
+- Insert ▸ Shapes: pick a shape, then drag on the page (or click for a
+  2.54 cm shape). Double-click a shape to type in it; **Shape Format** sets
+  fill, outline, shadow and style. Text Box and WordArt work the same way.
+- Layout ▸ Selection Pane lists every object: click to select, double-click
+  to rename, the eye hides it.
+- Ctrl+K inserts a link (web page, a heading or bookmark in this document,
+  or an e-mail address); Ctrl+click follows it.
+- Insert ▸ Equation opens the equation editor (type LaTeX-like maths or start
+  from a built-in equation); Insert ▸ Chart builds a column, bar, line or pie
+  chart from a small data grid. Both are saved as real ODF objects that
+  LibreOffice can open and edit. Double-click either one to edit it again.
+- Insert ▸ Symbol ▸ More Symbols searches characters by name or code; Alt+X
+  turns a hex code before the caret into its character (and back).
+
+## Known limitations (M7)
+
+- Objects: text wraps on one side of a floating object, and floating objects
+  anchored in the same paragraph stack rather than overlap. Objects anchored
+  to the page itself (rather than a paragraph) in other files are kept but not
+  drawn. WordArt has no warped-text effects. Coming soon: Remove Background,
+  Artistic Effects, Compress Pictures, Picture Layout, Crop to Shape, Edit
+  Shape, Edit Wrap Points, Group, Text Effects, Stock / Online Pictures,
+  Drawing Canvas, SmartArt, Ink Equation, Object (OLE), Drop Cap in Margin.
 
 - Tables: a single row taller than a page isn't split inside the row; formulas
   don't recalculate by themselves (run Formula again; LibreOffice recalculates
   on open).
-
 - Columns: a paragraph taller than a column isn't split across pages inside a
   column region. Line numbers count body paragraphs only. Hyphenation is
   British English. Coming soon: Design ▸ Effects and Page Number ▸ Page
@@ -182,8 +213,8 @@ UI inspired by the open-source WordCraft project (MIT/Apache-2.0).
 - Coming soon on the Home tab: the Clipboard pane, Phonetic Guide, Enclose
   Characters, Glow, the Editor (spelling) pane.
 - Footnotes at the page bottom aren't laid out yet (M8).
-- Footnotes, comments, text boxes, tables of contents and tracked changes are
-  kept and displayed but not editable yet.
+- Footnotes, comments, tables of contents and tracked changes are kept and
+  displayed but not editable yet.
 - Content inside merged-away table cells (rare) is not kept.
 - Password-protected ODT files can't be opened.
 - Backstage Info, Print, Export and Options are placeholders.

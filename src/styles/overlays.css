@@ -90,3 +90,4 @@
 .ch-cell.num { width: 60px; text-align: right; }
 .ch-grid th .ch-cell { font-weight: 600; }
 .ch-preview { flex: 0 0 auto; border: 1px solid var(--border); background: #fff; line-height: 0; }
+.sym-recent .sym-cell { width: 31px; height: 31px; font-size: 16px; }

@@ -11,7 +11,7 @@ The memory between sessions. Statuses: `todo`, `in progress`, `awaiting approval
 | M4 — Home tab: character and paragraph formatting, styles, lists, find | approved |
 | M5 — Layout and Design tabs, headers/footers, sections | approved |
 | M6 — Tables | approved |
-| M7 — Insert tab: pictures, shapes, text boxes, links, symbols | in progress |
+| M7 — Insert tab: pictures, shapes, text boxes, links, symbols | awaiting approval |
 | M8 — References | todo |
 | M9 — Review: comments, track changes, proofing | todo |
 | M10 — Draw tab | todo |
@@ -23,6 +23,7 @@ The memory between sessions. Statuses: `todo`, `in progress`, `awaiting approval
 
 - Node 22, npm 10. Playwright 1.63 with the preinstalled Chromium (`@playwright/test` pinned to the same version).
 - **LibreOffice: installed** — `soffice` = LibreOffice 24.2.7.2 (detected by `tests/make-fixtures.mjs`). Used to produce genuine LibreOffice-written fixtures (`tests/fixtures/lo-*.odt`) and, with `--check`, to verify every fixture opens. The lo-*.odt files are committed so tests also run without LibreOffice.
+- **LibreOffice Math** (`libreoffice-math`) was added in M7 (`apt-get install libreoffice-math`) so LibreOffice can draw and re-save equations in the round-trip checks; without it LibreOffice shows formula objects as placeholders. Tests don't depend on it being present.
 - **Reference screenshots** (supplied during M1, saved with descriptive names): `home-document-dark.png` (2552×1331), `backstage-home-dark.png` (2554×1370), and ribbon crops `ribbon-insert-dark.png`, `ribbon-draw-dark.png`, `ribbon-layout-dark.png`, `ribbon-view-dark.png`. All dark theme, 1:1 pixel scale. No light-theme references yet.
 
 ## M0 — Scaffold, build, test harness (approved)
@@ -224,4 +225,33 @@ Known limitations:
 - A single row taller than a page isn't split inside the row.
 - Content in cells covered by a merge in a file from elsewhere (rare) isn't kept.
 - Formulas don't recalculate automatically when the numbers change; run Formula again (LibreOffice recalculates on open).
+
+## M7 — Insert tab: pictures, shapes, text boxes, links, symbols (awaiting approval)
+
+Built:
+- **Drawing-object model** (`core/objects.js`, schema `frame` node, `layout/object-view.js`): draw:frame (pictures, text boxes, embedded objects), draw:custom-shape, draw:line, draw:rect and draw:ellipse are one node with the element's attributes, its graphic automatic style resolved into `auto` (regenerated as `fr…`/`gr…` on save, like paragraph styles), its children kept as XML trees, and the text of text boxes and shapes as editable blocks. Unknown children (contours, image maps, replacement pictures) round-trip untouched.
+- **Rendering and wrapping**: in line with text, Square, Tight, Through, Top and Bottom, Behind Text, In Front of Text, with x/y offsets, horizontal alignment, margins (distance from text), rotation (`draw:transform`) and flips; floats move to the next page with their paragraph. Pictures show crop (`fo:clip`), brightness/contrast, greyscale/black-and-white/washout/tints, transparency, borders and shadows. Shapes are drawn as SVG from 40 presets that LibreOffice also knows (lines and arrows, rectangles, basic shapes, block arrows, stars, callouts); other imported shapes from their enhanced path. Text boxes and shape text are edited in place by a nested editor (the Home tab formats it; typing with a text box selected types into it).
+- **Handles**: eight resize handles (pictures keep their proportions on corners; Shift toggles), rotation handle (Shift: 15° steps), line end points, drag to move (re-anchors to the paragraph under it), arrow-key nudges (Ctrl: 1 px), crop mode with crop handles (Esc ends it).
+- **Picture Format** contextual tab: Corrections (5×5 brightness/contrast gallery with live thumbnails), Colour (recolour gallery), Transparency, Change Picture, Reset Picture (& Size), Alt Text, Picture Styles gallery (10), Picture Border (colour, weight, none), Picture Effects (shadows), Arrange, Crop, Height/Width.
+- **Shape Format** contextual tab: shapes gallery, Draw Text Box, Edit Text, Shape Styles gallery (28), Shape Fill, Shape Outline (colour, weight, dashes), Shape Effects (shadows), WordArt Text Fill / Text Outline, Align Text (top/middle/bottom), Alt Text, Arrange, Height/Width.
+- **Arrange** (Layout tab and both Format tabs): Position gallery (in line + 9 positions), Wrap Text, Bring Forward/to Front/in Front of Text, Send Backward/to Back/Behind Text, Align (left/centre/right/top/middle/bottom), Rotate 90°/flip, More Layout Options (Position, Text Wrapping with distances, Size with rotation and aspect lock), **Selection Pane** (top-most first; select, rename, show/hide with `draw:display`, reorder, Show/Hide All).
+- **Insert tab**: Cover Page (4 original designs in a `CoverPage` section, replace/remove), Blank Page, Pictures (file picker, drag-and-drop and pasting picture files), Shapes (click or drag to draw), Icons (220 Lucide icons in 16 categories, searchable, inserted as SVG pictures), Chart, Link (Ctrl+K: web/file, place in this document — headings and bookmarks —, e-mail; ScreenTip; Remove Link; Ctrl+click follows), Bookmark dialog (add/delete/go to, sort, hidden), Text Box (4 designs + Draw Text Box), Quick Parts (AutoText gallery saved in the app settings, Document Property fields, Field dialog with 12 fields), WordArt (8 styles, LibreOffice fontwork), Drop Cap (dropped / options, `style:drop-cap`), Signature Line, Date & Time, Object ▸ Text from File (.odt/.txt), Equation, Symbol (recent symbols + dialog with Unicode blocks, name/code search and special characters), Alt+X.
+- **Equations**: MathLive (MIT) is built into a separate chunk embedded in the HTML file and loaded only when the equation editor opens (fonts inlined, no network). Equations are ODF formula objects (`Object N/content.xml`, MathML with the LaTeX as an annotation), drawn in the page with the browser's MathML. Built-in gallery of 7 equations; double-click to edit.
+- **Charts**: Column, Bar, Line and Pie, built from a data grid with live preview; stored as real ODF chart objects (chart:chart with a local data table, `Object N/content.xml` + `styles.xml`), drawn as SVG in the page; LibreOffice's own charts are read back for editing. Double-click to edit.
+- Embedded objects' XML files live in the document model, so undo, copy/paste and round-trips cover them; unused replacement pictures are dropped on save.
+- Fixes found along the way: Ctrl+Home/End handled by the editor (the browser could leave the caret next to inline objects); `wide` dialogs now widen; a key clash between the Field and Font dialogs' strings (and a unit test that catches duplicate i18n keys).
+- Tests: 57 unit + 116 e2e (7 new in `tests/e2e/objects.spec.js`). Each saves and re-opens (identical model); **LibreOffice re-saves** our files and keeps pictures with their crop/corrections/wrapping/alt text, shapes (preset types, text), lines with arrows, text boxes, WordArt, links, bookmarks, fields, the cover page, equations (MathML) and charts (types, data, titles). LibreOffice renders our shapes, fontwork, formulas and charts (checked visually via PDF). Performance: 50 pages ≈2.3 ms per keystroke, 0 of 40 keystrokes miss a frame.
+- Screenshots: `reference/compare/m7-*.png` (Picture Format, shapes gallery with shapes/WordArt/text box, equation and chart, Symbol dialog, Icons dialog) in dark and light; `ribbon-insert-dark-compare.png` updated.
+
+Decisions:
+- Wrapping is done with CSS floats and absolute positioning on the anchor paragraph; floating objects are anchored to their paragraph ("move with text") and positioned from its top-left. Vertical alignment to the page (Position gallery, Align Top/Middle/Bottom) is turned into a paragraph anchor and offset.
+- Text in text boxes and shapes is stored as blocks in the node and edited with a nested editor (ProseMirror doesn't support block content in inline nodes).
+- WordArt is LibreOffice fontwork (`fontwork-plain-text` with its full geometry — LibreOffice draws nothing from the preset name alone).
+- The Insert ▸ Pictures and Text Box buttons have menus (This Device…; text-box designs), so they show ▾ where the reference shows none.
+- SmartArt is "Coming soon" (allowed by the milestone).
+
+Known limitations:
+- Text wraps on one side of a floating object (CSS floats), and floating objects in the same paragraph don't overlap (they stack). Objects anchored to the page itself (not a paragraph) in other files are kept but not drawn.
+- Shapes from other files whose path uses formulas are drawn as their preset (or as a rectangle); WordArt is plain (no warped text effects).
+- Coming soon: Remove Background, Artistic Effects, Compress Pictures, Picture Layout, Crop to Shape, Edit Shape, Edit Wrap Points, Group/Ungroup, Text Effects, Create Link (shapes), Stock Images, Online Pictures, New Drawing Canvas, SmartArt, Ink Equation, Object… (OLE), Drop Cap in Margin (ODF has no such option). Cross-reference arrives with M8, comments with M9.
 
