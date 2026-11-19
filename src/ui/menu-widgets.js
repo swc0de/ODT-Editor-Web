@@ -11,6 +11,7 @@ import { THEMES, COLOUR_SETS, FONT_SETS, SPACING, WATERMARKS } from '../features
 import { QUICK_TABLES } from '../features/table/insert.js';
 import { BORDER_STYLES } from '../features/table/design.js';
 import { OBJECT_WIDGETS } from './object-widgets.js';
+import { REFERENCE_WIDGETS } from './reference-widgets.js';
 import { recentSymbols, charName } from './symbol-dialog.js';
 
 const THEME_COLOURS = [
@@ -235,6 +236,7 @@ function pendingGallery() {
 
 const WIDGETS = {
   ...OBJECT_WIDGETS,
+  ...REFERENCE_WIDGETS,
   colourPalette: (o) => colourPalette(o),
   highlightPalette: (o) => h('div', { class: 'menu-widget palette' }, h('div', { class: 'swatch-grid five' }, HIGHLIGHTS.map((c) => swatch(c, o, o.cmd || 'home.highlight')))),
   tableGrid,

@@ -1,16 +1,35 @@
 /** References tab: TOC, Footnotes, Citations & Bibliography, Captions, Index (M8). */
 import { defineCommands } from '../define.js';
+import { insertToc, removeToc, updateAllTocs, outlineLevelAt, setOutlineLevel } from './toc.js';
+import { findIndexes, tocOptions, TOC_DEFAULTS } from '../../core/indexes.js';
+import { tocDialog, updateTableDialog } from '../../ui/reference-dialogs.js';
+
+const canEdit = (c) => !!c.editor && c.state.editingMode !== 'viewing';
+const bodyOnly = (c) => canEdit(c) && !c.state.hfEditing && c.editor === c.mainEditor;
+const hasToc = (c) => !!c.mainEditor && findIndexes(c.mainEditor.view.state.doc, 'text:table-of-content').length > 0;
+const level = (n) => ({ isEnabled: bodyOnly, isChecked: (c) => outlineLevelAt(c) === n, run: (c) => setOutlineLevel(c, n) });
 
 export const commands = defineCommands('references', {
-  toc: { icon: 'toc' },
-  tocCustom: {},
-  removeToc: {},
-  addText: { icon: 'add-text' },
-  addTextNone: {},
-  addTextLevel1: {},
-  addTextLevel2: {},
-  addTextLevel3: {},
-  updateToc: { icon: 'update-table' },
+  toc: { icon: 'toc', isEnabled: bodyOnly, menuOnly: true },
+  insertToc: { label: 'cmd.references.toc', isEnabled: bodyOnly, run: (c, id) => insertToc(c, { title: id === 'auto2' ? 'Table of Contents' : 'Contents' }) },
+  tocCustom: {
+    isEnabled: bodyOnly,
+    run: async (c) => {
+      const cur = findIndexes(c.mainEditor.view.state.doc, 'text:table-of-content')[0];
+      const r = await tocDialog(cur ? tocOptions(cur.node.attrs.source) : TOC_DEFAULTS);
+      if (r) insertToc(c, r);
+    },
+  },
+  removeToc: { isEnabled: (c) => bodyOnly(c) && hasToc(c), run: removeToc },
+  addText: { icon: 'add-text', isEnabled: bodyOnly, menuOnly: true },
+  addTextNone: level(0),
+  addTextLevel1: level(1),
+  addTextLevel2: level(2),
+  addTextLevel3: level(3),
+  updateToc: {
+    icon: 'update-table', isEnabled: (c) => bodyOnly(c) && hasToc(c),
+    run: async (c) => { const mode = await updateTableDialog('toc'); if (mode) updateAllTocs(c, { pagesOnly: mode === 'pages' }); },
+  },
   insertFootnote: { icon: 'footnote', shortcut: 'Mod-Alt-f' },
   insertEndnote: { icon: 'endnote', shortcut: 'Mod-Alt-d' },
   nextFootnote: { icon: 'next-footnote' },

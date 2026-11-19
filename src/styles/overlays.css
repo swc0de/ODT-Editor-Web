@@ -91,3 +91,8 @@
 .ch-grid th .ch-cell { font-weight: 600; }
 .ch-preview { flex: 0 0 auto; border: 1px solid var(--border); background: #fff; line-height: 0; }
 .sym-recent .sym-cell { width: 31px; height: 31px; font-size: 16px; }
+/* References dialogs */
+.ref-dlg { display: flex; flex-direction: column; gap: 8px; min-width: 320px; }
+.ref-preview { background: #fff; color: #222; padding: 10px 12px; border: 1px solid var(--border); display: flex; flex-direction: column; gap: 4px; }
+.ref-prev-line { display: flex; gap: 4px; align-items: baseline; white-space: nowrap; overflow: hidden; }
+.ref-prev-leader { flex: 1; overflow: hidden; color: #777; letter-spacing: 1px; }

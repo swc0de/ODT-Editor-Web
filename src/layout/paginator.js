@@ -172,7 +172,7 @@ function* walkUnits(parent, base, path, getIndex, props, fromPos, inRegion) {
     const cols = name === 'section' ? sectionColumns(node, getIndex) : 1;
     if (name === 'paragraph' || name === 'heading') { if (pos >= fromPos) yield { kind: 'para', pos, node, path: p, props: props(node) }; }
     else if (name === 'section' && cols > 1 && !inRegion) yield { kind: 'cols', pos, node, path: p, count: cols };
-    else if (name === 'list' || name === 'list_item' || (name === 'section' && cols <= 1)) yield* walkUnits(node, pos + 1, p, getIndex, props, fromPos, inRegion);
+    else if (name === 'list' || name === 'list_item' || name === 'index' || (name === 'section' && cols <= 1)) yield* walkUnits(node, pos + 1, p, getIndex, props, fromPos, inRegion);
     else if (name === 'table' && !inRegion) {
       const tp = tableProps(node, getIndex);
       let rpos = pos + 1;

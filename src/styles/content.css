@@ -130,3 +130,7 @@
 .dlg.wide { max-width: min(760px, calc(100vw - 32px)); }
 .odt-doc .obj-chart { display: block; width: 100%; height: 100%; line-height: 0; }
 .odt-doc .obj-chart svg { display: block; width: 100%; height: 100%; }
+/* Generated indexes (TOC, figures, index, bibliography): shaded like fields while the mouse is over them. */
+.odt-doc .ProseMirror .odt-index { position: relative; border-radius: 2px; }
+.odt-doc .ProseMirror .odt-index:hover { background: rgba(127, 127, 127, 0.08); }
+.odt-doc .ProseMirror .odt-index a.odt-link { color: inherit; text-decoration: none; }

@@ -107,6 +107,75 @@ export const DEFAULT_STYLES_XML = `<?xml version="1.0" encoding="UTF-8"?>
    <style:paragraph-properties fo:margin-bottom="0cm" fo:line-height="100%"/>
    <style:text-properties fo:font-size="10pt"/>
   </style:style>
+  <style:style style:name="Index" style:family="paragraph" style:parent-style-name="Standard" style:class="index">
+   <style:paragraph-properties fo:margin-bottom="0.176cm"/>
+  </style:style>
+  <style:style style:name="Contents_20_Heading" style:display-name="Contents Heading" style:family="paragraph" style:parent-style-name="Standard" style:next-style-name="Standard" style:class="index">
+   <style:paragraph-properties fo:margin-top="0.423cm" fo:margin-bottom="0.212cm" fo:keep-with-next="always"/>
+   <style:text-properties fo:font-size="16pt" fo:color="#0f4761" style:font-name="Aptos Display"/>
+  </style:style>
+  <style:style style:name="Contents_20_1" style:display-name="Contents 1" style:family="paragraph" style:parent-style-name="Index" style:class="index">
+   <style:paragraph-properties fo:margin-left="0.000cm" fo:margin-right="0cm" fo:text-indent="0cm"><style:tab-stops><style:tab-stop style:position="15.920cm" style:type="right" style:leader-style="dotted" style:leader-text="."/></style:tab-stops></style:paragraph-properties>
+  </style:style>
+  <style:style style:name="Contents_20_2" style:display-name="Contents 2" style:family="paragraph" style:parent-style-name="Index" style:class="index">
+   <style:paragraph-properties fo:margin-left="0.388cm" fo:margin-right="0cm" fo:text-indent="0cm"><style:tab-stops><style:tab-stop style:position="15.532cm" style:type="right" style:leader-style="dotted" style:leader-text="."/></style:tab-stops></style:paragraph-properties>
+  </style:style>
+  <style:style style:name="Contents_20_3" style:display-name="Contents 3" style:family="paragraph" style:parent-style-name="Index" style:class="index">
+   <style:paragraph-properties fo:margin-left="0.776cm" fo:margin-right="0cm" fo:text-indent="0cm"><style:tab-stops><style:tab-stop style:position="15.144cm" style:type="right" style:leader-style="dotted" style:leader-text="."/></style:tab-stops></style:paragraph-properties>
+  </style:style>
+  <style:style style:name="Contents_20_4" style:display-name="Contents 4" style:family="paragraph" style:parent-style-name="Index" style:class="index">
+   <style:paragraph-properties fo:margin-left="1.164cm" fo:margin-right="0cm" fo:text-indent="0cm"><style:tab-stops><style:tab-stop style:position="14.756cm" style:type="right" style:leader-style="dotted" style:leader-text="."/></style:tab-stops></style:paragraph-properties>
+  </style:style>
+  <style:style style:name="Contents_20_5" style:display-name="Contents 5" style:family="paragraph" style:parent-style-name="Index" style:class="index">
+   <style:paragraph-properties fo:margin-left="1.552cm" fo:margin-right="0cm" fo:text-indent="0cm"><style:tab-stops><style:tab-stop style:position="14.368cm" style:type="right" style:leader-style="dotted" style:leader-text="."/></style:tab-stops></style:paragraph-properties>
+  </style:style>
+  <style:style style:name="Contents_20_6" style:display-name="Contents 6" style:family="paragraph" style:parent-style-name="Index" style:class="index">
+   <style:paragraph-properties fo:margin-left="1.940cm" fo:margin-right="0cm" fo:text-indent="0cm"><style:tab-stops><style:tab-stop style:position="13.980cm" style:type="right" style:leader-style="dotted" style:leader-text="."/></style:tab-stops></style:paragraph-properties>
+  </style:style>
+  <style:style style:name="Contents_20_7" style:display-name="Contents 7" style:family="paragraph" style:parent-style-name="Index" style:class="index">
+   <style:paragraph-properties fo:margin-left="2.328cm" fo:margin-right="0cm" fo:text-indent="0cm"><style:tab-stops><style:tab-stop style:position="13.592cm" style:type="right" style:leader-style="dotted" style:leader-text="."/></style:tab-stops></style:paragraph-properties>
+  </style:style>
+  <style:style style:name="Contents_20_8" style:display-name="Contents 8" style:family="paragraph" style:parent-style-name="Index" style:class="index">
+   <style:paragraph-properties fo:margin-left="2.716cm" fo:margin-right="0cm" fo:text-indent="0cm"><style:tab-stops><style:tab-stop style:position="13.204cm" style:type="right" style:leader-style="dotted" style:leader-text="."/></style:tab-stops></style:paragraph-properties>
+  </style:style>
+  <style:style style:name="Contents_20_9" style:display-name="Contents 9" style:family="paragraph" style:parent-style-name="Index" style:class="index">
+   <style:paragraph-properties fo:margin-left="3.104cm" fo:margin-right="0cm" fo:text-indent="0cm"><style:tab-stops><style:tab-stop style:position="12.816cm" style:type="right" style:leader-style="dotted" style:leader-text="."/></style:tab-stops></style:paragraph-properties>
+  </style:style>
+  <style:style style:name="Illustration_20_Index_20_Heading" style:display-name="Table of Figures Heading" style:family="paragraph" style:parent-style-name="Standard" style:next-style-name="Standard" style:class="index">
+   <style:paragraph-properties fo:margin-top="0.423cm" fo:margin-bottom="0.212cm" fo:keep-with-next="always"/>
+   <style:text-properties fo:font-size="16pt" fo:color="#0f4761" style:font-name="Aptos Display"/>
+  </style:style>
+  <style:style style:name="Illustration_20_Index_20_1" style:display-name="Table of Figures" style:family="paragraph" style:parent-style-name="Index" style:class="index">
+   <style:paragraph-properties fo:margin-left="0cm" fo:text-indent="0cm"><style:tab-stops><style:tab-stop style:position="15.920cm" style:type="right" style:leader-style="dotted" style:leader-text="."/></style:tab-stops></style:paragraph-properties>
+  </style:style>
+  <style:style style:name="Index_20_Heading" style:display-name="Index Heading" style:family="paragraph" style:parent-style-name="Standard" style:next-style-name="Standard" style:class="index">
+   <style:paragraph-properties fo:margin-top="0.423cm" fo:margin-bottom="0.212cm" fo:keep-with-next="always"/>
+   <style:text-properties fo:font-size="16pt" fo:color="#0f4761" style:font-name="Aptos Display"/>
+  </style:style>
+  <style:style style:name="Index_20_1" style:display-name="Index 1" style:family="paragraph" style:parent-style-name="Index" style:class="index">
+   <style:paragraph-properties fo:margin-left="0.500cm" fo:text-indent="-0.5cm" fo:margin-bottom="0cm"/>
+  </style:style>
+  <style:style style:name="Index_20_2" style:display-name="Index 2" style:family="paragraph" style:parent-style-name="Index" style:class="index">
+   <style:paragraph-properties fo:margin-left="1.000cm" fo:text-indent="-0.5cm" fo:margin-bottom="0cm"/>
+  </style:style>
+  <style:style style:name="Index_20_3" style:display-name="Index 3" style:family="paragraph" style:parent-style-name="Index" style:class="index">
+   <style:paragraph-properties fo:margin-left="1.500cm" fo:text-indent="-0.5cm" fo:margin-bottom="0cm"/>
+  </style:style>
+  <style:style style:name="Index_20_Separator" style:display-name="Index Separator" style:family="paragraph" style:parent-style-name="Index" style:class="index">
+   <style:paragraph-properties fo:margin-top="0.212cm" fo:margin-bottom="0.106cm" fo:keep-with-next="always"/>
+   <style:text-properties fo:font-weight="bold" fo:color="#0f4761"/>
+  </style:style>
+  <style:style style:name="Bibliography_20_Heading" style:display-name="Bibliography Heading" style:family="paragraph" style:parent-style-name="Standard" style:next-style-name="Standard" style:class="index">
+   <style:paragraph-properties fo:margin-top="0.423cm" fo:margin-bottom="0.212cm" fo:keep-with-next="always"/>
+   <style:text-properties fo:font-size="16pt" fo:color="#0f4761" style:font-name="Aptos Display"/>
+  </style:style>
+  <style:style style:name="Bibliography_20_1" style:display-name="Bibliography 1" style:family="paragraph" style:parent-style-name="Index" style:class="index">
+   <style:paragraph-properties fo:margin-left="1.27cm" fo:text-indent="-1.27cm" fo:margin-bottom="0.212cm"/>
+  </style:style>
+  <style:style style:name="Endnote_20_Heading" style:display-name="Endnotes Heading" style:family="paragraph" style:parent-style-name="Standard" style:class="extra">
+   <style:paragraph-properties fo:margin-top="0.423cm" fo:margin-bottom="0.212cm"/>
+   <style:text-properties fo:font-size="12pt" fo:font-weight="bold"/>
+  </style:style>
   <style:style style:name="Emphasis" style:family="text">
    <style:text-properties fo:font-style="italic"/>
   </style:style>
@@ -122,6 +191,7 @@ export const DEFAULT_STYLES_XML = `<?xml version="1.0" encoding="UTF-8"?>
   <style:style style:name="Internet_20_link" style:display-name="Internet link" style:family="text">
    <style:text-properties fo:color="#467886" style:text-underline-style="solid" style:text-underline-width="auto" style:text-underline-color="font-color"/>
   </style:style>
+  <style:style style:name="Index_20_Link" style:display-name="Index Link" style:family="text"/>
   <style:style style:name="Footnote_20_anchor" style:display-name="Footnote anchor" style:family="text">
    <style:text-properties style:text-position="super 58%"/>
   </style:style>

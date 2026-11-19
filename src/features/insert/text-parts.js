@@ -97,7 +97,12 @@ export function goToTarget(view, href) {
   view.state.doc.descendants((n, p) => {
     if (pos != null) return false;
     if (n.type.name === 'bookmark' && n.attrs.name === target && n.attrs.element !== 'text:bookmark-end') pos = p;
-    else if (target.endsWith('|outline') && n.type.name === 'heading' && n.textContent.trim() === target.slice(0, -8)) pos = p + 1;
+    else if (target.endsWith('|outline') && n.type.name === 'heading') {
+      // LibreOffice puts the heading's number in front ("#2.1.Materials|outline").
+      const want = target.slice(0, -8);
+      const text = n.textContent.trim();
+      if (text === want || want.replace(/^[\d.]+\s*/, '') === text) pos = p + 1;
+    }
     return true;
   });
   if (pos == null) return false;

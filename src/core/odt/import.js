@@ -190,6 +190,9 @@ export function createConverter({ ns, autoIndex, styleIndex, objectKind = null, 
       case 'text:list': return [list(el)];
       case 'table:table': return [table(el)];
       case 'text:section': return [section(el)];
+      case 'text:table-of-content': case 'text:illustration-index': case 'text:table-index': case 'text:alphabetical-index':
+      case 'text:bibliography': case 'text:user-index': case 'text:object-index':
+        return [indexBlock(el)];
       case 'text:soft-page-break': return [];
       default: return [opaqueBlock(el)];
     }
@@ -318,6 +321,27 @@ export function createConverter({ ns, autoIndex, styleIndex, objectKind = null, 
     visit(el, false);
     if (!rows.length) return opaqueBlock(el);
     return { type: 'table', attrs: { ...tableStyle('table', a['table:style-name']), columns, extra: without(a, 'table:style-name') }, content: rows };
+  }
+
+  /** A generated index: its source is kept as a tree, its body becomes blocks. */
+  function indexBlock(el) {
+    const name = q(el);
+    let source = null;
+    let titleAttrs = null;
+    const title = [];
+    const rest = [];
+    for (const c of el.children) {
+      const n = q(c);
+      if (n.endsWith('-source')) source = toTree(c, ns);
+      else if (n === 'text:index-body') {
+        for (const b of c.children) {
+          if (q(b) === 'text:index-title') { titleAttrs = attrsOf(b, ns); title.push(...blocks(b)); } else rest.push(...block(b));
+        }
+      }
+    }
+    const content = [...title, ...rest];
+    if (!content.length) content.push({ type: 'paragraph', attrs: { styleName: 'Standard' } });
+    return { type: 'index', attrs: { element: name, attrs: attrsOf(el, ns), source, titleCount: title.length, titleAttrs }, content };
   }
 
   function section(el) {

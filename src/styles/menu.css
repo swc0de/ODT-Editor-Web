@@ -105,3 +105,14 @@
 .at-del:hover { opacity: 1; color: var(--accent); }
 .eq-gallery { min-width: 320px; }
 .eq-src { font-size: 10px; color: var(--muted); max-width: 170px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* References galleries (TOC, bibliography) */
+.ref-gallery { display: flex; flex-direction: column; gap: 6px; padding-bottom: 6px; min-width: 260px; }
+.ref-tile { display: flex; flex-direction: column; gap: 4px; border: 1px solid transparent; background: transparent; color: var(--text); border-radius: 3px; padding: 4px 8px; font: inherit; text-align: left; }
+.ref-tile:hover, .ref-tile:focus-visible { border-color: var(--accent); }
+.ref-tile-caption { font-size: 12px; font-weight: 600; }
+.ref-tile-page { display: flex; flex-direction: column; gap: 3px; background: #fff; color: #222; padding: 8px 10px; font-size: 10px; box-shadow: 0 1px 2px rgba(0, 0, 0, .3); }
+.ref-tile-title { font-size: 13px; color: #0f4761; margin-bottom: 2px; }
+.ref-tile-line { display: flex; gap: 4px; align-items: baseline; }
+.ref-tile-dots { flex: 1; border-bottom: 1px dotted #777; }
+.ref-tile-line.hanging { padding-left: 14px; text-indent: -14px; }
+.ref-tile-bar { display: block; height: 4px; width: 100%; background: #bbb; }

@@ -79,6 +79,18 @@ export function createBodyWriter(registry) {
         node.forEach((c) => { s += block(c); });
         return `${s}</text:section>`;
       }
+      case 'index': {
+        let s = `<${a.element}${attrs(a.attrs)}>${a.source ? treeToXml(a.source) : ''}<text:index-body>`;
+        let i = 0;
+        if (a.titleCount) s += `<text:index-title${attrs(a.titleAttrs)}>`;
+        node.forEach((c) => {
+          s += block(c);
+          i++;
+          if (a.titleCount && i === a.titleCount) s += '</text:index-title>';
+        });
+        if (a.titleCount && i < a.titleCount) s += '</text:index-title>';
+        return `${s}</text:index-body></${a.element}>`;
+      }
       case 'opaque_block': return node.attrs.xml;
       default: return '';
     }

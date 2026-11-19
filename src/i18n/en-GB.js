@@ -8,5 +8,6 @@ import home from './en-GB/home.js';
 import layout from './en-GB/layout.js';
 import tables from './en-GB/tables.js';
 import objects from './en-GB/objects.js';
+import references from './en-GB/references.js';
 
-export default { ...app, ...commands, ...ribbon, ...ui, ...file, ...home, ...layout, ...tables, ...objects };
+export default { ...app, ...commands, ...ribbon, ...ui, ...file, ...home, ...layout, ...tables, ...objects, ...references };
