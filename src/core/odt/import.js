@@ -28,8 +28,7 @@ const STRUCTURAL_INLINE = new Set([
   'text:span', 'text:a', 'text:s', 'text:tab', 'text:line-break', 'text:note', 'text:soft-page-break', 'text:number',
   'text:bookmark', 'text:bookmark-start', 'text:bookmark-end', 'text:reference-mark', 'text:reference-mark-start',
   'text:reference-mark-end', 'text:change', 'text:change-start', 'text:change-end', 'text:ruby', 'text:meta',
-  'text:meta-field', 'text:toc-mark', 'text:toc-mark-start', 'text:toc-mark-end', 'text:alphabetical-index-mark',
-  'text:alphabetical-index-mark-start', 'text:alphabetical-index-mark-end', 'text:user-index-mark',
+  'text:meta-field', 'text:toc-mark', 'text:toc-mark-start', 'text:toc-mark-end', 'text:user-index-mark',
   'text:user-index-mark-start', 'text:user-index-mark-end',
 ]);
 

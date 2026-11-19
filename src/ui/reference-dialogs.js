@@ -148,4 +148,44 @@ export async function crossRefDialog(api, initialType = 'heading') {
   return { type: type.value, id: list.value, format: format.value };
 }
 
+/** Mark Index Entry → { main, sub, all } or null */
+export async function markEntryDialog(selected) {
+  const main = text(selected || '', { 'aria-label': t('ref.mainEntry') });
+  const sub = text('', { 'aria-label': t('ref.subentry') });
+  const body = h('div', { class: 'ref-dlg' }, field(t('ref.mainEntry'), main, { wide: true }), field(t('ref.subentry'), sub, { wide: true }), h('p', { class: 'fm-hint' }, t('ref.markHint')));
+  const action = await showDialog({
+    title: t('ref.markEntryTitle'), message: body, cancelValue: false,
+    buttons: [{ label: t('ref.mark'), value: 'one', primary: true }, { label: t('ref.markAll'), value: 'all' }, { label: t('common.cancel'), value: false }],
+    validate: () => { if (main.value.trim()) return true; main.focus(); return false; },
+  });
+  if (!action) return null;
+  return { main: main.value.trim(), sub: sub.value.trim(), all: action === 'all' };
+}
+
+/** Index → { columns, rightAlign, leader, headings } or null */
+export async function indexDialog(cur) {
+  const columns = number(cur.columns, { min: '1', max: '4' });
+  const right = check(t('ref.rightAlign'), cur.rightAlign);
+  const leader = select(LEADERS(), cur.leader);
+  const headings = check(t('ref.letterHeadings'), cur.headings);
+  const preview = h('div', { class: 'ref-preview idx-preview', 'aria-hidden': 'true' });
+  const draw = () => {
+    const sep = right.input.checked ? h('span', { class: 'ref-prev-leader' }, leader.value.repeat(20)) : ', ';
+    preview.replaceChildren(
+      ...(headings.input.checked ? [h('div', { class: 'idx-prev-head' }, 'A')] : []),
+      h('div', {}, 'Atmosphere', right.input.checked ? sep.cloneNode(true) : sep, '1'),
+      h('div', { style: { paddingLeft: '14px' } }, 'Earth', right.input.checked ? sep.cloneNode(true) : ', ', '2'),
+      h('div', {}, 'Asteroid belt', right.input.checked ? sep.cloneNode(true) : ', ', '3, 5'));
+    preview.style.columnCount = String(Math.max(1, Math.min(4, Number(columns.value) || 1)));
+  };
+  [right.input, headings.input].forEach((x) => x.addEventListener('change', draw));
+  leader.addEventListener('change', draw);
+  columns.addEventListener('input', draw);
+  draw();
+  const body = h('div', { class: 'ref-dlg' }, preview, row(field(t('ref.columns'), columns), field(t('ref.tabLeader'), leader)), right, headings);
+  const ok = await showDialog({ title: t('ref.indexTitle'), message: body, buttons: okCancel(), cancelValue: false });
+  if (!ok) return null;
+  return { columns: Math.max(1, Math.min(4, Number(columns.value) || 1)), rightAlign: right.input.checked, leader: leader.value, headings: headings.input.checked };
+}
+
 export { field, number, select, check, radios, row, group, text, okCancel };

@@ -230,3 +230,25 @@ export async function manageSourcesDialog(api) {
     h('label', { class: 'fm-label' }, t('src.preview')), preview);
   await showDialog({ title: t('src.manageTitle'), message: body, buttons: [{ label: t('common.close'), value: true, primary: true }], cancelValue: false, wide: true });
 }
+
+/** Picks one of the document's sources (Zotero tab ▸ Add/Edit Citation) → id or null. */
+export async function pickSourceDialog(items) {
+  const search = text('', { placeholder: t('src.search'), 'aria-label': t('src.search') });
+  const list = h('select', { class: 'src-list', size: '10', 'aria-label': t('src.currentList') });
+  const draw = () => {
+    const q = search.value.trim().toLowerCase();
+    list.replaceChildren(...items.filter((s) => !q || sourceLabel(s).toLowerCase().includes(q) || s.id.toLowerCase().includes(q)).map((s, i) => { const o = h('option', { value: s.id }, `${s.id} — ${sourceLabel(s)}`); if (i === 0) o.selected = true; return o; }));
+  };
+  search.addEventListener('input', draw);
+  draw();
+  const body = h('div', { class: 'ref-dlg src-pick' }, search, list, items.length ? null : h('p', { class: 'fm-hint' }, t('zot.noSources')));
+  const ok = await showDialog({ title: t('zot.pickTitle'), message: body, buttons: okCancel(t('zot.cite')), cancelValue: false, validate: () => !!list.value });
+  return ok ? list.value : null;
+}
+
+/** Document Preferences: the citation style → style id or null. */
+export async function stylePrefsDialog(styles, cur) {
+  const sel = select(styles, cur);
+  const ok = await showDialog({ title: t('zot.prefsTitle'), message: h('div', { class: 'ref-dlg' }, field(t('zot.citationStyle'), sel, { wide: true })), buttons: okCancel(), cancelValue: false });
+  return ok ? sel.value : null;
+}

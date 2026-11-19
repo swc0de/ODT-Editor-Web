@@ -133,6 +133,7 @@ export default {
   'label.zotero.addCitation': 'Add/Edit\nCitation',
   'label.zotero.addBibliography': 'Add/Edit\nBibliography',
   'label.zotero.addNote': 'Add\nNote',
+  'label.zotero.importLibrary': 'Import\nLibrary',
   'label.help.whatsNew': "What's\nNew",
 
   // Menu headers & widgets

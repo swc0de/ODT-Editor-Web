@@ -505,6 +505,7 @@ export default {
 
   // Zotero
   'cmd.zotero.addCitation': 'Add/Edit Citation',
+  'cmd.zotero.importLibrary': 'Import Library…',
   'cmd.zotero.addBibliography': 'Add/Edit Bibliography',
   'cmd.zotero.addNote': 'Add Note',
   'cmd.zotero.refresh': 'Refresh',

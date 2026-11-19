@@ -116,3 +116,5 @@
 .cap-prefix { white-space: pre; color: var(--text); }
 .xref-dlg { min-width: 460px; }
 .xref-list { min-height: 180px; }
+.idx-preview { column-gap: 16px; font-size: 12px; min-height: 70px; }
+.idx-prev-head { font-weight: 600; }

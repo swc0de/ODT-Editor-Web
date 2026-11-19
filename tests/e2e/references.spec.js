@@ -384,4 +384,86 @@ test.describe('references', () => {
       expect(lo['content.xml']).toContain('Second chart');
     }
   });
+
+  test('index: Mark Entry, Mark All, Insert Index in two columns, Update Index, round trip', async ({ page }) => {
+    await typeText(page, 'Mercury is a planet.');
+    await page.keyboard.press('Enter');
+    await page.keyboard.type('Venus is hot.');
+    await page.keyboard.press('Control+Enter');
+    await page.keyboard.type('Mercury again, and Earth.');
+    // Select "Venus" and mark it with a subentry.
+    await page.evaluate(() => {
+      const v = window.odtEditor.editor.view;
+      let at = null;
+      v.state.doc.descendants((n, pos) => { if (at == null && n.isText && n.text.includes('Venus')) at = pos + n.text.indexOf('Venus'); return true; });
+      v.dispatch(v.state.tr.setSelection(window.odtEditor.pm.TextSelection.create(v.state.doc, at, at + 5)));
+    });
+    await run(page, 'references.markEntry');
+    await expect(page.locator('.dlg input').first()).toHaveValue('Venus');
+    await page.locator('.dlg input').first().fill('Planets');
+    await page.locator('.dlg input').nth(1).fill('Venus');
+    await page.locator('.dlg button.primary').click();
+    // Mark All: Mercury in both paragraphs.
+    await run(page, 'references.markEntry');
+    await page.locator('.dlg input').first().fill('Mercury');
+    await page.locator('.dlg button', { hasText: 'Mark All' }).click();
+    await expect(page.locator('.dlg')).toHaveCount(0);
+    await page.keyboard.press('Control+End');
+    await page.keyboard.press('Enter');
+    await run(page, 'references.insertIndex');
+    await page.locator('.dlg button.primary').click();
+    await settled(page);
+    const idx = () => page.evaluate(() => { let t = ''; window.odtEditor.editor.view.state.doc.descendants((n) => { if (n.type.name === 'index') { n.forEach((p) => { t += `${p.attrs.styleName}:${p.textContent}\n`; }); return false; } return true; }); return t; });
+    await expect.poll(idx).toBe('Index_20_1:Mercury, 1, 2\nIndex_20_1:Planets\nIndex_20_2:Venus, 1\n');
+    // The index sits in a two-column section.
+    const sect = await page.evaluate(() => { let s = null; window.odtEditor.editor.view.state.doc.forEach((n) => { if (n.type.name === 'section') s = n.attrs.styleName; }); return s; });
+    expect(sect).toBeTruthy();
+    // A new entry appears after Update Index.
+    await page.evaluate(() => {
+      const v = window.odtEditor.editor.view;
+      let at = null;
+      v.state.doc.descendants((n, pos) => { if (at == null && n.isText && n.text.includes('Earth')) at = pos + n.text.indexOf('Earth') + 5; return true; });
+      v.dispatch(v.state.tr.setSelection(window.odtEditor.pm.TextSelection.create(v.state.doc, at - 5, at)));
+    });
+    await run(page, 'references.markEntry');
+    await page.locator('.dlg button.primary').click();
+    await run(page, 'references.updateIndex');
+    await expect.poll(idx).toBe('Index_20_1:Earth, 2\nIndex_20_1:Mercury, 1, 2\nIndex_20_1:Planets\nIndex_20_2:Venus, 1\n');
+    await settled(page);
+    const rt = await roundTrip(page, 'index.odt');
+    expect(rt.diff).toBe(null);
+    expect(rt.content).toContain('<text:alphabetical-index-mark text:string-value="Venus" text:key1="Planets"/>');
+    expect(rt.content).toMatch(/<text:section text:style-name="Sect\d+" text:name="[^"]+"><text:alphabetical-index /);
+    expect(rt.content).toMatch(/<style:style style:name="Sect\d+" style:family="section"><style:section-properties[^>]*><style:columns fo:column-count="2"/);
+    if (soffice) {
+      const lo = libreOfficeResave(rt.file);
+      expect(lo['content.xml']).toContain('text:key1="Planets"');
+      expect(lo['content.xml']).toContain('text:alphabetical-index ');
+      expect(lo['content.xml']).toMatch(/Mercury/);
+    }
+  });
+
+  test('Zotero tab: import a Zotero RIS export, cite, preferences, unlink', async ({ page }) => {
+    const ris = 'TY  - JOUR\nAU  - Brown, Alice\nTI  - A study of things\nJO  - Science\nPY  - 2019\nVL  - 3\nSP  - 10\nEP  - 20\nID  - brown2019\nER  - \n';
+    await typeText(page, 'Claim ');
+    await page.getByRole('tab', { name: 'Zotero' }).click();
+    const chooser = page.waitForEvent('filechooser');
+    await page.locator('[data-command="zotero.importLibrary"]').click();
+    await (await chooser).setFiles({ name: 'library.ris', mimeType: 'application/x-research-info-systems', buffer: Buffer.from(ris) });
+    await expect.poll(() => page.evaluate(() => window.odtEditor.session.state.bibliography?.sources?.map((s) => s.id))).toEqual(['brown2019']);
+    await page.evaluate(() => window.odtEditor.editor.focus());
+    await page.keyboard.press('End');
+    await page.locator('[data-command="zotero.addCitation"]').click();
+    await page.locator('.dlg button.primary').click();
+    const text = () => page.evaluate(() => window.odtEditor.editor.view.state.doc.firstChild.textContent);
+    await expect.poll(text).toBe('Claim (Brown, 2019)');
+    await page.locator('[data-command="zotero.documentPreferences"]').click();
+    await page.locator('.dlg select').selectOption('harvard');
+    await page.locator('.dlg button.primary').click();
+    await expect.poll(text).toBe('Claim (Brown, 2019)');
+    expect(await page.evaluate(() => window.odtEditor.session.state.bibliography.style)).toBe('harvard');
+    await page.locator('[data-command="zotero.unlinkCitations"]').click();
+    expect(await page.evaluate(() => { let n = 0; window.odtEditor.editor.view.state.doc.descendants((x) => { if (x.type.name === 'field') n++; return true; }); return n; })).toBe(0);
+    await expect.poll(text).toBe('Claim (Brown, 2019)');
+  });
 });

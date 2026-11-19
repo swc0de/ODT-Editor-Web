@@ -3,7 +3,9 @@ import { defineCommands } from '../define.js';
 import { t } from '../../i18n/index.js';
 import { insertToc, removeToc, updateAllTocs, outlineLevelAt, setOutlineLevel } from './toc.js';
 import { findIndexes, tocOptions, TOC_DEFAULTS } from '../../core/indexes.js';
-import { tocDialog, updateTableDialog, footnoteDialog, captionDialog, tofDialog, crossRefDialog } from '../../ui/reference-dialogs.js';
+import { tocDialog, updateTableDialog, footnoteDialog, captionDialog, tofDialog, crossRefDialog, markEntryDialog, indexDialog } from '../../ui/reference-dialogs.js';
+import { markEntry, selectedText, insertIndex, updateIndexCommand, hasIndex } from './alpha-index.js';
+import { indexOptions, INDEX_DEFAULTS } from '../../core/alpha-index.js';
 import { insertCaption, captionLabels, suggestedLabel, insertTableOfFigures, updateTablesOfFigures, hasTof, tofOptions, TOF_DEFAULTS, refItems, refFormats, insertCrossReference, updateFields } from './captions.js';
 import { insertCitation, insertBibliography, refreshCitations, allSources, bibState, setCitationStyle, saveSources, deleteSource, citationsOf, formatWith } from './citations.js';
 import { sourceDialog, placeholderDialog, manageSourcesDialog } from '../../ui/source-dialogs.js';
@@ -137,9 +139,24 @@ export const commands = defineCommands('references', {
     },
   },
   updateFields: { icon: 'update-table', shortcut: 'F9', isEnabled: (c) => canEdit(c) && !!c.mainEditor, run: updateFields },
-  markEntry: { icon: 'mark-entry', shortcut: 'Alt-Shift-x' },
-  insertIndex: { icon: 'insert-index' },
-  updateIndex: { icon: 'update-table' },
+  markEntry: {
+    icon: 'mark-entry', shortcut: 'Alt-Shift-x', isEnabled: bodyOnly,
+    run: async (c) => {
+      const r = await markEntryDialog(selectedText(c));
+      if (!r) return;
+      const n = markEntry(c, r);
+      if (r.all) c.ui.toast?.(t('ref.marked', { n }));
+    },
+  },
+  insertIndex: {
+    icon: 'insert-index', isEnabled: bodyOnly,
+    run: async (c) => {
+      const cur = findIndexes(c.mainEditor.view.state.doc, 'text:alphabetical-index')[0];
+      const r = await indexDialog(cur ? indexOptions(cur.node.attrs.source) : INDEX_DEFAULTS);
+      if (r) insertIndex(c, r);
+    },
+  },
+  updateIndex: { icon: 'update-table', isEnabled: (c) => bodyOnly(c) && hasIndex(c), run: updateIndexCommand },
 });
 
 export const ribbon = {

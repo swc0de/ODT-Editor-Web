@@ -221,7 +221,7 @@ export function createBodyWriter(registry) {
       case 'text': return encodeText(node.text, st);
       case 'tab': st.prevSpace = false; return '<text:tab/>';
       case 'hard_break': st.prevSpace = false; return a.clear ? `<text:line-break loext:clear="${escAttr(a.clear)}"/>` : '<text:line-break/>';
-      case 'field': st.prevSpace = false; return `<${a.element}${attrsToXml(a.fieldAttrs)}>${escText(a.text)}</${a.element}>`;
+      case 'field': st.prevSpace = false; return a.text ? `<${a.element}${attrsToXml(a.fieldAttrs)}>${escText(a.text)}</${a.element}>` : `<${a.element}${attrsToXml(a.fieldAttrs)}/>`;
       case 'frame': st.prevSpace = false; return drawObject(a);
       case 'opaque_inline': st.prevSpace = false; return a.xml;
       case 'bookmark': return `<${a.element} text:name="${escAttr(a.name)}"${attrs(a.extra)}/>`;
