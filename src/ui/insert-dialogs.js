@@ -95,20 +95,20 @@ export const FIELDS = ['date', 'time', 'author', 'fileName', 'page', 'numPages',
 
 /** Field dialog → { kind, format, fixed } | null */
 export async function fieldDialog() {
-  const list = h('select', { class: 'fm-input fd-list', size: '12', 'aria-label': t('fd.names') }, FIELDS.map((f, i) => h('option', { value: f, selected: i === 0 }, t(`fd.f.${f}`))));
+  const list = h('select', { class: 'fm-input fd-list', size: '12', 'aria-label': t('fld.names') }, FIELDS.map((f, i) => h('option', { value: f, selected: i === 0 }, t(`fld.f.${f}`))));
   const desc = h('div', { class: 'fm-note fd-desc' });
-  const fmt = select([['long', t('fd.fmt.long')], ['short', t('fd.fmt.short')], ['weekday', t('fd.fmt.weekday')], ['iso', 'yyyy-mm-dd']], 'long');
-  const fixed = check(t('fd.fixed'), false);
-  const fmtRow = row(field(t('fd.format'), fmt));
+  const fmt = select([['long', t('fld.fmt.long')], ['short', t('fld.fmt.short')], ['weekday', t('fld.fmt.weekday')], ['iso', 'yyyy-mm-dd']], 'long');
+  const fixed = check(t('fld.fixed'), false);
+  const fmtRow = row(field(t('fld.format'), fmt));
   const upd = () => {
-    desc.textContent = t(`fd.d.${list.value}`);
+    desc.textContent = t(`fld.d.${list.value}`);
     fmtRow.hidden = list.value !== 'date';
     fixed.hidden = !['date', 'time'].includes(list.value);
   };
   list.addEventListener('change', upd);
   upd();
-  const body = h('div', { class: 'fd' }, h('div', { class: 'fd-main' }, group(t('fd.names'), list), h('div', { class: 'fd-props' }, desc, fmtRow, fixed)));
-  const ok = await showDialog({ title: t('fd.title'), message: body, buttons: okCancel(), cancelValue: false, wide: true });
+  const body = h('div', { class: 'fd' }, h('div', { class: 'fd-main' }, group(t('fld.names'), list), h('div', { class: 'fd-props' }, desc, fmtRow, fixed)));
+  const ok = await showDialog({ title: t('fld.title'), message: body, buttons: okCancel(), cancelValue: false, wide: true });
   if (!ok) return null;
   return { kind: list.value, format: fmt.value, fixed: fixed.input.checked };
 }
