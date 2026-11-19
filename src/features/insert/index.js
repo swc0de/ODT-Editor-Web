@@ -7,13 +7,16 @@ import { insertNewTable, convertSelectionToTable, insertQuickTable } from '../ta
 import { insertTableDialog } from '../../ui/table-dialogs.js';
 import { startDraw, insertTextBox, insertWordArt, dropCapOf, setDropCap } from './objects.js';
 import { dropCapDialog } from '../../ui/object-dialogs.js';
+import { iconsDialog, iconSvgText } from '../../ui/icons-dialog.js';
+import { editLink, linkAt, bookmarks, DOC_PROPERTIES, fieldDialogRun, saveAutoText, insertAutoText, signatureLine, textFromFile, insertCoverPage, removeCoverPage, hasCoverPage, blankPage } from './text-parts.js';
 
 const canEdit = (c) => !!c.editor && c.state.editingMode !== 'viewing';
 
 export const commands = defineCommands('insert', {
-  coverPage: { icon: 'cover-page' },
-  removeCoverPage: {},
-  blankPage: { icon: 'blank-page' },
+  coverPage: { icon: 'cover-page', isEnabled: canEdit, menuOnly: true },
+  insertCoverPage: { label: 'cmd.insert.coverPage', isEnabled: canEdit, run: (c, id) => { if (typeof id === 'string') insertCoverPage(c, id); } },
+  removeCoverPage: { isEnabled: (c) => canEdit(c) && hasCoverPage(c), run: removeCoverPage },
+  blankPage: { icon: 'blank-page', isEnabled: (c) => canEdit(c) && !c.state.hfEditing, run: blankPage },
   pageBreak: { icon: 'page-break', shortcut: 'Mod-Enter', isEnabled: (c) => canEdit(c) && !c.state.hfEditing, run: (c) => c.ui.registry.run('layout.breakPage') },
   table: { icon: 'table', menuOnly: true },
   tableGrid: { label: 'cmd.insert.table', isEnabled: canEdit, run: (c, size) => { if (size?.cols) insertNewTable(c, size.rows, size.cols); } },
@@ -28,11 +31,12 @@ export const commands = defineCommands('insert', {
   shapes: { icon: 'shapes', isEnabled: canEdit, menuOnly: true },
   insertShape: { label: 'cmd.insert.shapes', isEnabled: canEdit, isChecked: (c) => !!c.state.objectDraw && c.state.objectDraw !== 'textBox', run: (c, id) => { if (typeof id === 'string') startDraw(c, { shape: id }); } },
   newDrawingCanvas: {},
-  icons: { icon: 'icons' },
+  icons: { icon: 'icons', isEnabled: canEdit, run: insertIcons },
   smartArt: { icon: 'smartart' },
   chart: { icon: 'chart' },
-  link: { icon: 'link', shortcut: 'Mod-k' },
-  bookmark: { icon: 'bookmark' },
+  link: { icon: 'link', shortcut: 'Mod-k', isEnabled: canEdit, run: editLink },
+  removeLink: { icon: 'unlink', isEnabled: (c) => canEdit(c) && !!linkAt(c.editor.view.state), run: (c) => { const l = linkAt(c.editor.view.state); if (l) { const v = c.editor.view; v.dispatch(v.state.tr.removeMark(l.from, l.to, v.state.schema.marks.link)); c.editor.focus(); } } },
+  bookmark: { icon: 'bookmark', isEnabled: canEdit, run: bookmarks },
   crossReference: { icon: 'cross-reference' },
   comment: { icon: 'comment', shortcut: 'Mod-Alt-m' },
   header: { icon: 'header', isEnabled: canEdit, run: (c, preset) => (typeof preset === 'string' ? applyPreset(c, 'header', preset) : c.ui.hf.open({ part: 'header' })) },
@@ -58,10 +62,13 @@ export const commands = defineCommands('insert', {
   insertTextBox: { isEnabled: canEdit, run: (c, id) => insertTextBox(c, typeof id === 'string' ? id : 'simple') },
   textBoxSimple: { isEnabled: canEdit, run: (c) => insertTextBox(c, 'simple') },
   drawTextBox: { isEnabled: canEdit, isChecked: (c) => c.state.objectDraw === 'textBox', run: (c) => startDraw(c, { textBox: true }) },
-  quickParts: { icon: 'quick-parts' },
-  autoText: {},
-  documentProperty: {},
-  field: {},
+  quickParts: { icon: 'quick-parts', isEnabled: canEdit, menuOnly: true },
+  autoText: { isEnabled: canEdit, menuOnly: true },
+  autoTextEntry: { label: 'cmd.insert.autoText', isEnabled: canEdit, run: (c, name) => { if (typeof name === 'string') insertAutoText(c, name); } },
+  saveAutoText: { isEnabled: (c) => canEdit(c) && !c.editor.view.state.selection.empty, run: saveAutoText },
+  documentProperty: { isEnabled: canEdit, menuOnly: true },
+  ...Object.fromEntries(Object.keys(DOC_PROPERTIES).map((k) => [`docProp${k[0].toUpperCase()}${k.slice(1)}`, { isEnabled: canEdit, run: (c) => insertInline(c, DOC_PROPERTIES[k](c)) }])),
+  field: { isEnabled: canEdit, run: fieldDialogRun },
   wordArt: { icon: 'wordart', isEnabled: canEdit, menuOnly: true },
   insertWordArt: { label: 'cmd.insert.wordArt', isEnabled: canEdit, run: (c, id) => insertWordArt(c, typeof id === 'string' ? id : 'blackShadow') },
   dropCap: { icon: 'drop-cap', isEnabled: canEdit, menuOnly: true },
@@ -69,10 +76,11 @@ export const commands = defineCommands('insert', {
   dropCapDropped: { isEnabled: canEdit, isChecked: (c) => dropCapOf(c.editor.view.state).lines > 1, run: (c) => setDropCap(c, { lines: 3, length: 1 }) },
   dropCapInMargin: {},
   dropCapOptions: { isEnabled: canEdit, run: async (c) => { const r = await dropCapDialog(dropCapOf(c.editor.view.state)); if (r) setDropCap(c, r); } },
-  signatureLine: { icon: 'signature-line' },
+  signatureLine: { icon: 'signature-line', isEnabled: canEdit, run: signatureLine },
   dateTime: { icon: 'date-time', isEnabled: canEdit, run: insertDateTime },
-  object: { icon: 'object' },
-  textFromFile: {},
+  object: { icon: 'object', isEnabled: canEdit, menuOnly: true },
+  objectEmbed: {},
+  textFromFile: { isEnabled: canEdit, run: textFromFile },
   equation: { icon: 'equation' },
   insertNewEquation: { shortcut: 'Alt-=' },
   inkEquation: {},
@@ -111,11 +119,11 @@ export const ribbon = {
       controls: [
         { t: 'large', cmd: 'textBox', label: 'label.insert.textBox', menu: [{ custom: 'textBoxGallery' }, '-', 'drawTextBox'] },
         { t: 'col', items: [
-          { cmd: 'quickParts', menu: ['autoText', 'documentProperty', 'field'] },
+          { cmd: 'quickParts', menu: [{ cmd: 'autoText', sub: [{ custom: 'autoTextGallery' }, '-', 'saveAutoText'] }, { cmd: 'documentProperty', sub: Object.keys(DOC_PROPERTIES).map((k) => `docProp${k[0].toUpperCase()}${k.slice(1)}`) }, 'field', '-', 'saveAutoText'] },
           { cmd: 'wordArt', menu: [{ custom: 'wordArtGallery' }] },
           { cmd: 'dropCap', menu: ['dropCapNone', 'dropCapDropped', 'dropCapInMargin', '-', 'dropCapOptions'] },
         ] },
-        { t: 'col', items: [{ cmd: 'signatureLine', iconOnly: true }, { cmd: 'dateTime', iconOnly: true }, { cmd: 'object', iconOnly: true }] },
+        { t: 'col', items: [{ cmd: 'signatureLine', iconOnly: true }, { cmd: 'dateTime', iconOnly: true }, { cmd: 'object', iconOnly: true, menu: ['objectEmbed', 'textFromFile'] }] },
       ],
     },
     {
@@ -127,6 +135,14 @@ export const ribbon = {
     },
   ],
 };
+
+/** Insert ▸ Icons: chosen icons as SVG pictures (2.54 cm). */
+async function insertIcons(c) {
+  const names = await iconsDialog();
+  if (!names?.length) return;
+  const files = names.map((n) => new File([iconSvgText(n)], `${n}.svg`, { type: 'image/svg+xml' }));
+  await c.ui.objects.insertPictures(files);
+}
 
 /** Insert ▸ Pictures ▸ This Device: picks picture files and inserts them in line with text. */
 async function insertPictureFiles(c) {

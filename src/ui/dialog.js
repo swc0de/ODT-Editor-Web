@@ -11,6 +11,7 @@ import { t } from '../i18n/index.js';
  * @param {string|Node} [o.message]
  * @param {Array<{label:string, value:any, primary?:boolean}>} o.buttons
  * @param {any} [o.cancelValue]
+ * @param {(value) => boolean} [o.validate] keeps the dialog open when it returns false
  */
 export function showDialog(o) {
   return new Promise((resolve) => {
@@ -22,7 +23,8 @@ export function showDialog(o) {
       if (returnFocus && document.contains(returnFocus)) returnFocus.focus({ preventScroll: true });
       resolve(value);
     };
-    const buttons = o.buttons.map((b) => h('button', { type: 'button', class: `dlg-btn${b.primary ? ' primary' : ''}`, onclick: () => close(b.value) }, b.label));
+    const choose = (value) => { if (value !== o.cancelValue && o.validate && !o.validate(value)) return; close(value); };
+    const buttons = o.buttons.map((b) => h('button', { type: 'button', class: `dlg-btn${b.primary ? ' primary' : ''}`, onclick: () => choose(b.value) }, b.label));
     const box = h('div', { class: 'dlg', role: o.alert ? 'alertdialog' : 'dialog', 'aria-modal': 'true', 'aria-labelledby': titleId },
       h('div', { class: 'dlg-head' },
         h('h2', { class: 'dlg-title', id: titleId }, o.title),

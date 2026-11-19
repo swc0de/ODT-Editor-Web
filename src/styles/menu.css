@@ -85,3 +85,21 @@
 .tb-prev-line { height: 3px; width: 100%; background: #9a9a9a; }
 .tb-prev-line.short { width: 55%; }
 .tb-caption { font-size: 11px; }
+.cp-grid { display: grid; grid-template-columns: repeat(2, 110px); gap: 8px; padding: 4px 8px 8px; }
+.cp-cell { border: 1px solid transparent; background: transparent; color: var(--text); border-radius: 3px; padding: 4px; display: grid; justify-items: center; gap: 4px; }
+.cp-cell:hover { border-color: var(--accent); }
+.cp-page { width: 76px; height: 100px; background: #fff; display: flex; flex-direction: column; justify-content: center; align-items: center; gap: 5px; padding: 8px; box-sizing: border-box; box-shadow: 0 1px 3px rgba(0, 0, 0, .35); }
+.cp-line { display: block; height: 3px; width: 70%; background: #9a9a9a; }
+.cp-line.cp-title { height: 7px; width: 80%; background: #0e2841; }
+.cp-line.cp-subtitle { height: 4px; width: 60%; background: #156082; }
+.cp-banded .cp-title, .cp-banded .cp-subtitle { width: 100%; background: #156082; box-shadow: 0 0 0 3px #156082; }
+.cp-sideline { align-items: flex-start; }
+.cp-sideline .cp-title, .cp-sideline .cp-subtitle { border-left: 3px solid #e97132; }
+.cp-minimal { justify-content: flex-end; align-items: flex-start; }
+.cp-minimal .cp-title { border-bottom: 1px solid #000; }
+.at-list { display: flex; flex-direction: column; min-width: 200px; padding: 2px 0; }
+.at-item { display: flex; align-items: center; gap: 6px; padding: 4px 10px; border: 0; background: transparent; color: var(--text); font: inherit; text-align: left; }
+.at-item:hover { background: var(--hover-bg); }
+.at-name { flex: 1; }
+.at-del { opacity: 0.6; padding: 0 4px; }
+.at-del:hover { opacity: 1; color: var(--accent); }

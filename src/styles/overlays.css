@@ -41,3 +41,13 @@
 :root.compare-undim [data-coming-soon].is-dim > *, :root.compare-undim [data-coming-soon].is-dim.rb-combo-input, :root.compare-undim [data-coming-soon].rb-spin-input.is-dim,
 :root.compare-undim [data-coming-soon].gal-tile.is-dim .gal-tile-inner, :root.compare-undim [data-coming-soon].rb-check.is-dim { opacity: 1; }
 :root.compare-undim .page-caret { animation: none; }
+/* Insert ▸ Icons */
+.ic-body { display: flex; flex-direction: column; gap: 8px; width: min(640px, 80vw); }
+.ic-cats { display: flex; flex-wrap: wrap; gap: 4px; }
+.ic-cat { border: 1px solid var(--border); background: transparent; color: var(--text); border-radius: 12px; padding: 2px 10px; font: inherit; font-size: 12px; }
+.ic-cat.is-on { border-color: var(--accent); color: var(--accent); }
+.ic-grid { display: grid; grid-template-columns: repeat(auto-fill, 44px); gap: 4px; max-height: 320px; overflow: auto; padding: 2px; }
+.ic-cell { width: 44px; height: 44px; display: grid; place-items: center; border: 1px solid transparent; border-radius: 4px; background: transparent; color: var(--text); }
+.ic-cell:hover { border-color: var(--accent); }
+.ic-cell.is-on { border-color: var(--accent); background: var(--checked-bg); }
+.ic-count { color: var(--muted); font-size: 12px; min-height: 16px; }

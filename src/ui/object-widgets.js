@@ -9,6 +9,7 @@ import { SHAPES, SHAPE_GROUPS, shapeIconPath } from '../core/shapes.js';
 import { PICTURE_STYLES, SHAPE_STYLES } from '../features/objects/format.js';
 import { POSITIONS } from '../features/objects/arrange.js';
 import { WORDART_STYLES, TEXTBOX_PRESETS } from '../features/insert/objects.js';
+import { COVER_PAGES, autoTextEntries, deleteAutoText } from '../features/insert/text-parts.js';
 
 const SVG = (inner, w = 20, hgt = 20, extra = '') => `<svg viewBox="0 0 ${w} ${hgt}" width="${w}" height="${hgt}" ${extra}>${inner}</svg>`;
 
@@ -166,7 +167,38 @@ function textBoxGallery(o) {
   return h('div', { class: 'menu-widget' }, h('div', { class: 'menu-header' }, t('menu.builtIn')), grid);
 }
 
+/** Cover pages: small page previews of each design. */
+function coverPages(o) {
+  const cmdId = 'insert.insertCoverPage';
+  let first = true;
+  const sample = { title: 'Title', subtitle: 'Subtitle', author: 'Author', date: 'Date' };
+  const grid = h('div', { class: 'cp-grid' }, Object.keys(COVER_PAGES).map((id) => {
+    const page = h('span', { class: `cp-page cp-${id}` }, COVER_PAGES[id](sample).filter((b) => b.text).map((b) => h('span', { class: `cp-line cp-${b.s.toLowerCase()}` })));
+    const cell = h('button', { type: 'button', class: 'cp-cell', tabindex: '-1', 'aria-label': t(`cover.${id}`), 'data-menu-focus': first ? '' : null }, page, h('span', { class: 'tb-caption' }, t(`cover.${id}`)));
+    first = false;
+    bind(cell, o, cmdId, () => o.registry.run(cmdId, id));
+    return cell;
+  }));
+  return h('div', { class: 'menu-widget' }, h('div', { class: 'menu-header' }, t('menu.builtIn')), grid);
+}
+
+/** AutoText: saved entries (click inserts; × deletes). */
+function autoTextGallery(o) {
+  const cmdId = 'insert.autoTextEntry';
+  const entries = autoTextEntries();
+  if (!entries.length) return h('div', { class: 'menu-widget' }, h('div', { class: 'menu-note' }, t('qp.empty')));
+  return h('div', { class: 'menu-widget at-list' }, entries.map((e, i) => {
+    const del = h('span', { class: 'at-del', role: 'button', 'aria-label': t('qp.delete', { name: e.name }), title: t('qp.delete', { name: e.name }) }, '×');
+    const item = h('button', { type: 'button', class: 'at-item', tabindex: '-1', 'data-menu-focus': i === 0 ? '' : null }, h('span', { class: 'at-name' }, e.name), del);
+    del.addEventListener('click', (ev) => { ev.stopPropagation(); deleteAutoText(e.name); item.remove(); });
+    bind(item, o, cmdId, () => o.registry.run(cmdId, e.name));
+    return item;
+  }));
+}
+
 export const OBJECT_WIDGETS = {
+  coverPages,
+  autoTextGallery,
   shapesGallery: (o) => shapesGallery(o),
   positionGallery,
   correctionsGallery,

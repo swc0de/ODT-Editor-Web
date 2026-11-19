@@ -40,6 +40,7 @@ import { createMiniToolbar, attachContextMenu } from './ui/mini-toolbar.js';
 import { createHeaderFooter } from './ui/header-footer.js';
 import { createObjectServices } from './ui/objects.js';
 import { createSelectionPane } from './ui/selection-pane.js';
+import { linkFollowPlugin } from './features/insert/text-parts.js';
 import { formatAt, GALLERY_STYLES, styleActions, useStyle, getListStyle } from './features/home/index.js';
 import { spinValues } from './features/layout/index.js';
 import { tableSpinValues } from './features/table/layout.js';
@@ -115,7 +116,7 @@ function boot() {
     },
     openFiles(files) { if (files[0]) session.openFile(files[0]).then((ok) => { if (ok) store.set({ backstageOpen: false }); }); },
     priorityPlugins: () => [new Plugin({ props: { handleKeyDown: (_v, e) => !!ui.handleEditorKey?.(e) } }), ...(ui.objects ? [ui.objects.keyPlugin] : []), tableKeymap, ...editingPlugins(() => ({ ...AUTOCORRECT_DEFAULTS, ...(getSetting('autocorrect') || {}) }), makeList)],
-    extraPlugins: () => [...docArea.plugins(), ...tablePlugins(tableUI), searchPlugin(), listLabelsPlugin((name) => getListStyle(ctx(), name))],
+    extraPlugins: () => [...docArea.plugins(), ...tablePlugins(tableUI), linkFollowPlugin(() => store.get().editingMode === 'viewing'), searchPlugin(), listLabelsPlugin((name) => getListStyle(ctx(), name))],
     pasteMode(event) {
       const once = clipboard?.takeMode();
       if (once) return once;
