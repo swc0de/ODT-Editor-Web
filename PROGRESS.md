@@ -11,8 +11,8 @@ The memory between sessions. Statuses: `todo`, `in progress`, `awaiting approval
 | M4 — Home tab: character and paragraph formatting, styles, lists, find | approved |
 | M5 — Layout and Design tabs, headers/footers, sections | approved |
 | M6 — Tables | approved |
-| M7 — Insert tab: pictures, shapes, text boxes, links, symbols | awaiting approval |
-| M8 — References | todo |
+| M7 — Insert tab: pictures, shapes, text boxes, links, symbols | approved |
+| M8 — References | in progress |
 | M9 — Review: comments, track changes, proofing | todo |
 | M10 — Draw tab | todo |
 | M11 — Mailings and Developer | todo |
@@ -226,7 +226,7 @@ Known limitations:
 - Content in cells covered by a merge in a file from elsewhere (rare) isn't kept.
 - Formulas don't recalculate automatically when the numbers change; run Formula again (LibreOffice recalculates on open).
 
-## M7 — Insert tab: pictures, shapes, text boxes, links, symbols (awaiting approval)
+## M7 — Insert tab: pictures, shapes, text boxes, links, symbols (approved)
 
 Built:
 - **Drawing-object model** (`core/objects.js`, schema `frame` node, `layout/object-view.js`): draw:frame (pictures, text boxes, embedded objects), draw:custom-shape, draw:line, draw:rect and draw:ellipse are one node with the element's attributes, its graphic automatic style resolved into `auto` (regenerated as `fr…`/`gr…` on save, like paragraph styles), its children kept as XML trees, and the text of text boxes and shapes as editable blocks. Unknown children (contours, image maps, replacement pictures) round-trip untouched.
