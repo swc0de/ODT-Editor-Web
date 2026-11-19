@@ -12,8 +12,8 @@ The memory between sessions. Statuses: `todo`, `in progress`, `awaiting approval
 | M5 — Layout and Design tabs, headers/footers, sections | approved |
 | M6 — Tables | approved |
 | M7 — Insert tab: pictures, shapes, text boxes, links, symbols | approved |
-| M8 — References | awaiting approval |
-| M9 — Review: comments, track changes, proofing | todo |
+| M8 — References | approved |
+| M9 — Review: comments, track changes, proofing | in progress |
 | M10 — Draw tab | todo |
 | M11 — Mailings and Developer | todo |
 | M12 — View tab and windows | todo |
@@ -255,7 +255,7 @@ Known limitations:
 - Shapes from other files whose path uses formulas are drawn as their preset (or as a rectangle); WordArt is plain (no warped text effects).
 - Coming soon: Remove Background, Artistic Effects, Compress Pictures, Picture Layout, Crop to Shape, Edit Shape, Edit Wrap Points, Group/Ungroup, Text Effects, Create Link (shapes), Stock Images, Online Pictures, New Drawing Canvas, SmartArt, Ink Equation, Object… (OLE), Drop Cap in Margin (ODF has no such option). Cross-reference arrived with M8, comments with M9.
 
-## M8 — References (awaiting approval)
+## M8 — References (approved)
 
 Built:
 - **Index blocks** (schema `index` node): tables of contents, tables of figures/tables, alphabetical indexes, bibliographies (and LibreOffice's user/object indexes) are no longer opaque. Each keeps its ODF `*-source` element (the templates LibreOffice regenerates from) and an editable body.
