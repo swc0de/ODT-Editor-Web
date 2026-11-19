@@ -74,3 +74,19 @@
 .eq-field { display: block; min-height: 64px; font-size: 22px; padding: 8px; border: 1px solid var(--border); border-radius: 4px; background: #fff; color: #000; }
 .eq-tex { font-family: "Liberation Mono", monospace; font-size: 12px; }
 .eq-tex-label { font-size: 12px; color: var(--muted); }
+/* Insert ▸ Chart */
+.ch-body { display: flex; flex-direction: column; gap: 10px; width: min(700px, calc(100vw - 80px)); }
+.ch-types { display: flex; gap: 6px; }
+.ch-type { display: flex; align-items: center; gap: 6px; border: 1px solid var(--border); background: transparent; color: var(--text); border-radius: 4px; padding: 4px 10px; font: inherit; }
+.ch-type.is-on { border-color: var(--accent); background: var(--checked-bg); }
+.ch-main { display: flex; gap: 12px; flex-wrap: wrap; align-items: flex-start; }
+.ch-data { flex: 1 1 260px; display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.ch-tools { display: flex; flex-wrap: wrap; gap: 4px; }
+.ch-btn { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; min-width: 0; font-size: 12px; }
+.ch-grid-wrap { overflow: auto; max-height: 220px; border: 1px solid var(--border); }
+.ch-grid { border-collapse: collapse; }
+.ch-grid th, .ch-grid td { padding: 0; border: 1px solid var(--border); }
+.ch-cell { width: 84px; border: 0; background: transparent; color: var(--text); font: inherit; font-size: 12px; padding: 3px 5px; }
+.ch-cell.num { width: 60px; text-align: right; }
+.ch-grid th .ch-cell { font-weight: 600; }
+.ch-preview { flex: 0 0 auto; border: 1px solid var(--border); background: #fff; line-height: 0; }

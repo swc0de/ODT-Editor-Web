@@ -302,3 +302,28 @@ export async function insertEquation(c, { latex = null, edit = false } = {}) {
   view.dispatch(view.state.tr.replaceSelectionWith(node, false).scrollIntoView());
   view.focus();
 }
+
+// ------------------------------------------------------------ charts
+
+/** Insert ▸ Chart (or edit the selected chart). */
+export async function insertChart(c, { edit = false } = {}) {
+  const { chartDialog, chartSpecOf } = await import('../../ui/chart-dialog.js');
+  const { chartAttrs, withChart } = await import('../../core/charts.js');
+  const sel = edit ? c.ui.objects.selected(c.editor) || c.ui.objects.selected(c.mainEditor) : null;
+  const isChart = sel?.node.attrs.kind === 'chart';
+  const spec = await chartDialog(isChart ? chartSpecOf(sel.node.attrs) : null);
+  if (!spec) return;
+  if (isChart) {
+    const a = sel.node.attrs;
+    const w = parseFloat(a.frameAttrs['svg:width']) || 15.24;
+    const h = parseFloat(a.frameAttrs['svg:height']) || 7.62;
+    const tr = sel.view.state.tr.setNodeMarkup(sel.pos, null, withChart(a, spec, w, h));
+    sel.view.dispatch(tr);
+    sel.view.focus();
+    return;
+  }
+  const view = c.editor.view;
+  const node = schema.nodes.frame.create(chartAttrs({ doc: c.mainEditor.view.state.doc, state: c.session.state, spec }));
+  view.dispatch(view.state.tr.replaceSelectionWith(node, false).scrollIntoView());
+  view.focus();
+}

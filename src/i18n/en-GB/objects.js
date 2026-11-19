@@ -404,4 +404,13 @@ export default {
   'eq.quadratic': 'Quadratic Formula',
   'eq.sumOfSquares': 'Sum of Squares',
   'eq.trigIdentity': 'Trig Identity',
+  'cmd.insert.editChart': 'Edit Chart Data…',
+  'chart.insertTitle': 'Insert Chart',
+  'chart.editTitle': 'Edit Chart',
+  'chart.type': 'Chart type',
+  'chart.t.column': 'Column', 'chart.t.bar': 'Bar', 'chart.t.line': 'Line', 'chart.t.pie': 'Pie',
+  'chart.titleLabel': 'Chart title',
+  'chart.legend': 'Show legend',
+  'chart.addCategory': 'Add row', 'chart.removeCategory': 'Remove row', 'chart.addSeries': 'Add series', 'chart.removeSeries': 'Remove series',
+  'chart.seriesName': 'Series {n} name', 'chart.categoryName': 'Category {n} name',
 };

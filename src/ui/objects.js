@@ -208,6 +208,7 @@ export function createObjectServices({ store, docArea, getSession, getMainEditor
     onObjectDblClick: (ov) => {
       const k = ov.node.attrs.kind;
       if (k === 'equation') registry?.run('insert.editEquation');
+      else if (k === 'chart') registry?.run('insert.editChart');
       else if (k === 'shape' || k === 'wordart') registry?.run('shapeFormat.editText');
     },
     /** Esc ends crop mode. */

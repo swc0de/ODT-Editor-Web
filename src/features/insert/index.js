@@ -5,7 +5,7 @@ import { insertDateTime } from '../headerfooter/index.js';
 import { pageNumberDialog } from '../../ui/layout-dialogs.js';
 import { insertNewTable, convertSelectionToTable, insertQuickTable } from '../table/insert.js';
 import { insertTableDialog } from '../../ui/table-dialogs.js';
-import { startDraw, insertTextBox, insertWordArt, dropCapOf, setDropCap, insertEquation } from './objects.js';
+import { startDraw, insertTextBox, insertWordArt, dropCapOf, setDropCap, insertEquation, insertChart } from './objects.js';
 import { EQUATION_PRESETS } from '../../core/equations.js';
 import { dropCapDialog } from '../../ui/object-dialogs.js';
 import { iconsDialog, iconSvgText } from '../../ui/icons-dialog.js';
@@ -14,6 +14,7 @@ import { TextSelection } from 'prosemirror-state';
 import { editLink, linkAt, bookmarks, DOC_PROPERTIES, fieldDialogRun, saveAutoText, insertAutoText, signatureLine, textFromFile, insertCoverPage, removeCoverPage, hasCoverPage, blankPage } from './text-parts.js';
 
 const canEdit = (c) => !!c.editor && c.state.editingMode !== 'viewing';
+const isKind = (c, k) => { const s = c.ui.objects?.selected(c.editor) || c.ui.objects?.selected(c.mainEditor); return s?.node.attrs.kind === k; };
 const isEquation = (c) => { const s = c.ui.objects?.selected(c.editor) || c.ui.objects?.selected(c.mainEditor); return s?.node.attrs.kind === 'equation'; };
 
 export const commands = defineCommands('insert', {
@@ -37,7 +38,8 @@ export const commands = defineCommands('insert', {
   newDrawingCanvas: {},
   icons: { icon: 'icons', isEnabled: canEdit, run: insertIcons },
   smartArt: { icon: 'smartart' },
-  chart: { icon: 'chart' },
+  chart: { icon: 'chart', isEnabled: canEdit, run: (c) => insertChart(c, { edit: isKind(c, 'chart') }) },
+  editChart: { icon: 'chart', isEnabled: (c) => canEdit(c) && isKind(c, 'chart'), run: (c) => insertChart(c, { edit: true }) },
   link: { icon: 'link', shortcut: 'Mod-k', isEnabled: canEdit, run: editLink },
   removeLink: { icon: 'unlink', isEnabled: (c) => canEdit(c) && !!linkAt(c.editor.view.state), run: (c) => { const l = linkAt(c.editor.view.state); if (l) { const v = c.editor.view; v.dispatch(v.state.tr.removeMark(l.from, l.to, v.state.schema.marks.link)); c.editor.focus(); } } },
   bookmark: { icon: 'bookmark', isEnabled: canEdit, run: bookmarks },

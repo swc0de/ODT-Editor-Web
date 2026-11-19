@@ -40,6 +40,7 @@ import { createMiniToolbar, attachContextMenu } from './ui/mini-toolbar.js';
 import { createHeaderFooter } from './ui/header-footer.js';
 import { createObjectServices } from './ui/objects.js';
 import { renderEquation } from './ui/equation-editor.js';
+import { renderChartFrame } from './ui/chart-dialog.js';
 import { createSelectionPane } from './ui/selection-pane.js';
 import { linkFollowPlugin } from './features/insert/text-parts.js';
 import { formatAt, GALLERY_STYLES, styleActions, useStyle, getListStyle } from './features/home/index.js';
@@ -236,6 +237,7 @@ function boot() {
   });
   Object.assign(editorEnv, ui.objects.env);
   ui.objects.renderers.equation = renderEquation;
+  ui.objects.renderers.chart = renderChartFrame;
   ui.objects.setAddPicture((bytes, type) => editorEnv.addPicture(bytes, type));
   editor = createEditor(docArea.view.mount, editorEnv);
   // Back in the body: commands act on it again.
