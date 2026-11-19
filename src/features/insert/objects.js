@@ -270,3 +270,35 @@ function finish(c, spec, view, sx, sy, ex, ey, square) {
   c.store.set({ activeTab: 'shapeFormat' });
   if (spec.textBox) requestAnimationFrame(() => view.nodeDOM(view.state.selection.from)?.querySelector?.('.obj-text .ProseMirror')?.focus());
 }
+
+// ------------------------------------------------------------ equations
+
+/** Insert ▸ Equation: a preset (latex) or the editor; with `edit`, changes the selected equation. */
+export async function insertEquation(c, { latex = null, edit = false } = {}) {
+  const { loadMathLive } = await import('../../core/mathlive-loader.js');
+  const { equationDialog, measureMath } = await import('../../ui/equation-editor.js');
+  const { formulaXml, equationAttrs, withFormula, objectPart, latexOf } = await import('../../core/equations.js');
+  const sel = edit ? c.ui.objects.selected(c.editor) || c.ui.objects.selected(c.mainEditor) : null;
+  let xml;
+  if (latex != null) {
+    try { const ml = await loadMathLive(); xml = formulaXml(ml.convertLatexToMathMl(latex), latex); } catch (e) { c.ui.toast?.(e.message); return; }
+  } else {
+    const r = await equationDialog(sel ? latexOf(objectPart(sel.node.attrs)?.['#files']?.['content.xml']) : '');
+    if (!r) return;
+    if (r.error) { c.ui.toast?.(r.error); return; }
+    xml = r.xml;
+  }
+  const { w, h } = measureMath(xml);
+  if (sel && sel.node.attrs.kind === 'equation') {
+    const view = sel.view;
+    const tr = view.state.tr.setNodeMarkup(sel.pos, null, withFormula(sel.node.attrs, xml, w, h));
+    view.dispatch(tr);
+    view.focus();
+    return;
+  }
+  const doc = c.mainEditor.view.state.doc;
+  const view = c.editor.view;
+  const node = schema.nodes.frame.create(equationAttrs({ doc, state: c.session.state, xml, w, h }));
+  view.dispatch(view.state.tr.replaceSelectionWith(node, false).scrollIntoView());
+  view.focus();
+}

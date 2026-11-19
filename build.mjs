@@ -79,6 +79,43 @@ function fill(template, values) {
   });
 }
 
+/** MathLive's @font-face rules with the WOFF2 files inlined. */
+async function mathLiveFontsCss() {
+  const dir = path.join(root, 'node_modules', 'mathlive');
+  const css = await readFile(path.join(dir, 'mathlive-fonts.css'), 'utf8');
+  const files = new Map();
+  for (const m of css.matchAll(/url\((fonts\/[^)]+\.woff2)\)/g)) files.set(m[1], (await readFile(path.join(dir, m[1]))).toString('base64'));
+  return css.replace(/url\((fonts\/[^)]+\.woff2)\)/g, (_, f) => `url(data:font/woff2;base64,${files.get(f)})`).replace(/font-display:"swap"/g, 'font-display:swap');
+}
+
+/** The equation editor chunk (MathLive), base64-encoded so it can sit inertly in the page. */
+async function buildMathLive() {
+  const r = await esbuild.build({
+    entryPoints: [path.join(root, 'src', 'vendor', 'mathlive-entry.js')],
+    bundle: true, format: 'esm', platform: 'browser', target: ['chrome110', 'firefox115', 'safari16'],
+    minify: true, legalComments: 'none', write: false, logLevel: 'warning',
+    define: { __MATHLIVE_FONTS_CSS__: JSON.stringify(await mathLiveFontsCss()) },
+    plugins: [{
+      // MathLive guesses its own URL from a stack trace when it loads, to find
+      // its fonts and sounds; from a blob: URL that fails noisily. Its assets
+      // are inlined instead, so the guess is not needed.
+      name: 'mathlive-no-url-guess',
+      setup(b) {
+        const file = path.join(root, 'node_modules', 'mathlive', 'mathlive.mjs');
+        b.onResolve({ filter: /^mathlive$/ }, () => ({ path: file }));
+        b.onLoad({ filter: /mathlive[\\/]mathlive\.mjs$/ }, async () => {
+          const src = await readFile(file, 'utf8');
+          const patched = src.replace('.src) || getFileUrl();', '.src) || "";');
+          if (patched === src) throw new Error('mathlive: script-url patch no longer applies');
+          return { contents: patched, loader: 'js' };
+        });
+      },
+    }],
+  });
+  return Buffer.from(r.outputFiles[0].text, 'utf8').toString('base64');
+}
+let mathLiveChunk = null;
+
 async function writeHtml(jsText, cssText) {
   const appName = await readAppName();
   const template = await readFile(path.join(root, 'src', 'index.html'), 'utf8');
@@ -90,6 +127,7 @@ async function writeHtml(jsText, cssText) {
     FAVICON: 'data:image/svg+xml,' + encodeURIComponent(LOGO_SVG),
     FONTS_CSS: fontsCss,
     APP_CSS: cssText.replace(/<\/style/gi, '<\\/style'),
+    MATHLIVE: mathLiveChunk ??= await buildMathLive(),
     // A literal "</script" inside the bundle would end the inline script early.
     APP_JS: jsText.replace(/<\/script/gi, '<\\/script').replace(/<!--/g, '<\\!--'),
   });

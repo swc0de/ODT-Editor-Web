@@ -50,6 +50,7 @@ export class ObjectView {
     this.inner = null;
     this.dom = el('span', 'odt-obj');
     this.dom.contentEditable = 'false';
+    this.dom.addEventListener('dblclick', (e) => { if (!e.target.closest('.obj-text, .obj-handle')) { e.preventDefault(); env.onObjectDblClick?.(this); } });
     this.render(node);
   }
 

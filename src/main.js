@@ -39,6 +39,7 @@ import { createFindDialog } from './ui/find-dialog.js';
 import { createMiniToolbar, attachContextMenu } from './ui/mini-toolbar.js';
 import { createHeaderFooter } from './ui/header-footer.js';
 import { createObjectServices } from './ui/objects.js';
+import { renderEquation } from './ui/equation-editor.js';
 import { createSelectionPane } from './ui/selection-pane.js';
 import { linkFollowPlugin } from './features/insert/text-parts.js';
 import { formatAt, GALLERY_STYLES, styleActions, useStyle, getListStyle } from './features/home/index.js';
@@ -226,7 +227,7 @@ function boot() {
   }
   // Drawing objects: node view services, nested text editors, selection.
   ui.objects = createObjectServices({
-    store, docArea, getSession: () => session, getMainEditor: () => editor, createEditor, toast, t,
+    store, docArea, getSession: () => session, getMainEditor: () => editor, createEditor, toast, t, registry,
     nestedEnv: ({ onTransaction }) => ({
       ...editorEnv,
       extraPlugins: () => [searchPlugin(), listLabelsPlugin((name) => getListStyle(ctx(), name))],
@@ -234,6 +235,7 @@ function boot() {
     }),
   });
   Object.assign(editorEnv, ui.objects.env);
+  ui.objects.renderers.equation = renderEquation;
   ui.objects.setAddPicture((bytes, type) => editorEnv.addPicture(bytes, type));
   editor = createEditor(docArea.view.mount, editorEnv);
   // Back in the body: commands act on it again.

@@ -123,3 +123,8 @@
 /* A selected object's text isn't shown as selected text (unless its own editor has focus). */
 .odt-doc .odt-obj .obj-text .ProseMirror:not(.ProseMirror-focused) ::selection { background: transparent; }
 .odt-doc .obj-handles, .odt-doc .obj-handle { user-select: none; -webkit-user-select: none; }
+.odt-doc .odt-obj.kind-equation .obj-box { display: inline-flex; align-items: center; justify-content: center; overflow: visible; }
+.odt-doc .obj-math, .obj-math { line-height: normal; font-size: 12pt; color: inherit; white-space: nowrap; }
+.odt-doc .obj-math math { font-family: math, "Cambria Math", "STIX Two Math", serif; }
+
+.dlg.wide { max-width: min(760px, calc(100vw - 32px)); }

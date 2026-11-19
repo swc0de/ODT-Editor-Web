@@ -122,7 +122,7 @@ export function importOdt(bytes) {
   if (!officeText) throw new PackageError('This document has no text body.', 'no-body');
   state.officeTextAttrs = attrsOf(officeText, ns);
 
-  const conv = createConverter({ ns, autoIndex, styleIndex, objectKind: (href) => objectKindOf(state, href) });
+  const conv = createConverter({ ns, autoIndex, styleIndex, objectKind: (href) => objectKindOf(state, href), takeObjectFiles: (href) => takeObjectFiles(state, href) });
   const blocks = [];
   let inPrelude = true;
   for (const el of officeText.children) {
@@ -148,8 +148,28 @@ export function objectKindOf(state, href) {
   return 'object';
 }
 
+/**
+ * Moves the XML files of an embedded object ("Object 1/content.xml"…) out of
+ * the package's other files into the model: { files: { name: text }, mime }.
+ */
+function takeObjectFiles(state, href) {
+  const dir = String(href || '').replace(/^\.\//, '').replace(/\/$/, '');
+  if (!dir) return null;
+  const files = {};
+  for (const path of Object.keys(state.extraFiles)) {
+    if (path.startsWith(`${dir}/`) && path.endsWith('.xml') && !path.slice(dir.length + 1).includes('/')) {
+      files[path.slice(dir.length + 1)] = strFromU8(state.extraFiles[path].bytes);
+      delete state.extraFiles[path];
+    }
+  }
+  if (!files['content.xml']) return null;
+  const entry = state.extraManifest.find((e) => e.path === `${dir}/`);
+  state.extraManifest = state.extraManifest.filter((e) => e.path !== `${dir}/`);
+  return { files, mime: entry?.mediaType || '' };
+}
+
 /** Converts ODF body XML into ProseMirror JSON. */
-export function createConverter({ ns, autoIndex, styleIndex, objectKind = null }) {
+export function createConverter({ ns, autoIndex, styleIndex, objectKind = null, takeObjectFiles = null }) {
   const q = (el) => qname(el, ns);
 
   /** Resolves a paragraph style reference → { styleName, auto }. */
@@ -465,7 +485,15 @@ export function createConverter({ ns, autoIndex, styleIndex, objectKind = null }
         const t = toTree(c, ns);
         parts.push(t);
         if (n === 'draw:image' && !kind) { kind = 'image'; href = t.a['xlink:href'] || ''; }
-        if ((n === 'draw:object' || n === 'draw:object-ole') && !kind) { href = t.a['xlink:href'] || ''; kind = objectKind ? objectKind(href) : 'object'; }
+        if ((n === 'draw:object' || n === 'draw:object-ole') && !kind) {
+          href = t.a['xlink:href'] || '';
+          kind = objectKind ? objectKind(href) : 'object';
+          // Equations and charts carry their files in the model (see core/equations.js).
+          if ((kind === 'equation' || kind === 'chart') && n === 'draw:object' && takeObjectFiles) {
+            const o = takeObjectFiles(href);
+            if (o) { t['#files'] = o.files; t['#mime'] = o.mime; }
+          }
+        }
         if (n === 'draw:enhanced-geometry' && t.a['draw:text-path'] === 'true') kind = 'wordart';
       }
     }

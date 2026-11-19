@@ -13,7 +13,7 @@ import { findChildren } from '../core/odt/xml.js';
 
 const TEXTBLOCK = 'p, h1, h2, h3, h4, h5, h6';
 
-export function createObjectServices({ store, docArea, getSession, getMainEditor, createEditor, nestedEnv, toast, t }) {
+export function createObjectServices({ store, docArea, getSession, getMainEditor, createEditor, nestedEnv, toast, t, registry }) {
   let activeInner = null; // { editor, ov } while a text box / shape text has focus
   let selectedView = null;
   const renderers = {};
@@ -204,6 +204,12 @@ export function createObjectServices({ store, docArea, getSession, getMainEditor
     cropMode: () => !!store.get().cropMode,
     moveObject,
     onObjectSelected: (ov) => { selectedView = ov; if (!ov && store.get().cropMode) store.set({ cropMode: false }); },
+    /** Double-click: edit the equation / the shape's text / the WordArt text. */
+    onObjectDblClick: (ov) => {
+      const k = ov.node.attrs.kind;
+      if (k === 'equation') registry?.run('insert.editEquation');
+      else if (k === 'shape' || k === 'wordart') registry?.run('shapeFormat.editText');
+    },
     /** Esc ends crop mode. */
     endCrop: () => { if (!store.get().cropMode) return false; store.set({ cropMode: false }); if (selectedView?.selected) selectedView.render(selectedView.node); return true; },
     createNested,

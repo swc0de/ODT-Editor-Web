@@ -10,6 +10,7 @@ import { PICTURE_STYLES, SHAPE_STYLES } from '../features/objects/format.js';
 import { POSITIONS } from '../features/objects/arrange.js';
 import { WORDART_STYLES, TEXTBOX_PRESETS } from '../features/insert/objects.js';
 import { COVER_PAGES, autoTextEntries, deleteAutoText } from '../features/insert/text-parts.js';
+import { EQUATION_PRESETS } from '../core/equations.js';
 
 const SVG = (inner, w = 20, hgt = 20, extra = '') => `<svg viewBox="0 0 ${w} ${hgt}" width="${w}" height="${hgt}" ${extra}>${inner}</svg>`;
 
@@ -196,7 +197,20 @@ function autoTextGallery(o) {
   }));
 }
 
+/** Insert ▸ Equation ▾: the built-in equations. */
+function equationGallery(o) {
+  const cmdId = 'insert.insertEquationPreset';
+  let first = true;
+  return h('div', { class: 'menu-widget eq-gallery' }, h('div', { class: 'menu-header' }, t('eq.builtIn')), Object.keys(EQUATION_PRESETS).map((id) => {
+    const b = h('button', { type: 'button', class: 'at-item', tabindex: '-1', 'data-menu-focus': first ? '' : null }, h('span', { class: 'at-name' }, t(`eq.${id}`)), h('code', { class: 'eq-src' }, EQUATION_PRESETS[id]));
+    first = false;
+    bind(b, o, cmdId, () => o.registry.run(cmdId, id));
+    return b;
+  }));
+}
+
 export const OBJECT_WIDGETS = {
+  equationGallery,
   coverPages,
   autoTextGallery,
   shapesGallery: (o) => shapesGallery(o),

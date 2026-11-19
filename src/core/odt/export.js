@@ -22,6 +22,8 @@ const MARK = '\u0001';
 export function createAutoRegistry() {
   const byKey = new Map();
   return {
+    /** Embedded objects whose files live in the model: { dir, files, mime }. */
+    objects: [],
     ref(family, parent, auto, prefix = null) {
       const key = stableStringify([family, parent || null, auto]);
       let e = byKey.get(key);
@@ -241,7 +243,10 @@ export function createBodyWriter(registry) {
     for (const p of a.parts || []) {
       if (p.n === '#body') inner += blocksFromJSON(a.body);
       else if (p['#body']) inner += `<${p.n}${attrsToXml(p.a)}>${blocksFromJSON(a.body)}</${p.n}>`;
-      else inner += treeToXml(p);
+      else {
+        inner += treeToXml(p);
+        if (p['#files'] && registry.objects) registry.objects.push({ dir: String(p.a['xlink:href'] || '').replace(/^\.\//, '').replace(/\/$/, ''), files: p['#files'], mime: p['#mime'] || '' });
+      }
     }
     return `<${a.element}${style}${attrs(a.frameAttrs)}>${inner}</${a.element}>`;
   }
@@ -399,10 +404,23 @@ export function exportOdt(state, opts = {}) {
   for (const [path, pic] of Object.entries(state.pictures || {})) {
     if (allXml.includes(path)) entries.push([path, pic.bytes, { mediaType: pic.mediaType || undefined }]);
   }
-  for (const [path, f] of Object.entries(state.extraFiles || {})) entries.push([path, f.bytes, { mediaType: f.mediaType || undefined }]);
+  // Embedded objects kept in the model (equations, charts).
+  const objectDirs = [];
+  const seenDirs = new Set();
+  for (const o of registry.objects) {
+    if (!o.dir || seenDirs.has(o.dir)) continue;
+    seenDirs.add(o.dir);
+    for (const [name, text] of Object.entries(o.files)) entries.push([`${o.dir}/${name}`, text, { mediaType: 'text/xml' }]);
+    objectDirs.push({ path: `${o.dir}/`, mediaType: o.mime || 'application/vnd.oasis.opendocument.formula' });
+  }
+  for (const [path, f] of Object.entries(state.extraFiles || {})) {
+    // Replacement pictures of objects that are gone are dropped.
+    if (path.startsWith('ObjectReplacements/') && !allXml.includes(path)) continue;
+    entries.push([path, f.bytes, { mediaType: f.mediaType || undefined }]);
+  }
   if (opts.thumbnail) entries.push(['Thumbnails/thumbnail.png', opts.thumbnail, { mediaType: 'image/png' }]);
 
   const mime = opts.asTemplate || (opts.asTemplate === undefined && state.mime === 'template') ? OTT_MIME : ODT_MIME;
-  const bytes = writePackage(mime, entries, state.extraManifest || []);
+  const bytes = writePackage(mime, entries, [...objectDirs, ...(state.extraManifest || [])]);
   return { bytes, contentXml, stylesXml };
 }

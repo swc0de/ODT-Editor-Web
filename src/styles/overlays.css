@@ -42,7 +42,7 @@
 :root.compare-undim [data-coming-soon].gal-tile.is-dim .gal-tile-inner, :root.compare-undim [data-coming-soon].rb-check.is-dim { opacity: 1; }
 :root.compare-undim .page-caret { animation: none; }
 /* Insert ▸ Icons */
-.ic-body { display: flex; flex-direction: column; gap: 8px; width: min(640px, 80vw); }
+.ic-body { display: flex; flex-direction: column; gap: 8px; width: min(700px, calc(100vw - 80px)); }
 .ic-cats { display: flex; flex-wrap: wrap; gap: 4px; }
 .ic-cat { border: 1px solid var(--border); background: transparent; color: var(--text); border-radius: 12px; padding: 2px 10px; font: inherit; font-size: 12px; }
 .ic-cat.is-on { border-color: var(--accent); color: var(--accent); }
@@ -52,7 +52,7 @@
 .ic-cell.is-on { border-color: var(--accent); background: var(--checked-bg); }
 .ic-count { color: var(--muted); font-size: 12px; min-height: 16px; }
 /* Insert ▸ Symbol */
-.sym-body { display: flex; flex-direction: column; gap: 8px; width: min(620px, 82vw); }
+.sym-body { display: flex; flex-direction: column; gap: 8px; width: min(700px, calc(100vw - 80px)); }
 .sym-grid { display: grid; grid-template-columns: repeat(auto-fill, 34px); gap: 2px; height: 260px; overflow: auto; align-content: start; padding: 2px; border: 1px solid var(--border); background: var(--panel-bg, transparent); }
 .sym-cell { width: 34px; height: 34px; font-size: 18px; border: 1px solid transparent; background: #fff; color: #000; border-radius: 2px; padding: 0; }
 .sym-cell:hover { border-color: var(--accent); }
@@ -66,3 +66,11 @@
 .sym-sp:hover { background: var(--hover-bg); }
 .sym-sp.is-on { border-color: var(--checked-border); background: var(--checked-bg); }
 .sym-sp-ch { width: 24px; text-align: center; font-size: 16px; }
+/* Equation editor */
+.eq-body { display: flex; flex-direction: column; gap: 8px; width: min(700px, calc(100vw - 80px)); }
+.eq-presets { display: flex; flex-wrap: wrap; gap: 4px; }
+.eq-preset { border: 1px solid var(--border); background: transparent; color: var(--text); border-radius: 3px; padding: 3px 8px; font: inherit; font-size: 12px; }
+.eq-preset:hover { border-color: var(--accent); }
+.eq-field { display: block; min-height: 64px; font-size: 22px; padding: 8px; border: 1px solid var(--border); border-radius: 4px; background: #fff; color: #000; }
+.eq-tex { font-family: "Liberation Mono", monospace; font-size: 12px; }
+.eq-tex-label { font-size: 12px; color: var(--muted); }

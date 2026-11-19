@@ -5,7 +5,8 @@ import { insertDateTime } from '../headerfooter/index.js';
 import { pageNumberDialog } from '../../ui/layout-dialogs.js';
 import { insertNewTable, convertSelectionToTable, insertQuickTable } from '../table/insert.js';
 import { insertTableDialog } from '../../ui/table-dialogs.js';
-import { startDraw, insertTextBox, insertWordArt, dropCapOf, setDropCap } from './objects.js';
+import { startDraw, insertTextBox, insertWordArt, dropCapOf, setDropCap, insertEquation } from './objects.js';
+import { EQUATION_PRESETS } from '../../core/equations.js';
 import { dropCapDialog } from '../../ui/object-dialogs.js';
 import { iconsDialog, iconSvgText } from '../../ui/icons-dialog.js';
 import { symbolDialog, rememberSymbol } from '../../ui/symbol-dialog.js';
@@ -13,6 +14,7 @@ import { TextSelection } from 'prosemirror-state';
 import { editLink, linkAt, bookmarks, DOC_PROPERTIES, fieldDialogRun, saveAutoText, insertAutoText, signatureLine, textFromFile, insertCoverPage, removeCoverPage, hasCoverPage, blankPage } from './text-parts.js';
 
 const canEdit = (c) => !!c.editor && c.state.editingMode !== 'viewing';
+const isEquation = (c) => { const s = c.ui.objects?.selected(c.editor) || c.ui.objects?.selected(c.mainEditor); return s?.node.attrs.kind === 'equation'; };
 
 export const commands = defineCommands('insert', {
   coverPage: { icon: 'cover-page', isEnabled: canEdit, menuOnly: true },
@@ -83,8 +85,10 @@ export const commands = defineCommands('insert', {
   object: { icon: 'object', isEnabled: canEdit, menuOnly: true },
   objectEmbed: {},
   textFromFile: { isEnabled: canEdit, run: textFromFile },
-  equation: { icon: 'equation' },
-  insertNewEquation: { shortcut: 'Alt-=' },
+  equation: { icon: 'equation', isEnabled: canEdit, run: (c) => insertEquation(c, { edit: isEquation(c) }) },
+  insertNewEquation: { shortcut: 'Alt-=', isEnabled: canEdit, run: (c) => insertEquation(c, { edit: isEquation(c) }) },
+  insertEquationPreset: { label: 'cmd.insert.equation', isEnabled: canEdit, run: (c, id) => { if (EQUATION_PRESETS[id]) insertEquation(c, { latex: EQUATION_PRESETS[id] }); } },
+  editEquation: { icon: 'equation', isEnabled: (c) => canEdit(c) && isEquation(c), run: (c) => insertEquation(c, { edit: true }) },
   inkEquation: {},
   symbol: { icon: 'symbol', isEnabled: canEdit, menuOnly: true },
   insertSymbol: { label: 'cmd.insert.symbol', isEnabled: canEdit, run: (c, ch) => { if (typeof ch === 'string') insertSymbol(c, ch); } },
@@ -131,7 +135,7 @@ export const ribbon = {
     {
       id: 'symbols', icon: 'symbol',
       controls: [
-        { t: 'large', cmd: 'equation', split: true, menu: [{ custom: 'equationGallery' }, '-', 'insertNewEquation', 'inkEquation'] },
+        { t: 'large', cmd: 'equation', split: true, menu: [{ custom: 'equationGallery' }, '-', 'insertNewEquation', 'editEquation', 'inkEquation'] },
         { t: 'large', cmd: 'symbol', menu: [{ custom: 'symbolGrid' }, '-', 'moreSymbols'] },
       ],
     },

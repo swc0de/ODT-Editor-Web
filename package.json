@@ -33,6 +33,7 @@
   "devDependencies": {
     "@playwright/test": "^1.63.0",
     "esbuild": "^0.28.2",
-    "hyphen": "^1.10.6"
+    "hyphen": "^1.10.6",
+    "mathlive": "0.111.4"
   }
 }
