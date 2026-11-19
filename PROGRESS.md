@@ -13,8 +13,8 @@ The memory between sessions. Statuses: `todo`, `in progress`, `awaiting approval
 | M6 — Tables | approved |
 | M7 — Insert tab: pictures, shapes, text boxes, links, symbols | approved |
 | M8 — References | approved |
-| M9 — Review: comments, track changes, proofing | awaiting approval |
-| M10 — Draw tab | todo |
+| M9 — Review: comments, track changes, proofing | approved |
+| M10 — Draw tab | in progress |
 | M11 — Mailings and Developer | todo |
 | M12 — View tab and windows | todo |
 | M13 — Import/export, Options, polish and final audit | todo |
@@ -282,7 +282,7 @@ Known limitations:
 - Restart-each-chapter counts from each Heading 1; caption numbers don't include chapter numbers.
 - Coming soon: Zotero ▸ Add Note; index cross-references ("See …") and page-range entries; editing a citation in place (delete and re-insert it).
 
-## M9 — Review: comments, track changes, proofing (awaiting approval)
+## M9 — Review: comments, track changes, proofing (approved)
 
 Built:
 - **Track Changes** (Ctrl+Shift+E, or Editing ▾ Reviewing): typing is recorded as insertions, Backspace / Delete / typing over a selection keep the old text as deletions (your own new text is really removed), Enter and joining paragraphs are recorded as inserted / deleted paragraph breaks, character formatting as formatting changes that remember the old formatting. Author and time from your user name (Track Changes Options); a colour per author. Display for Review: Simple Markup (final text, red change bars), All Markup (underline / strike-through in the author's colour, grey bars, ¶ marks for breaks), No Markup, Original. Show Markup: Comments, Insertions and Deletions, Formatting, Reviewers (per author). Accept / Reject: this change (and move to next), all shown, all, all and stop tracking; Previous / Next. Lock Tracking. Reviewing Pane (vertical, docked left, or horizontal under the page) with a summary and every revision.
