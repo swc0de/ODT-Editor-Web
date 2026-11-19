@@ -41,6 +41,7 @@ import { createHeaderFooter } from './ui/header-footer.js';
 import { createObjectServices } from './ui/objects.js';
 import { notesNumberingPlugin } from './core/notes.js';
 import { findStyle } from './core/style-edit.js';
+import { refreshCitations } from './features/references/citations.js';
 import { renderEquation } from './ui/equation-editor.js';
 import { renderChartFrame } from './ui/chart-dialog.js';
 import { createSelectionPane } from './ui/selection-pane.js';
@@ -159,8 +160,12 @@ function boot() {
     const ss = stateSteps(tr);
     if (ss.length) {
       for (const s of ss) session.state[s.key] = s.after;
-      docArea.applyDocument(session.state);
-      ui.onStylesChanged?.();
+      if (ss.some((s) => s.key !== 'bibliography')) {
+        docArea.applyDocument(session.state);
+        ui.onStylesChanged?.();
+      }
+      // Sources or citation style undone / redone: format the citations again.
+      if (tr.getMeta('history$') && ss.some((s) => s.key === 'bibliography')) refreshCitations(ctx());
     }
     if (tr.docChanged && !tr.getMeta('load')) { session?.markDirty(); updateStats(); }
     if (tr.getMeta('load')) updateStats();

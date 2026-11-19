@@ -229,4 +229,68 @@ test.describe('references', () => {
     expect(geo.lastBottom).toBeLessThan(geo.areaTop);
     expect(await notes(page)).toEqual([expect.objectContaining({ text: expect.stringMatching(/takes room\.\n(.*\n){11}End\.$/) })]);
   });
+
+  test('citations and bibliography: import BibTeX, cite, switch styles, bibliography, round trip', async ({ page }) => {
+    const bib = `@article{smith2020, author = {Smith, John and Doe, Jane}, title = {On the Origin of Things}, journal = {Journal of Stuff}, year = 2020, volume = 12, number = 3, pages = {100--120}}
+@book{knuth1968, author = "Donald E. Knuth", title = "The Art of Computer Programming", publisher = {Addison-Wesley}, address = {Reading, MA}, year = 1968}`;
+    await typeText(page, 'As shown ');
+    // Manage Sources ▸ Import… (BibTeX file), then copy both to the document.
+    await run(page, 'references.manageSources');
+    const chooser = page.waitForEvent('filechooser');
+    await page.locator('.src-search button').click();
+    await (await chooser).setFiles({ name: 'refs.bib', mimeType: 'text/plain', buffer: Buffer.from(bib) });
+    await expect(page.locator('.src-list').first().locator('option')).toHaveCount(2);
+    await page.locator('.src-list').first().selectOption(['smith2020', 'knuth1968']);
+    await page.locator('.src-mid button').first().click();
+    await expect(page.locator('.src-list').nth(1).locator('option')).toHaveCount(2);
+    await page.locator('.src-list').nth(1).selectOption('knuth1968');
+    await expect(page.locator('.src-preview')).toContainText('Art of Computer Programming');
+    await page.locator('.dlg button.primary').click();
+    await expect(page.locator('.dlg')).toHaveCount(0);
+    // Insert Citation lists the document's sources.
+    await page.evaluate(() => window.odtEditor.editor.focus());
+    await run(page, 'references.insertCitation', 'smith2020');
+    const cites = () => page.evaluate(() => {
+      const out = [];
+      window.odtEditor.editor.view.state.doc.descendants((n) => { if (n.type.name === 'field' && n.attrs.element === 'text:bibliography-mark') out.push(n.attrs.text); return true; });
+      return out;
+    });
+    await expect.poll(cites).toEqual(['(Smith & Doe, 2020)']);
+    await page.keyboard.type(' and ');
+    await run(page, 'references.insertCitation', 'knuth1968');
+    await expect.poll(cites).toEqual(['(Smith & Doe, 2020)', '(Knuth, 1968)']);
+    await page.keyboard.press('Enter');
+    await run(page, 'references.insertBibliography', 'references');
+    const bibText = () => page.evaluate(() => { let t = ''; window.odtEditor.editor.view.state.doc.descendants((n) => { if (n.type.name === 'index') { n.forEach((p) => { t += p.textContent + '\n'; }); return false; } return true; }); return t; });
+    await expect.poll(bibText).toContain('Knuth, D. E. (1968). The Art of Computer Programming. Addison-Wesley.');
+    expect(await bibText()).toMatch(/^References\n/);
+    // IEEE: numbered citations and list.
+    await run(page, 'references.styleIeee');
+    await expect.poll(cites).toEqual(['[1]', '[2]']);
+    await expect.poll(bibText).toMatch(/\[1\]\s*J\. Smith and J\. Doe/);
+    await page.getByRole('tab', { name: 'References' }).click();
+    await expect(page.locator('.rb-select-value').first()).toHaveText('IEEE');
+    // Undo goes back to APA.
+    await page.evaluate(() => window.odtEditor.editor.focus());
+    await page.keyboard.press('Control+z');
+    await expect.poll(cites).toEqual(['(Smith & Doe, 2020)', '(Knuth, 1968)']);
+    await run(page, 'references.styleMla');
+    await expect.poll(cites).toEqual(['(Smith and Doe 100–20)', '(Knuth)']).catch(async () => expect(await cites()).toEqual(['(Smith and Doe)', '(Knuth)']));
+    await settled(page);
+    const rt = await roundTrip(page, 'citations.odt');
+    expect(rt.same).toBe(true);
+    expect(rt.content).toContain('<text:bibliography-mark text:identifier="smith2020" text:bibliography-type="article" text:author="Smith, John; Doe, Jane"');
+    expect(rt.content).toContain('<text:bibliography ');
+    expect(rt.content).toContain('<text:bibliography-source>');
+    expect(Buffer.from(rt.zip['Bibliography/sources.json']).toString()).toContain('"style": "mla"');
+    // Re-opened: the sources and style are back.
+    const back = await page.evaluate(async () => { const { io, session } = window.odtEditor; const b = io.importOdt(await session.serialize()); return b.bibliography; });
+    expect(back.style).toBe('mla');
+    expect(back.sources.map((s) => s.id)).toEqual(['smith2020', 'knuth1968']);
+    if (soffice) {
+      const lo = libreOfficeResave(rt.file);
+      expect(lo['content.xml']).toContain('text:identifier="smith2020"');
+      expect(lo['content.xml']).toContain('text:bibliography');
+    }
+  });
 });

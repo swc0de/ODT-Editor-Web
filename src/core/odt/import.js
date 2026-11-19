@@ -6,6 +6,7 @@
  * Elements the editor doesn't model become opaque nodes holding their XML.
  */
 import { Fragment } from 'prosemirror-model';
+import { SOURCES_FILE } from '../bibliography.js';
 import { schema } from '../schema.js';
 import { readPackage, strFromU8, PackageError } from './package.js';
 import { parseXml, toTree, qname, attrsOf, createNsContext, elementToXml, treeText } from './xml.js';
@@ -29,7 +30,7 @@ const STRUCTURAL_INLINE = new Set([
   'text:reference-mark-end', 'text:change', 'text:change-start', 'text:change-end', 'text:ruby', 'text:meta',
   'text:meta-field', 'text:toc-mark', 'text:toc-mark-start', 'text:toc-mark-end', 'text:alphabetical-index-mark',
   'text:alphabetical-index-mark-start', 'text:alphabetical-index-mark-end', 'text:user-index-mark',
-  'text:user-index-mark-start', 'text:user-index-mark-end', 'text:bibliography-mark',
+  'text:user-index-mark-start', 'text:user-index-mark-end',
 ]);
 
 const BLOCK_LABELS = {
@@ -111,6 +112,14 @@ export function importOdt(bytes) {
     else state.extraFiles[path] = entry;
   }
   state.extraManifest = pkg.manifest.filter((e) => e.path && e.path !== '/' && e.path.endsWith('/'));
+  // The document's sources and citation style (see core/bibliography.js).
+  if (state.extraFiles[SOURCES_FILE]) {
+    try {
+      const b = JSON.parse(strFromU8(state.extraFiles[SOURCES_FILE].bytes));
+      state.bibliography = { style: String(b.style || 'apa'), sources: Array.isArray(b.sources) ? b.sources : [] };
+    } catch { /* unreadable: ignored */ }
+    delete state.extraFiles[SOURCES_FILE];
+  }
 
   // Auto style lookup for paragraphs/text.
   const autoIndex = new Map();

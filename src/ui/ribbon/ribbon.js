@@ -181,7 +181,7 @@ export function createRibbon({ registry, store, tabs, toast }) {
           if (!opensMenu) el.setAttribute('aria-pressed', String(on));
         }
       }
-      root.querySelectorAll('.rb-combo, .gal, .rb-spins').forEach((c) => c._sync?.());
+      root.querySelectorAll('.rb-combo, .gal, .rb-spins, .rb-synced').forEach((c) => c._sync?.());
     }
   }
   registry.onChange(refresh);

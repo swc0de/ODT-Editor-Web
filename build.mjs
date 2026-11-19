@@ -116,6 +116,18 @@ async function buildMathLive() {
 }
 let mathLiveChunk = null;
 
+/** The citation engine chunk (citeproc-js with the CSL styles), base64-encoded like MathLive's. */
+async function buildCiteproc() {
+  const r = await esbuild.build({
+    entryPoints: [path.join(root, 'src', 'vendor', 'citeproc-entry.js')],
+    bundle: true, format: 'esm', platform: 'browser', target: ['chrome110', 'firefox115', 'safari16'],
+    minify: true, legalComments: 'none', write: false, logLevel: 'warning',
+    loader: { '.csl': 'text', '.xml': 'text' },
+  });
+  return Buffer.from(r.outputFiles[0].text, 'utf8').toString('base64');
+}
+let citeprocChunk = null;
+
 async function writeHtml(jsText, cssText) {
   const appName = await readAppName();
   const template = await readFile(path.join(root, 'src', 'index.html'), 'utf8');
@@ -128,6 +140,7 @@ async function writeHtml(jsText, cssText) {
     FONTS_CSS: fontsCss,
     APP_CSS: cssText.replace(/<\/style/gi, '<\\/style'),
     MATHLIVE: mathLiveChunk ??= await buildMathLive(),
+    CITEPROC: citeprocChunk ??= await buildCiteproc(),
     // A literal "</script" inside the bundle would end the inline script early.
     APP_JS: jsText.replace(/<\/script/gi, '<\\/script').replace(/<!--/g, '<\\!--'),
   });

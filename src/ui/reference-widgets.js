@@ -40,4 +40,19 @@ function bibliographyGallery(o) {
     tile(o, 'references.insertBibliography', 'worksCited', t('ref.worksCited'), lines(t('ref.worksCited')), false));
 }
 
-export const REFERENCE_WIDGETS = { tocGallery, bibliographyGallery };
+/** Insert Citation: the document's sources (Word lists them above Add New Source…). */
+function citationList(o) {
+  const c = o.registry.context();
+  const list = c.mainEditor && c.session ? o.registry.get('references.insertCitation')?.sources?.(c) || [] : [];
+  const wrap = h('div', { class: 'menu-widget cite-list', role: 'group', 'aria-label': t('src.currentList') });
+  if (!list.length) wrap.append(h('div', { class: 'menu-note' }, t('src.noneYet')));
+  list.slice(0, 30).forEach((s, i) => {
+    const b = h('button', { type: 'button', class: 'menu-item cite-item', role: 'menuitem', tabindex: '-1', 'data-menu-focus': i === 0 ? '' : null },
+      h('span', { class: 'cite-tag' }, s.id), h('span', { class: 'cite-label' }, s.label));
+    bind(b, o, 'references.insertCitation', () => o.registry.run('references.insertCitation', s.id));
+    wrap.append(b);
+  });
+  return wrap;
+}
+
+export const REFERENCE_WIDGETS = { tocGallery, bibliographyGallery, citationList };

@@ -354,6 +354,7 @@ export default {
   'cmd.references.styleHarvard': 'Harvard',
   'cmd.references.bibliography': 'Bibliography',
   'cmd.references.insertBibliography': 'Insert Bibliography',
+  'cmd.references.updateCitations': 'Update Citations and Bibliography',
   'cmd.references.insertCaption': 'Insert Caption',
   'cmd.references.insertTableOfFigures': 'Insert Table of Figures',
   'cmd.references.updateFigures': 'Update Table',

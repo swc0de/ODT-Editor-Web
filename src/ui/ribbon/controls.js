@@ -149,6 +149,12 @@ export function createControlFactory(env) {
     const current = resolve(tab, spec.value);
     const btn = baseButton(id, 'rb rb-select', [h('span', { class: 'rb-select-value' }, registry.label(current)), CARET()], { 'aria-haspopup': 'menu', 'aria-expanded': 'false', 'data-menu-button': '', style: `width:${spec.width}px` });
     btn.addEventListener('click', menuOpener({ ...spec, menu: spec.options }, tab, btn));
+    // The shown value follows the checked option.
+    btn.classList.add('rb-synced');
+    btn._sync = () => {
+      const on = spec.options.map((o) => resolve(tab, o)).find((o) => registry.get(o)?.isChecked && registry.isChecked(o));
+      if (on) btn.querySelector('.rb-select-value').textContent = registry.label(on);
+    };
     if (spec.cmd === 'citationStyle') {
       return h('div', { class: 'rb-select-row' }, h('span', { class: 'rb-icon16', html: iconSvg('citation-style', { size: 16 }) }), h('span', { class: 'rb-text' }, t('cmd.references.citationStyle')), btn);
     }

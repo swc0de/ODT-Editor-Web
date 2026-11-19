@@ -96,3 +96,18 @@
 .ref-preview { background: #fff; color: #222; padding: 10px 12px; border: 1px solid var(--border); display: flex; flex-direction: column; gap: 4px; }
 .ref-prev-line { display: flex; gap: 4px; align-items: baseline; white-space: nowrap; overflow: hidden; }
 .ref-prev-leader { flex: 1; overflow: hidden; color: #777; letter-spacing: 1px; }
+.src-dlg { min-width: 520px; }
+.src-manager { display: flex; flex-direction: column; gap: 8px; min-width: 640px; }
+.src-search { display: flex; gap: 8px; }
+.src-search .fm-input { flex: 1; }
+.src-cols { display: flex; gap: 10px; align-items: stretch; }
+.src-col { flex: 1; display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.src-list { width: 100%; min-height: 220px; background: var(--input-bg, var(--panel-bg)); color: var(--text); border: 1px solid var(--control-border, var(--border)); border-radius: 3px; font: 12px var(--font-ui); }
+.src-mid { display: flex; flex-direction: column; justify-content: center; gap: 6px; }
+.src-legend { font-size: 11px; color: var(--text-muted); }
+.src-preview { min-height: 48px; font: 13px "Carlito", sans-serif; }
+.cite-list { display: flex; flex-direction: column; max-height: 320px; overflow: auto; min-width: 280px; }
+.cite-item { display: flex; flex-direction: column; align-items: flex-start; gap: 0; text-align: left; height: auto; padding: 4px 12px; }
+.cite-tag { font-weight: 600; }
+.cite-label { font-size: 11px; color: var(--text-muted); max-width: 340px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.menu-note { padding: 6px 12px; color: var(--text-muted); font-size: 12px; }

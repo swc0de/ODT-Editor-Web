@@ -33,6 +33,8 @@ export function showDialog(o) {
       h('div', { class: 'dlg-buttons' }, buttons));
     const overlay = h('div', { class: 'dlg-overlay' }, box);
     const onKey = (e) => {
+      // A dialog opened from this one handles its own keys.
+      if ([...document.querySelectorAll('.dlg-overlay')].at(-1) !== overlay) return;
       if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); close(o.cancelValue); return; }
       if (e.key === 'Tab') {
         const f = focusables(box);

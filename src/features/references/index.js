@@ -3,11 +3,22 @@ import { defineCommands } from '../define.js';
 import { insertToc, removeToc, updateAllTocs, outlineLevelAt, setOutlineLevel } from './toc.js';
 import { findIndexes, tocOptions, TOC_DEFAULTS } from '../../core/indexes.js';
 import { tocDialog, updateTableDialog, footnoteDialog } from '../../ui/reference-dialogs.js';
+import { insertCitation, insertBibliography, refreshCitations, allSources, bibState, setCitationStyle, saveSources, deleteSource, citationsOf, formatWith } from './citations.js';
+import { sourceDialog, placeholderDialog, manageSourcesDialog } from '../../ui/source-dialogs.js';
+import { sourceLabel } from '../../core/bibliography.js';
+import { getSetting, setSetting } from '../../core/settings.js';
 import { insertNote, gotoNote, showNotes, applyNoteOptions, noteOptions, hasNotes, focusedNote } from './notes.js';
 
 const canEdit = (c) => !!c.editor && c.state.editingMode !== 'viewing';
 const bodyOnly = (c) => canEdit(c) && !c.state.hfEditing && c.editor === c.mainEditor;
 const hasToc = (c) => !!c.mainEditor && findIndexes(c.mainEditor.view.state.doc, 'text:table-of-content').length > 0;
+function styleCmd(style) {
+  return { isEnabled: (c) => canEdit(c) && !!c.mainEditor, isChecked: (c) => !!c.session && bibState(c.session.state).style === style, run: (c) => setCitationStyle(c, style) };
+}
+/** Your sources across documents (Source Manager's master list), kept in this browser. */
+const masterSources = () => getSetting('sourcesMaster') || [];
+const setMasterSources = (list) => setSetting('sourcesMaster', list);
+
 const level = (n) => ({ isEnabled: bodyOnly, isChecked: (c) => outlineLevelAt(c) === n, run: (c) => setOutlineLevel(c, n) });
 
 export const commands = defineCommands('references', {
@@ -47,18 +58,54 @@ export const commands = defineCommands('references', {
       if (r.action === 'insert' && bodyOnly(c)) insertNote(c, r.cls, r.mark);
     },
   },
-  insertCitation: { icon: 'citation' },
-  addNewSource: {},
-  addNewPlaceholder: {},
-  manageSources: { icon: 'manage-sources' },
-  citationStyle: { icon: 'citation-style' },
-  styleApa: {},
-  styleMla: {},
-  styleChicago: {},
-  styleIeee: {},
-  styleHarvard: {},
-  bibliography: { icon: 'bibliography' },
-  insertBibliography: {},
+  insertCitation: {
+    icon: 'citation', isEnabled: bodyOnly,
+    // With a source tag: cite it. The menu lists the document's sources.
+    run: (c, id) => (typeof id === 'string' ? insertCitation(c, id) : undefined),
+    sources: (c) => allSources(c).map((s) => ({ id: s.id, label: sourceLabel(s) })),
+  },
+  addNewSource: {
+    isEnabled: bodyOnly,
+    run: async (c) => {
+      const used = new Set([...allSources(c), ...masterSources()].map((s) => s.id));
+      const item = await sourceDialog(null, used);
+      if (!item) return;
+      setMasterSources([...masterSources().filter((s) => s.id !== item.id), item]);
+      await saveSources(c, [item]);
+      await insertCitation(c, item.id);
+    },
+  },
+  addNewPlaceholder: {
+    isEnabled: bodyOnly,
+    run: async (c) => {
+      const item = await placeholderDialog(new Set(allSources(c).map((s) => s.id)));
+      if (!item) return;
+      await saveSources(c, [item]);
+      await insertCitation(c, item.id);
+    },
+  },
+  manageSources: {
+    icon: 'manage-sources', isEnabled: (c) => canEdit(c) && !!c.mainEditor,
+    run: (c) => manageSourcesDialog({
+      master: masterSources,
+      current: () => bibState(c.session.state).sources,
+      cited: (id) => citationsOf(c.mainEditor.view.state.doc).some(({ node }) => node.attrs.fieldAttrs['text:identifier'] === id),
+      preview: async (item) => (item.placeholder ? `(${item.id})` : (await formatWith(bibState(c.session.state).style, [item], [item.id])).entries[0] || ''),
+      setMaster: setMasterSources,
+      addToCurrent: (items) => saveSources(c, items),
+      updateCurrent: (id, item) => saveSources(c, [item], { replaceId: id }),
+      removeCurrent: (id) => deleteSource(c, id),
+    }),
+  },
+  citationStyle: { icon: 'citation-style', isEnabled: (c) => canEdit(c) && !!c.mainEditor, menuOnly: true },
+  styleApa: styleCmd('apa'),
+  styleMla: styleCmd('mla'),
+  styleChicago: styleCmd('chicago'),
+  styleIeee: styleCmd('ieee'),
+  styleHarvard: styleCmd('harvard'),
+  bibliography: { icon: 'bibliography', isEnabled: bodyOnly, menuOnly: true },
+  insertBibliography: { isEnabled: bodyOnly, run: (c, kind) => insertBibliography(c, typeof kind === 'string' ? kind : null) },
+  updateCitations: { icon: 'update-table', isEnabled: (c) => canEdit(c) && !!c.mainEditor, run: (c) => refreshCitations(c, { history: true }) },
   insertCaption: { icon: 'caption' },
   insertTableOfFigures: { icon: 'table-of-figures' },
   updateFigures: { icon: 'update-table' },
@@ -89,11 +136,11 @@ export const ribbon = {
     {
       id: 'citations', icon: 'citation',
       controls: [
-        { t: 'large', cmd: 'insertCitation', label: 'label.references.insertCitation', menu: ['addNewSource', 'addNewPlaceholder'] },
+        { t: 'large', cmd: 'insertCitation', label: 'label.references.insertCitation', menu: [{ custom: 'citationList' }, '-', 'addNewSource', 'addNewPlaceholder'] },
         { t: 'col', items: [
           { cmd: 'manageSources' },
           { t: 'select', cmd: 'citationStyle', width: 74, options: ['styleApa', 'styleMla', 'styleChicago', 'styleIeee', 'styleHarvard'], value: 'styleApa' },
-          { cmd: 'bibliography', menu: [{ custom: 'bibliographyGallery' }, '-', 'insertBibliography'] },
+          { cmd: 'bibliography', menu: [{ custom: 'bibliographyGallery' }, '-', 'insertBibliography', 'updateCitations'] },
         ] },
       ],
     },
