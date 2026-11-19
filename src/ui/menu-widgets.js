@@ -11,6 +11,7 @@ import { THEMES, COLOUR_SETS, FONT_SETS, SPACING, WATERMARKS } from '../features
 import { QUICK_TABLES } from '../features/table/insert.js';
 import { BORDER_STYLES } from '../features/table/design.js';
 import { OBJECT_WIDGETS } from './object-widgets.js';
+import { recentSymbols, charName } from './symbol-dialog.js';
 
 const THEME_COLOURS = [
   ['#ffffff', '#000000', '#e8e8e8', '#0e2841', '#156082', '#e97132', '#196b24', '#0f9ed5', '#a02b93', '#4ea72e'],
@@ -21,7 +22,6 @@ const THEME_COLOURS = [
 ];
 const STANDARD = ['#c00000', '#ff0000', '#ffc000', '#ffff00', '#92d050', '#00b050', '#00b0f0', '#0070c0', '#002060', '#7030a0'];
 const HIGHLIGHTS = ['#ffff00', '#00ff00', '#00ffff', '#ff00ff', '#0000ff', '#ff0000', '#000080', '#008080', '#008000', '#800080', '#800000', '#808000', '#808080', '#c0c0c0', '#000000'];
-const SYMBOLS = ['€', '£', '¥', '©', '®', '™', '±', '≠', '≤', '≥', '÷', '×', '∞', 'µ', 'α', 'β', 'π', 'Ω', '∑', '…', '–', '—', '“', '”', '§', '¶', '•', '°', '✓', '→'];
 
 /** Shared "inactive" behaviour: dim when the command can't run yet, notify on click. */
 function bind(el, { registry, close, toast }, cmdId, run) {
@@ -90,9 +90,9 @@ function tableGrid(o) {
 function symbolGrid(o) {
   return h('div', { class: 'menu-widget' },
     h('div', { class: 'menu-header' }, t('menu.recentSymbols')),
-    h('div', { class: 'symbol-grid' }, SYMBOLS.map((s, i) => {
-      const b = h('button', { type: 'button', class: 'symbol-cell', tabindex: '-1', 'aria-label': s, 'data-menu-focus': i === 0 ? '' : null }, s);
-      bind(b, o, 'insert.insertSymbol');
+    h('div', { class: 'symbol-grid' }, recentSymbols().map((s, i) => {
+      const b = h('button', { type: 'button', class: 'symbol-cell', tabindex: '-1', 'aria-label': charName(s.codePointAt(0)) || s, 'data-tip': charName(s.codePointAt(0)) || s, 'data-menu-focus': i === 0 ? '' : null }, s);
+      bind(b, o, 'insert.insertSymbol', () => o.registry.run('insert.insertSymbol', s));
       return b;
     })));
 }

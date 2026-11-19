@@ -8,6 +8,8 @@ import { insertTableDialog } from '../../ui/table-dialogs.js';
 import { startDraw, insertTextBox, insertWordArt, dropCapOf, setDropCap } from './objects.js';
 import { dropCapDialog } from '../../ui/object-dialogs.js';
 import { iconsDialog, iconSvgText } from '../../ui/icons-dialog.js';
+import { symbolDialog, rememberSymbol } from '../../ui/symbol-dialog.js';
+import { TextSelection } from 'prosemirror-state';
 import { editLink, linkAt, bookmarks, DOC_PROPERTIES, fieldDialogRun, saveAutoText, insertAutoText, signatureLine, textFromFile, insertCoverPage, removeCoverPage, hasCoverPage, blankPage } from './text-parts.js';
 
 const canEdit = (c) => !!c.editor && c.state.editingMode !== 'viewing';
@@ -84,10 +86,10 @@ export const commands = defineCommands('insert', {
   equation: { icon: 'equation' },
   insertNewEquation: { shortcut: 'Alt-=' },
   inkEquation: {},
-  symbol: { icon: 'symbol' },
-  insertSymbol: { label: 'cmd.insert.symbol' },
-  moreSymbols: { icon: 'symbol' },
-  unicodeToggle: { shortcut: 'Alt-x' },
+  symbol: { icon: 'symbol', isEnabled: canEdit, menuOnly: true },
+  insertSymbol: { label: 'cmd.insert.symbol', isEnabled: canEdit, run: (c, ch) => { if (typeof ch === 'string') insertSymbol(c, ch); } },
+  moreSymbols: { icon: 'symbol', isEnabled: canEdit, run: async (c) => { const r = await symbolDialog(); if (r) insertSymbol(c, r.char, r.font); } },
+  unicodeToggle: { shortcut: 'Alt-x', isEnabled: canEdit, run: unicodeToggle },
 });
 
 export const ribbon = {
@@ -135,6 +137,46 @@ export const ribbon = {
     },
   ],
 };
+
+/** Inserts a character (optionally in a font) and remembers it as recently used. */
+function insertSymbol(c, ch, font = null) {
+  const v = c.editor.view;
+  const from = v.state.selection.from;
+  v.dispatch(v.state.tr.insertText(ch).scrollIntoView());
+  if (font) {
+    v.dispatch(v.state.tr.setSelection(TextSelection.create(v.state.doc, from, from + ch.length)));
+    c.ui.registry.run('home.fontName', font);
+    const v2 = c.editor.view;
+    v2.dispatch(v2.state.tr.setSelection(TextSelection.create(v2.state.doc, from + ch.length)));
+  }
+  rememberSymbol(ch);
+  c.editor.focus();
+}
+
+/**
+ * Alt+X: hex digits before the caret (or U+hex) become that character;
+ * otherwise the character before the caret becomes its code.
+ */
+function unicodeToggle(c) {
+  const v = c.editor.view;
+  const { $from, empty, from, to } = v.state.selection;
+  if (!$from.parent.isTextblock) return;
+  if (!empty) {
+    const txt = v.state.doc.textBetween(from, to);
+    const cp = txt.codePointAt(0);
+    if (/^(u\+)?[0-9a-f]{2,6}$/i.test(txt)) { const n = parseInt(txt.replace(/^u\+/i, ''), 16); if (n > 31 && n < 0x110000) v.dispatch(v.state.tr.insertText(String.fromCodePoint(n), from, to)); } else if (cp != null && txt.length === String.fromCodePoint(cp).length) v.dispatch(v.state.tr.insertText(cp.toString(16).toUpperCase().padStart(4, '0'), from, to));
+    return;
+  }
+  const before = $from.parent.textBetween(Math.max(0, $from.parentOffset - 8), $from.parentOffset, '\ufffc', '\ufffc');
+  const m = /(?:u\+)?([0-9a-fA-F]{2,6})$/i.exec(before);
+  if (m) {
+    const n = parseInt(m[1], 16);
+    if (n > 31 && n < 0x110000 && !(n >= 0xd800 && n < 0xe000)) { v.dispatch(v.state.tr.insertText(String.fromCodePoint(n), from - m[0].length, from)); return; }
+  }
+  const tail = [...before].pop();
+  if (!tail || tail === '\ufffc') return;
+  v.dispatch(v.state.tr.insertText(tail.codePointAt(0).toString(16).toUpperCase().padStart(4, '0'), from - tail.length, from));
+}
 
 /** Insert ▸ Icons: chosen icons as SVG pictures (2.54 cm). */
 async function insertIcons(c) {
