@@ -24,6 +24,8 @@ import {
   SpellCheck, SquareCheck, SquareChevronDown, SquareDashed, StickyNote, Sun, SwatchBook, TableOfContents, Tags, Type,
   Undo2, Redo2, Unlink, UserPen, UserSearch, Users, Volume2, WrapText, X, ZoomIn, ZoomOut, Scissors, Lasso, Radical,
   Puzzle, DraftingCompass,
+  ImageOff, SunDim, Paintbrush, WandSparkles, Blend, Shrink, ImageUp, RotateCcw, Frame, Layers, Crop, MoveVertical,
+  MoveHorizontal, PenTool, PenLine, AlignVerticalJustifyCenter, ImageMinus, Image, Shapes,
 } from 'lucide';
 import { LOGO_SVG } from './logo.js';
 
@@ -58,6 +60,12 @@ const CUSTOM = {
   'text-effects': [P('M5 20 12 3l7 17M7.8 14h8.4', 'a')],
   highlight: [P('m9 11-6 6v2h5l6-6'), P('m22 12-4.6 4.6a2 2 0 0 1-2.8 0l-5.2-5.2a2 2 0 0 1 0-2.8L14 4'), colourBar('yf')],
   'font-colour': [P('M6 16 12 2l6 14M8.3 11h7.4'), colourBar('rf')],
+  'shape-fill': [P('m19 11-8-8-8.6 8.6a2 2 0 0 0 0 2.8l5.2 5.2c.8.8 2 .8 2.8 0L19 11Z'), P('M5 2l5 5'), P('M2 13h15'), colourBar('af')],
+  'shape-outline': [P('M13 3.5 19.5 10 9 20.5H2.5V14z'), P('m11 5.5 6.5 6.5'), colourBar('af')],
+  'shape-effects': [R(3, 3, 13, 13, 2), P('M8 21h11a2 2 0 0 0 2-2V8', 'a')],
+  'text-fill': [P('M6 16 12 2l6 14M8.3 11h7.4'), colourBar('af')],
+  'text-outline': [P('M5 18 11 3h2l6 15h-3l-1.6-4H9.6L8 18z', 'a'), P('M10.4 11h3.2L12 7z', 'a')],
+  'alt-text': [R(2.5, 5, 19, 14, 2), T(12, 15.5, 'Alt', 8, 'f', { 'font-weight': 700 })],
   'line-spacing': [...lines(11, 21, [5, 10, 15, 20]), P('m3 7 3-3 3 3M6 4v16M3 17l3 3 3-3')],
   shading: [P('m19 11-8-8-8.6 8.6a2 2 0 0 0 0 2.8l5.2 5.2c.8.8 2 .8 2.8 0L19 11Z'), P('M5 2l5 5'), P('M2 13h15'), colourBar('yf')],
   borders: [R(3, 3, 18, 18, 0, 'dots'), L(3, 12, 21, 12, 'dots'), L(12, 3, 12, 21, 'dots')],
@@ -259,6 +267,10 @@ const LUCIDE = {
   'calendar-clock': CalendarClock, box: Box, 'arrow-right-left': ArrowRightLeft, 'book-open': BookOpen,
   'list-checks': ListChecks, 'square-dashed': SquareDashed, 'git-branch': GitBranch, 'circle-play': CirclePlay,
   'circle-help': CircleHelp, mic: Mic, radical: Radical, puzzle: Puzzle, 'drafting-compass': DraftingCompass,
+  'remove-background': ImageOff, corrections: SunDim, 'colour-picture': Paintbrush, 'artistic-effects': WandSparkles,
+  transparency: Blend, compress: Shrink, 'change-picture': ImageUp, 'reset-picture': RotateCcw, 'picture-border': Frame,
+  'picture-effects': Layers, crop: Crop, height: MoveVertical, width: MoveHorizontal, 'edit-shape': PenTool, 'shape-outline-pen': PenLine,
+  'align-text': AlignVerticalJustifyCenter, 'image-minus': ImageMinus, image: Image, 'shapes-lucide': Shapes,
   'volume-2': Volume2, 'rotate-cw': RotateCw, 'align-start': AlignHorizontalJustifyStart, share2: Share,
 };
 

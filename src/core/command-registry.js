@@ -151,6 +151,9 @@ export class CommandRegistry {
     return this;
   }
 
+  /** The current command context (what run/isEnabled receive). */
+  context() { return this._context(); }
+
   has(id) { return this._commands.has(id); }
   get(id) { return this._commands.get(id) || null; }
   all() { return [...this._commands.values()]; }

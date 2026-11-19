@@ -17,6 +17,7 @@
  *   { t:'gallery', id, cmd, menu? }                      in-ribbon gallery with ▲ ▼ ⋯
  */
 import { h } from '../dom.js';
+import { objectGalleryItems } from '../object-widgets.js';
 import { iconSvg } from '../icons.js';
 import { t, hasKey } from '../../i18n/index.js';
 import { openMenu } from '../menu.js';
@@ -210,6 +211,8 @@ export function createControlFactory(env) {
     const id = resolve(tab, spec.cmd);
     const isStyles = spec.id === 'styles';
     if (spec.id === 'tableStyles') return tableStyleGallery(spec, tab, id);
+    const objItems = objectGalleryItems(spec.id);
+    if (objItems) return tileGallery(spec, tab, id, objItems);
     const list = isStyles ? STYLE_GALLERY : STYLE_SET_GALLERY;
     const tiles = h('div', { class: 'gal-tiles', role: 'listbox', 'aria-label': registry.label(id) });
     list.forEach((item, i) => {
@@ -293,6 +296,24 @@ export function createControlFactory(env) {
       const cur = store.get().tableStyleId;
       for (const tile of tiles.children) tile.setAttribute('aria-selected', String(tile.dataset.galleryItem === cur));
     };
+    return el;
+  }
+
+  /** A gallery of preview tiles (picture styles, shape styles, shapes): items = [{ id, label, node, cls? }]. */
+  function tileGallery(spec, tab, id, items) {
+    const tiles = h('div', { class: `gal-tiles obj-tiles ${spec.id}`, role: 'listbox', 'aria-label': registry.label(id) });
+    items.forEach((item, i) => {
+      const tile = h('button', { type: 'button', class: `gal-tile obj-tile ${item.cls || ''}`, role: 'option', 'data-command': id, 'data-gallery-item': item.id, 'data-tip-label': item.label, 'aria-label': item.label, tabindex: i === 0 ? '0' : '-1' }, item.node);
+      tile.addEventListener('click', () => { if (registry.isEnabled(id)) registry.run(id, item.id); else activate(id, tile, spec, tab); });
+      tiles.append(tile);
+    });
+    const scroll = (dir) => tiles.scrollBy({ top: dir * tiles.clientHeight, behavior: 'smooth' });
+    const up = h('button', { type: 'button', class: 'gal-btn', 'aria-label': t('ribbon.galleryUp'), onclick: () => scroll(-1), html: iconSvg('chevron-up', { size: 12 }) });
+    const down = h('button', { type: 'button', class: 'gal-btn', 'aria-label': t('ribbon.galleryDown'), onclick: () => scroll(1), html: iconSvg('chevron-down', { size: 12 }) });
+    const more = h('button', { type: 'button', class: 'gal-btn gal-more', 'aria-label': t('ribbon.galleryMore'), 'data-menu-button': '', 'aria-haspopup': 'true', 'aria-expanded': 'false', html: iconSvg('more', { size: 12 }) });
+    const el = h('div', { class: `gal objects ${spec.id}` }, tiles, h('div', { class: 'gal-scroll' }, up, down, more));
+    more.addEventListener('click', () => openGalleryPopup(el, tiles, more, spec, tab));
+    el._sync = () => { tiles.classList.toggle('is-disabled', !registry.isEnabled(id)); };
     return el;
   }
 

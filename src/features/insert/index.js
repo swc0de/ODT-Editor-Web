@@ -5,6 +5,8 @@ import { insertDateTime } from '../headerfooter/index.js';
 import { pageNumberDialog } from '../../ui/layout-dialogs.js';
 import { insertNewTable, convertSelectionToTable, insertQuickTable } from '../table/insert.js';
 import { insertTableDialog } from '../../ui/table-dialogs.js';
+import { startDraw, insertTextBox, insertWordArt, dropCapOf, setDropCap } from './objects.js';
+import { dropCapDialog } from '../../ui/object-dialogs.js';
 
 const canEdit = (c) => !!c.editor && c.state.editingMode !== 'viewing';
 
@@ -19,10 +21,12 @@ export const commands = defineCommands('insert', {
   drawTable: { icon: 'draw-table', isEnabled: canEdit, isChecked: (c) => c.state.tableMode === 'draw', run: (c) => c.store.set({ tableMode: c.state.tableMode === 'draw' ? null : 'draw' }) },
   convertTextToTable: { isEnabled: (c) => canEdit(c) && !c.editor.view.state.selection.empty, run: convertSelectionToTable },
   quickTables: { isEnabled: canEdit, run: (c, id) => { if (typeof id === 'string') insertQuickTable(c, id); } },
-  pictures: { icon: 'pictures' },
-  picturesFromDevice: { icon: 'pictures' },
-  shapes: { icon: 'shapes' },
-  insertShape: { label: 'cmd.insert.shapes' },
+  pictures: { icon: 'pictures', isEnabled: canEdit, run: (c) => insertPictureFiles(c) },
+  picturesFromDevice: { icon: 'pictures', isEnabled: canEdit, run: (c) => insertPictureFiles(c) },
+  stockImages: {},
+  onlinePictures: {},
+  shapes: { icon: 'shapes', isEnabled: canEdit, menuOnly: true },
+  insertShape: { label: 'cmd.insert.shapes', isEnabled: canEdit, isChecked: (c) => !!c.state.objectDraw && c.state.objectDraw !== 'textBox', run: (c, id) => { if (typeof id === 'string') startDraw(c, { shape: id }); } },
   newDrawingCanvas: {},
   icons: { icon: 'icons' },
   smartArt: { icon: 'smartart' },
@@ -50,18 +54,21 @@ export const commands = defineCommands('insert', {
   pageNumberCurrent: { isEnabled: canEdit, run: (c) => insertInline(c, fields.pageNumber(c)) },
   pageNumberFormat: { isEnabled: canEdit, run: async (c) => { const r = await pageNumberDialog(pageNumberFormat(c)); if (r) setPageNumberFormat(c, r); } },
   removePageNumbers: { isEnabled: canEdit, run: removePageNumbers },
-  textBox: { icon: 'text-box' },
-  drawTextBox: {},
+  textBox: { icon: 'text-box', isEnabled: canEdit, menuOnly: true },
+  insertTextBox: { isEnabled: canEdit, run: (c, id) => insertTextBox(c, typeof id === 'string' ? id : 'simple') },
+  textBoxSimple: { isEnabled: canEdit, run: (c) => insertTextBox(c, 'simple') },
+  drawTextBox: { isEnabled: canEdit, isChecked: (c) => c.state.objectDraw === 'textBox', run: (c) => startDraw(c, { textBox: true }) },
   quickParts: { icon: 'quick-parts' },
   autoText: {},
   documentProperty: {},
   field: {},
-  wordArt: { icon: 'wordart' },
-  dropCap: { icon: 'drop-cap' },
-  dropCapNone: {},
-  dropCapDropped: {},
+  wordArt: { icon: 'wordart', isEnabled: canEdit, menuOnly: true },
+  insertWordArt: { label: 'cmd.insert.wordArt', isEnabled: canEdit, run: (c, id) => insertWordArt(c, typeof id === 'string' ? id : 'blackShadow') },
+  dropCap: { icon: 'drop-cap', isEnabled: canEdit, menuOnly: true },
+  dropCapNone: { isEnabled: canEdit, isChecked: (c) => !dropCapOf(c.editor.view.state).lines, run: (c) => setDropCap(c, { lines: 0 }) },
+  dropCapDropped: { isEnabled: canEdit, isChecked: (c) => dropCapOf(c.editor.view.state).lines > 1, run: (c) => setDropCap(c, { lines: 3, length: 1 }) },
   dropCapInMargin: {},
-  dropCapOptions: {},
+  dropCapOptions: { isEnabled: canEdit, run: async (c) => { const r = await dropCapDialog(dropCapOf(c.editor.view.state)); if (r) setDropCap(c, r); } },
   signatureLine: { icon: 'signature-line' },
   dateTime: { icon: 'date-time', isEnabled: canEdit, run: insertDateTime },
   object: { icon: 'object' },
@@ -84,7 +91,7 @@ export const ribbon = {
     {
       id: 'illustrations', icon: 'pictures',
       controls: [
-        { t: 'large', cmd: 'pictures' },
+        { t: 'large', cmd: 'pictures', menu: ['picturesFromDevice', 'stockImages', 'onlinePictures'] },
         { t: 'large', cmd: 'shapes', menu: [{ custom: 'shapesGallery' }, '-', 'newDrawingCanvas'] },
         { t: 'col', items: [{ cmd: 'icons' }, { cmd: 'smartArt' }, { cmd: 'chart' }] },
       ],
@@ -102,7 +109,7 @@ export const ribbon = {
     {
       id: 'text', icon: 'text-box',
       controls: [
-        { t: 'large', cmd: 'textBox', label: 'label.insert.textBox' },
+        { t: 'large', cmd: 'textBox', label: 'label.insert.textBox', menu: [{ custom: 'textBoxGallery' }, '-', 'drawTextBox'] },
         { t: 'col', items: [
           { cmd: 'quickParts', menu: ['autoText', 'documentProperty', 'field'] },
           { cmd: 'wordArt', menu: [{ custom: 'wordArtGallery' }] },
@@ -120,5 +127,11 @@ export const ribbon = {
     },
   ],
 };
+
+/** Insert ▸ Pictures ▸ This Device: picks picture files and inserts them in line with text. */
+async function insertPictureFiles(c) {
+  const files = await c.ui.pickFile('image/png,image/jpeg,image/gif,image/svg+xml,image/webp,image/bmp', { multiple: true });
+  if (files?.length) await c.ui.objects.insertPictures(files);
+}
 
 export function register(registry) { registry.register(commands); }

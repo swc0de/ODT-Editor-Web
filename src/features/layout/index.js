@@ -1,6 +1,7 @@
 /** Layout tab: Page Setup, Paragraph (indent/spacing spins), Arrange. */
 import { NodeRange } from 'prosemirror-model';
 import { defineCommands } from '../define.js';
+import { arrangeCommands, arrangeGroup } from '../objects/arrange.js';
 import { schema } from '../../core/schema.js';
 import { editState } from '../../core/state-step.js';
 import {
@@ -13,7 +14,6 @@ import { cellProps, updateCells, changeAuto, nodeAuto } from '../../core/command
 import { pageSetupDialog, columnsDialog, lineNumbersDialog, hyphenationDialog } from '../../ui/layout-dialogs.js';
 import { toPx } from '../../layout/units.js';
 
-const objectSelected = (ctx) => !!ctx.state.objectSelected;
 const canEdit = (c) => !!c.editor && c.state.editingMode !== 'viewing';
 // Page and section commands act on the body; paragraph ones on the active editor (body or header/footer).
 const V = (c) => bodyView(c);
@@ -399,27 +399,7 @@ export const commands = defineCommands('layout', {
   indentRight: { icon: 'indent-decrease', ...spinCmd('fo:margin-right', 'cm') },
   spacingBefore: { icon: 'line-spacing', ...spinCmd('fo:margin-top', 'pt') },
   spacingAfter: { icon: 'line-spacing', ...spinCmd('fo:margin-bottom', 'pt') },
-  position: { icon: 'position', isEnabled: objectSelected },
-  wrapText: { icon: 'wrap-text', isEnabled: objectSelected },
-  wrapInline: {},
-  wrapSquare: {},
-  wrapTight: {},
-  wrapTopBottom: {},
-  wrapBehind: {},
-  wrapInFront: {},
-  bringForward: { icon: 'bring-forward', isEnabled: objectSelected },
-  bringToFront: {},
-  sendBackward: { icon: 'send-backward', isEnabled: objectSelected },
-  sendToBack: {},
-  selectionPane: { icon: 'selection-pane' },
-  align: { icon: 'align-objects', isEnabled: objectSelected },
-  group: { icon: 'group', isEnabled: objectSelected },
-  ungroup: {},
-  rotate: { icon: 'rotate', isEnabled: objectSelected },
-  rotateRight: {},
-  rotateLeft: {},
-  flipVertical: {},
-  flipHorizontal: {},
+  ...arrangeCommands,
 });
 
 export const ribbon = {
@@ -448,15 +428,7 @@ export const ribbon = {
         { t: 'spins', header: 'label.layout.spacing', items: [{ cmd: 'spacingBefore', label: 'label.layout.before', unit: 'pt', value: 0, step: 6, decimals: 0 }, { cmd: 'spacingAfter', label: 'label.layout.after', unit: 'pt', value: 8, step: 6, decimals: 0 }] },
       ],
     },
-    {
-      id: 'arrange', icon: 'bring-forward',
-      controls: [
-        { t: 'large', cmd: 'position' },
-        { t: 'large', cmd: 'wrapText', label: 'label.layout.wrapText', menu: ['wrapInline', '-', 'wrapSquare', 'wrapTight', 'wrapTopBottom', 'wrapBehind', 'wrapInFront'] },
-        { t: 'col', items: [{ cmd: 'bringForward', split: true, menu: ['bringForward', 'bringToFront'] }, { cmd: 'sendBackward', split: true, menu: ['sendBackward', 'sendToBack'] }, { cmd: 'selectionPane' }] },
-        { t: 'col', items: [{ cmd: 'align', iconOnly: true, menu: [{ custom: 'alignObjects' }] }, { cmd: 'group', iconOnly: true, menu: ['group', 'ungroup'] }, { cmd: 'rotate', iconOnly: true, menu: ['rotateRight', 'rotateLeft', 'flipVertical', 'flipHorizontal'] }] },
-      ],
-    },
+    arrangeGroup(),
   ],
 };
 

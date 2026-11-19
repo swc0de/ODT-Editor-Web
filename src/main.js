@@ -26,7 +26,6 @@ import { createKeyTips } from './ui/keytips.js';
 import { importOdt } from './core/odt/import.js';
 import { exportOdt } from './core/odt/export.js';
 import { stateToJSON, createBlankState, documentStats } from './core/document.js';
-import { autoFromTree } from './core/odt/styles.js';
 import { createEditor } from './core/editor.js';
 import { createSession } from './core/session.js';
 import { createClipboardActions } from './core/clipboard-actions.js';
@@ -39,9 +38,11 @@ import { createDock, createNavigationPane, createStylesPane } from './ui/panes.j
 import { createFindDialog } from './ui/find-dialog.js';
 import { createMiniToolbar, attachContextMenu } from './ui/mini-toolbar.js';
 import { createHeaderFooter } from './ui/header-footer.js';
+import { createObjectServices } from './ui/objects.js';
 import { formatAt, GALLERY_STYLES, styleActions, useStyle, getListStyle } from './features/home/index.js';
 import { spinValues } from './features/layout/index.js';
 import { tableSpinValues } from './features/table/layout.js';
+import { objectSpinValues } from './features/objects/format.js';
 import { isInTable, tableAt } from './core/commands/tables.js';
 import { textPropsCss } from './core/odt/css.js';
 import { sizePt } from './core/commands/text.js';
@@ -61,7 +62,7 @@ function boot() {
   let session = null;
   let clipboard = null;
   // Commands act on the active editor: the body, or a header/footer being edited.
-  const activeEditor = () => ui.hf?.activeEditor() || editor;
+  const activeEditor = () => ui.hf?.activeEditor() || ui.objects?.activeEditor() || editor;
   const registry = new CommandRegistry({ translate: t, context: () => ({ store, state: store.get(), ui, editor: activeEditor(), mainEditor: editor, session, clipboard }) });
   ui.registry = registry;
   ui.toast = (msg) => toast(msg);
@@ -95,20 +96,13 @@ function boot() {
   const editorEnv = {
     pictureUrl(path) {
       if (!path || !session?.state) return '';
+      path = path.replace(/^\.\//, '');
       if (!pictureUrls.has(path)) {
-        const pic = session.state.pictures[path];
+        const pic = session.state.pictures[path] || session.state.extraFiles?.[path];
         if (!pic) return '';
         pictureUrls.set(path, URL.createObjectURL(new Blob([pic.bytes], { type: pic.mediaType || undefined })));
       }
       return pictureUrls.get(path);
-    },
-    /** Horizontal placement of an anchored frame from its graphic style. */
-    graphicPos(styleName) {
-      const t2 = styleName && docArea.styleIndex?.autos.get(`graphic:${styleName}`);
-      const gp = t2 ? autoFromTree(t2).auto?.props?.['style:graphic-properties']?.a || {} : {};
-      if (gp['style:wrap'] === 'none' || gp['style:horizontal-pos'] === 'center') return 'center';
-      if (gp['style:horizontal-pos'] === 'right' || gp['style:horizontal-pos'] === 'outside') return 'right';
-      return 'left';
     },
     addPicture(bytes, mediaType) {
       const ext = (mediaType.split('/')[1] || 'png').replace('svg+xml', 'svg').replace('jpeg', 'jpg');
@@ -193,13 +187,15 @@ function boot() {
       // Contextual tabs: Header & Footer while editing one, Table Design / Layout inside a table.
       const c2 = ctx();
       const inTbl = isInTable(c2.editor.view.state);
-      const contextual = [store.get().hfEditing && 'headerFooter', inTbl && 'table'].filter(Boolean).join(' ') || null;
+      const obj = ui.objects.selected(c2.editor) || ui.objects.selected(editor);
+      const objTab = obj ? (obj.node.attrs.kind === 'image' ? 'picture' : (['shape', 'textbox', 'wordart', 'line'].includes(obj.node.attrs.kind) ? 'shape' : null)) : null;
+      const contextual = [store.get().hfEditing && 'headerFooter', inTbl && 'table', objTab].filter(Boolean).join(' ') || null;
       const tabNow = store.get().activeTab;
-      const leaveTab = !inTbl && (tabNow === 'tableDesign' || tabNow === 'tableLayout');
+      const leaveTab = (!inTbl && (tabNow === 'tableDesign' || tabNow === 'tableLayout')) || (objTab !== 'picture' && tabNow === 'pictureFormat') || (objTab !== 'shape' && tabNow === 'shapeFormat');
       const tbl = inTbl ? tableAt(c2.editor.view.state) : null;
       store.set({
         fontName: font, fontSize: sizePt(f.text['fo:font-size']), styleId, paragraphStyle: styleName,
-        paraSpins: { ...spinValues(c2), ...tableSpinValues(c2) }, contextual, inTable: inTbl,
+        paraSpins: { ...spinValues(c2), ...tableSpinValues(c2), ...objectSpinValues(c2) }, contextual, inTable: inTbl, objectKind: obj?.node.attrs.kind || null,
         tableStyleId: tbl?.table.attrs.extra?.['table:template-name'] || null,
         ...(leaveTab ? { activeTab: 'home' } : {}),
       });
@@ -225,7 +221,20 @@ function boot() {
     }
     store.set({ styleSamples: samples });
   }
+  // Drawing objects: node view services, nested text editors, selection.
+  ui.objects = createObjectServices({
+    store, docArea, getSession: () => session, getMainEditor: () => editor, createEditor, toast, t,
+    nestedEnv: ({ onTransaction }) => ({
+      ...editorEnv,
+      extraPlugins: () => [searchPlugin(), listLabelsPlugin((name) => getListStyle(ctx(), name))],
+      onTransaction: (v, tr) => { onTransaction(v, tr); scheduleSync(tr.docChanged); },
+    }),
+  });
+  Object.assign(editorEnv, ui.objects.env);
+  ui.objects.setAddPicture((bytes, type) => editorEnv.addPicture(bytes, type));
   editor = createEditor(docArea.view.mount, editorEnv);
+  // Back in the body: commands act on it again.
+  editor.view.dom.addEventListener('focus', () => ui.objects.leaveInner());
   docArea.attach(editor);
   clipboard = createClipboardActions(editor, toast);
   ui.painter = createFormatPainter({ editor, store });
@@ -294,6 +303,15 @@ function boot() {
   });
   document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && store.get().tableMode) store.set({ tableMode: null }); });
   ui.addPicture = (bytes, type) => editorEnv.addPicture(bytes, type);
+  ui.pictureUrl = (path) => editorEnv.pictureUrl(path);
+  /** Opens the system file picker: resolves to a File (or Files with multiple), or null. */
+  ui.pickFile = (accept, { multiple = false } = {}) => new Promise((resolve) => {
+    const input = Object.assign(document.createElement('input'), { type: 'file', accept, multiple });
+    input.addEventListener('change', () => resolve(multiple ? [...input.files] : input.files[0] || null), { once: true });
+    input.addEventListener('cancel', () => resolve(multiple ? [] : null), { once: true });
+    input.click();
+  });
+  ui.docArea = docArea;
 
   const mini = createMiniToolbar({ registry, store, editor });
   attachContextMenu({ registry, editor, mini });

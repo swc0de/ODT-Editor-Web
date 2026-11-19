@@ -22,11 +22,11 @@ const MARK = '\u0001';
 export function createAutoRegistry() {
   const byKey = new Map();
   return {
-    ref(family, parent, auto) {
+    ref(family, parent, auto, prefix = null) {
       const key = stableStringify([family, parent || null, auto]);
       let e = byKey.get(key);
       if (!e) {
-        e = { id: byKey.size, family, parent, auto, name: null };
+        e = { id: byKey.size, family, parent, auto, name: null, prefix };
         byKey.set(key, e);
       }
       return `${MARK}${e.id}${MARK}`;
@@ -207,7 +207,7 @@ export function createBodyWriter(registry) {
       case 'tab': st.prevSpace = false; return '<text:tab/>';
       case 'hard_break': st.prevSpace = false; return a.clear ? `<text:line-break loext:clear="${escAttr(a.clear)}"/>` : '<text:line-break/>';
       case 'field': st.prevSpace = false; return `<${a.element}${attrsToXml(a.fieldAttrs)}>${escText(a.text)}</${a.element}>`;
-      case 'frame': st.prevSpace = false; return `<draw:frame${attrsToXml(a.frameAttrs)}>${a.innerXml}</draw:frame>`;
+      case 'frame': st.prevSpace = false; return drawObject(a);
       case 'opaque_inline': st.prevSpace = false; return a.xml;
       case 'bookmark': return `<${a.element} text:name="${escAttr(a.name)}"${attrs(a.extra)}/>`;
       case 'change_marker': {
@@ -230,6 +230,20 @@ export function createBodyWriter(registry) {
       }
       default: return '';
     }
+  }
+
+  /** A drawing object (frame node) back to its ODF element. */
+  function drawObject(a) {
+    let style = '';
+    if (a.auto) style = ` draw:style-name="${registry.ref('graphic', a.styleName, a.auto, a.element === 'draw:frame' ? 'fr' : 'gr')}"`;
+    else if (a.styleName) style = ` draw:style-name="${escAttr(a.styleName)}"`;
+    let inner = '';
+    for (const p of a.parts || []) {
+      if (p.n === '#body') inner += blocksFromJSON(a.body);
+      else if (p['#body']) inner += `<${p.n}${attrsToXml(p.a)}>${blocksFromJSON(a.body)}</${p.n}>`;
+      else inner += treeToXml(p);
+    }
+    return `<${a.element}${style}${attrs(a.frameAttrs)}>${inner}</${a.element}>`;
   }
 
   function blocksFromJSON(list) {
@@ -345,10 +359,10 @@ export function exportOdt(state, opts = {}) {
   const counters = {};
   const generated = [];
   for (const e of registry.entries()) {
-    const prefix = PREFIX[e.family] || 'X';
-    counters[e.family] = counters[e.family] || 0;
+    const prefix = e.prefix || PREFIX[e.family] || 'X';
+    counters[prefix] = counters[prefix] || 0;
     let name;
-    do { name = `${prefix}${++counters[e.family]}`; } while (taken.has(name));
+    do { name = `${prefix}${++counters[prefix]}`; } while (taken.has(name));
     taken.add(name);
     e.name = name;
     generated.push(treeFromAuto(name, e.family, e.parent, e.auto));

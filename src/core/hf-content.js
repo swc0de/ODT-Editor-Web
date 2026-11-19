@@ -51,12 +51,14 @@ export function writePart(state, masterName, part, kind, doc) {
   let xml = writer.body(doc);
   const autos = (state.stylesAutoStyles?.c || []).filter((t) => typeof t !== 'string');
   const taken = new Set([...autos, ...(state.contentAutoStyles || []), ...(state.commonStyles?.c || [])].map((t) => t?.a?.['style:name']).filter(Boolean));
-  const counters = { paragraph: 0, text: 0 };
+  const counters = {};
   const generated = [];
+  const PREFIX = { paragraph: 'MP', text: 'MT', graphic: 'Mfr', table: 'MTab', 'table-column': 'MTabCol', 'table-row': 'MTabRow', 'table-cell': 'MTabCell' };
   for (const e of registry.entries()) {
-    const prefix = e.family === 'paragraph' ? 'MP' : 'MT';
+    const prefix = PREFIX[e.family] || 'MX';
+    counters[prefix] = counters[prefix] || 0;
     let name;
-    do { name = `${prefix}${++counters[e.family]}`; } while (taken.has(name));
+    do { name = `${prefix}${++counters[prefix]}`; } while (taken.has(name));
     taken.add(name);
     e.name = name;
     generated.push(treeFromAuto(name, e.family, e.parent, e.auto));
@@ -95,7 +97,8 @@ export function writePart(state, masterName, part, kind, doc) {
 /** Keeps paragraph/text automatic styles in styles.xml only while something refers to them. */
 export function pruneAutos(state, add = []) {
   const all = [...(state.stylesAutoStyles?.c || []), ...add];
-  const isPT = (t) => typeof t !== 'string' && t.n === 'style:style' && (t.a['style:family'] === 'paragraph' || t.a['style:family'] === 'text');
+  const PRUNED = new Set(['paragraph', 'text', 'graphic', 'table', 'table-column', 'table-row', 'table-cell']);
+  const isPT = (t) => typeof t !== 'string' && t.n === 'style:style' && PRUNED.has(t.a['style:family']);
   const used = refs(treeToXml(state.masterStyles || { n: 'x', a: {} }) + all.filter((t) => !isPT(t)).map((t) => (typeof t === 'string' ? '' : treeToXml(t))).join(''));
   // Styles referred to by kept styles (parents) stay too.
   let grew = true;

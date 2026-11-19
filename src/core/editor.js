@@ -14,8 +14,8 @@ import { gapCursor } from 'prosemirror-gapcursor';
 import { Slice, Fragment } from 'prosemirror-model';
 import { schema } from './schema.js';
 import { cleanPastedHTML } from './clipboard.js';
-import { toPx } from '../layout/units.js';
-import { escAttr } from './odt/xml.js';
+import { ObjectView } from '../layout/object-view.js';
+import { imageAttrs, uniqueName, maxZ } from './objects.js';
 import { sliceForMode } from './paste-modes.js';
 
 const insertNode = (type) => (state, dispatch) => {
@@ -34,52 +34,6 @@ function splitHeadingToParagraph(state, dispatch) {
     dispatch(tr.scrollIntoView());
   }
   return true;
-}
-
-/** Node view for frames: images (with blob URLs from the package), text boxes, objects. */
-class FrameView {
-  constructor(node, env) {
-    this.env = env;
-    this.dom = document.createElement('span');
-    this.update(node);
-  }
-
-  update(node) {
-    if (node.type.name !== 'frame') return false;
-    this.node = node;
-    const a = node.attrs;
-    const fa = a.frameAttrs || {};
-    const w = fa['svg:width'] ? toPx(fa['svg:width']) : null;
-    const h = fa['svg:height'] ? toPx(fa['svg:height']) : null;
-    const anchor = fa['text:anchor-type'] || 'paragraph';
-    const pos = this.env.graphicPos(fa['draw:style-name']);
-    this.dom.className = `odt-frame kind-${a.kind} anchor-${anchor}${anchor !== 'as-char' ? ` float-${pos}` : ''}`;
-    this.dom.contentEditable = 'false';
-    this.dom.replaceChildren();
-    if (a.kind === 'image') {
-      const img = document.createElement('img');
-      img.alt = fa['svg:title'] || '';
-      img.draggable = false;
-      const url = this.env.pictureUrl(a.href) || fa['#pastedSrc'] || '';
-      if (url) img.src = url;
-      // Images change height when they load: lay the pages out again.
-      img.addEventListener('load', () => this.env.onImageLoad?.(), { once: true });
-      if (w) img.style.width = `${w}px`;
-      if (h) img.style.height = `${h}px`;
-      this.dom.append(img);
-    } else {
-      const box = document.createElement('span');
-      box.className = 'odt-frame-box';
-      box.textContent = a.text || (a.kind === 'object' ? '⧉' : '');
-      if (w) box.style.width = `${w}px`;
-      if (h) box.style.minHeight = `${h}px`;
-      this.dom.append(box);
-    }
-    return true;
-  }
-
-  stopEvent() { return false; }
-  ignoreMutation() { return true; }
 }
 
 /**
@@ -107,13 +61,10 @@ export function createEditor(mount, env) {
           if (!m) return;
           const bytes = Uint8Array.from(atob(m[2]), (c) => c.charCodeAt(0));
           const path = env.addPicture(bytes, m[1]);
-          const wpx = Number(fa['#w']) || 0;
-          const hpx = Number(fa['#h']) || 0;
-          const toCm = (px) => `${(px / 37.795).toFixed(3)}cm`;
-          const frameAttrs = { 'draw:name': `Image${Date.now() % 100000}`, 'text:anchor-type': 'as-char', 'svg:width': wpx ? toCm(wpx) : '8cm', 'svg:height': hpx ? toCm(hpx) : '6cm', 'draw:z-index': '0' };
-          const title = fa['svg:title'] ? `<svg:title>${escAttr(fa['svg:title'])}</svg:title>` : '';
-          const innerXml = `<draw:image xlink:href="${path}" xlink:type="simple" xlink:show="embed" xlink:actuate="onLoad" draw:mime-type="${m[1]}"/>${title}`;
-          out.push(node.type.create({ ...node.attrs, frameAttrs, innerXml, href: path }));
+          const w = Number(fa['#w']) || 300;
+          const h = Number(fa['#h']) || 225;
+          const doc = view.state.doc;
+          out.push(node.type.create(imageAttrs({ path, mime: m[1], w, h, name: uniqueName(doc, 'Picture'), title: fa['#alt'] || '', z: maxZ(doc) + 1 })));
           changed = true;
         } else if (node.content.size) out.push(node.copy(map(node.content)));
         else out.push(node);
@@ -148,10 +99,31 @@ export function createEditor(mount, env) {
   view = new EditorView(mount, {
     state: makeState(schema.node('doc', null, [schema.node('paragraph')])),
     attributes: { class: 'odt-body', spellcheck: 'true', 'aria-label': 'Document', role: 'textbox', 'aria-multiline': 'true' },
-    nodeViews: { frame: (node) => new FrameView(node, env) },
+    nodeViews: { frame: (node, v, getPos) => new ObjectView(node, v, getPos, env) },
     transformPastedHTML: cleanPastedHTML,
     transformPasted: adoptPastedImages,
-    handleDrop: (_v, event) => (event.dataTransfer?.files?.length ? handleFilesDrop(event.dataTransfer.files) : false),
+    handleDrop: (v, event) => {
+      const files = event.dataTransfer?.files;
+      if (!files?.length) return false;
+      if (handleFilesDrop(files)) return true;
+      const pics = [...files].filter((f) => f.type.startsWith('image/'));
+      if (!pics.length || !env.insertPictures) return false;
+      const at = v.posAtCoords({ left: event.clientX, top: event.clientY });
+      env.insertPictures(pics, at?.pos);
+      return true;
+    },
+    handleDOMEvents: {
+      // Pasting a picture file (a screenshot, an image copied from a browser without HTML).
+      paste(v, event) {
+        const items = [...(event.clipboardData?.items || [])];
+        const html = event.clipboardData?.getData?.('text/html');
+        const pics = items.filter((it) => it.kind === 'file' && it.type.startsWith('image/')).map((it) => it.getAsFile()).filter(Boolean);
+        if (!pics.length || html || !env.insertPictures) return false;
+        event.preventDefault();
+        env.insertPictures(pics, v.state.selection.from);
+        return true;
+      },
+    },
     // Paste options apply here. Pasting into an empty paragraph takes the
     // pasted paragraph's style (ProseMirror would otherwise keep the empty one's).
     handlePaste(v, event, rawSlice) {

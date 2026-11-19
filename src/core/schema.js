@@ -30,10 +30,14 @@ const sanitize = (name) => String(name || '').replace(/[^A-Za-z0-9_-]/g, '_');
 /** DOM attributes shared by paragraphs and headings. */
 function blockDomAttrs(node) {
   const a = node.attrs;
-  const style = autoToCss(a.auto, 'paragraph');
+  let style = autoToCss(a.auto, 'paragraph');
   const pp = a.auto?.props?.['style:paragraph-properties']?.a || {};
+  // Drop cap (style:drop-cap inside the paragraph properties).
+  const dc = a.auto?.props?.['style:paragraph-properties']?.c?.find?.((x) => x.n === 'style:drop-cap');
+  const lines = dc ? Number(dc.a['style:lines'] || 0) : 0;
+  if (lines > 1) style = `${style ? `${style};` : ''}--dc-lines:${lines};--dc-gap:${dc.a['style:distance'] || '0cm'}`;
   return {
-    class: `ps-${sanitize(a.styleName)}`,
+    class: `ps-${sanitize(a.styleName)}${lines > 1 ? ' has-dropcap' : ''}`,
     style: style || null,
     'data-style': a.styleName || '',
     'data-auto': a.auto ? json(a.auto) : null,
@@ -204,24 +208,33 @@ export const nodes = {
     leafText: () => '\t',
   },
 
-  /** Images, text boxes and embedded objects (draw:frame). Inner XML is kept verbatim until M7. */
+  /**
+   * Drawing objects: draw:frame (picture, text box, embedded object) and
+   * shapes (draw:custom-shape, draw:line, draw:rect, draw:ellipse).
+   *   element    the ODF element name
+   *   styleName  named graphic style; auto = its automatic graphic style
+   *   frameAttrs the element's other attributes (anchor, position, size, z-index, name, transform…)
+   *   parts      the element's children as XML trees, in order; the text of a
+   *              text box / shape is `body` (block JSON) and sits where the
+   *              part { n: '#body' } or the text-box part ('#body': true) is
+   *   kind       image | textbox | shape | wordart | line | object | equation | chart
+   *   href       picture / object path (for display)
+   * Rendered by layout/object-view.js.
+   */
   frame: {
     group: 'inline', inline: true, atom: true, draggable: true,
-    attrs: { frameAttrs: { default: {} }, innerXml: { default: '' }, kind: { default: 'image' }, href: { default: '' }, text: { default: '' } },
+    attrs: {
+      element: { default: 'draw:frame' }, styleName: { default: null }, auto: AUTO, frameAttrs: { default: {} },
+      parts: { default: [] }, body: { default: [] }, kind: { default: 'image' }, href: { default: '' },
+    },
     parseDOM: [{
       tag: 'img[src^="data:image/"]',
-      getAttrs: (dom) => ({ frameAttrs: { '#pastedSrc': dom.getAttribute('src'), '#w': dom.getAttribute('width') || '', '#h': dom.getAttribute('height') || '', 'svg:title': dom.getAttribute('alt') || '' }, innerXml: '', kind: 'image', href: '', text: '' }),
+      getAttrs: (dom) => ({ frameAttrs: { '#pastedSrc': dom.getAttribute('src'), '#w': dom.getAttribute('width') || '', '#h': dom.getAttribute('height') || '', '#alt': dom.getAttribute('alt') || '' }, kind: 'image' }),
     }, {
       tag: 'span[data-odt-frame]', priority: 60,
-      getAttrs: (dom) => ({
-        frameAttrs: parseJson(dom.getAttribute('data-frame')) || {}, innerXml: dom.getAttribute('data-inner') || '',
-        kind: dom.getAttribute('data-kind') || 'image', href: dom.getAttribute('data-href') || '', text: dom.getAttribute('data-text') || '',
-      }),
+      getAttrs: (dom) => parseJson(dom.getAttribute('data-frame')) || {},
     }],
-    toDOM: (node) => ['span', {
-      'data-odt-frame': '', 'data-frame': json(node.attrs.frameAttrs), 'data-inner': node.attrs.innerXml, 'data-kind': node.attrs.kind,
-      'data-href': node.attrs.href, 'data-text': node.attrs.text, class: `odt-frame kind-${node.attrs.kind}`,
-    }],
+    toDOM: (node) => ['span', { 'data-odt-frame': '', 'data-frame': json(node.attrs), class: `odt-frame kind-${node.attrs.kind}` }],
   },
 
   /** Footnote / endnote. The body is a list of block nodes as JSON (edited in M8). */

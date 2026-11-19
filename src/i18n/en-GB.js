@@ -7,5 +7,6 @@ import file from './en-GB/file.js';
 import home from './en-GB/home.js';
 import layout from './en-GB/layout.js';
 import tables from './en-GB/tables.js';
+import objects from './en-GB/objects.js';
 
-export default { ...app, ...commands, ...ribbon, ...ui, ...file, ...home, ...layout, ...tables };
+export default { ...app, ...commands, ...ribbon, ...ui, ...file, ...home, ...layout, ...tables, ...objects };

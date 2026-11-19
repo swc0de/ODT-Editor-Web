@@ -10,6 +10,7 @@ import { iconSvg } from './icons.js';
 import { THEMES, COLOUR_SETS, FONT_SETS, SPACING, WATERMARKS } from '../features/design/apply.js';
 import { QUICK_TABLES } from '../features/table/insert.js';
 import { BORDER_STYLES } from '../features/table/design.js';
+import { OBJECT_WIDGETS } from './object-widgets.js';
 
 const THEME_COLOURS = [
   ['#ffffff', '#000000', '#e8e8e8', '#0e2841', '#156082', '#e97132', '#196b24', '#0f9ed5', '#a02b93', '#4ea72e'],
@@ -21,13 +22,6 @@ const THEME_COLOURS = [
 const STANDARD = ['#c00000', '#ff0000', '#ffc000', '#ffff00', '#92d050', '#00b050', '#00b0f0', '#0070c0', '#002060', '#7030a0'];
 const HIGHLIGHTS = ['#ffff00', '#00ff00', '#00ffff', '#ff00ff', '#0000ff', '#ff0000', '#000080', '#008080', '#008000', '#800080', '#800000', '#808000', '#808080', '#c0c0c0', '#000000'];
 const SYMBOLS = ['€', '£', '¥', '©', '®', '™', '±', '≠', '≤', '≥', '÷', '×', '∞', 'µ', 'α', 'β', 'π', 'Ω', '∑', '…', '–', '—', '“', '”', '§', '¶', '•', '°', '✓', '→'];
-const SHAPES = {
-  'menu.lines': ['M3 21 21 3', 'M3 21 21 3M15 3h6v6', 'M3 12c4-8 8 8 18 0'],
-  'menu.rectangles': ['M3 6h18v12H3z', 'M3 6h18v12H3z|r'],
-  'menu.basicShapes': ['M12 3 21 20H3z', 'M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18z', 'M12 2l3 7h7l-5.5 4.5 2 7.5L12 16.5 5.5 21l2-7.5L2 9h7z', 'M7 3h10l4 9-4 9H7l-4-9z', 'M12 3 21 12 12 21 3 12z', 'M3 12a9 9 0 0 1 18 0'],
-  'menu.blockArrows': ['M3 9h11V5l7 7-7 7v-4H3z', 'M21 9H10V5l-7 7 7 7v-4h11z', 'M9 21V10H5l7-7 7 7h-4v11z', 'M9 3v11H5l7 7 7-7h-4V3z'],
-  'menu.callouts': ['M3 4h18v12H10l-5 4v-4H3z', 'M12 4a9 6 0 1 0 0 12h-2l-4 4 1-5'],
-};
 
 /** Shared "inactive" behaviour: dim when the command can't run yet, notify on click. */
 function bind(el, { registry, close, toast }, cmdId, run) {
@@ -101,22 +95,6 @@ function symbolGrid(o) {
       bind(b, o, 'insert.insertSymbol');
       return b;
     })));
-}
-
-function shapesGallery(o) {
-  const out = h('div', { class: 'menu-widget shapes' });
-  let first = true;
-  for (const [title, paths] of Object.entries(SHAPES)) {
-    out.append(h('div', { class: 'menu-header' }, t(title)));
-    out.append(h('div', { class: 'shape-grid' }, paths.map((d) => {
-      const [path, mod] = d.split('|');
-      const b = h('button', { type: 'button', class: 'shape-cell', tabindex: '-1', 'aria-label': t(title), 'data-menu-focus': first ? '' : null, html: `<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"${mod ? ' rx="4"' : ''}><path d="${path}"/></svg>` });
-      first = false;
-      bind(b, o, 'insert.insertShape');
-      return b;
-    })));
-  }
-  return out;
 }
 
 function listLibrary(o, kind) {
@@ -256,11 +234,11 @@ function pendingGallery() {
 }
 
 const WIDGETS = {
+  ...OBJECT_WIDGETS,
   colourPalette: (o) => colourPalette(o),
   highlightPalette: (o) => h('div', { class: 'menu-widget palette' }, h('div', { class: 'swatch-grid five' }, HIGHLIGHTS.map((c) => swatch(c, o, o.cmd || 'home.highlight')))),
   tableGrid,
   symbolGrid,
-  shapesGallery,
   bulletLibrary: (o) => listLibrary(o, 'bullet'),
   numberLibrary: (o) => listLibrary(o, 'number'),
   multilevelLibrary: (o) => listLibrary(o, 'multilevel'),

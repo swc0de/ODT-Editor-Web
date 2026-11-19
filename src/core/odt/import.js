@@ -122,7 +122,7 @@ export function importOdt(bytes) {
   if (!officeText) throw new PackageError('This document has no text body.', 'no-body');
   state.officeTextAttrs = attrsOf(officeText, ns);
 
-  const conv = createConverter({ ns, autoIndex, styleIndex });
+  const conv = createConverter({ ns, autoIndex, styleIndex, objectKind: (href) => objectKindOf(state, href) });
   const blocks = [];
   let inPrelude = true;
   for (const el of officeText.children) {
@@ -137,8 +137,19 @@ export function importOdt(bytes) {
   return state;
 }
 
+/** Kind of an embedded object from its sub-document: equation (MathML), chart or other object. */
+export function objectKindOf(state, href) {
+  const dir = String(href || '').replace(/^\.\//, '').replace(/\/$/, '');
+  const f = state.extraFiles?.[`${dir}/content.xml`];
+  if (!f) return 'object';
+  const head = strFromU8(f.bytes);
+  if (/<(?:math:)?math[\s>]/.test(head)) return 'equation';
+  if (/<office:chart[\s>]|<chart:chart[\s>]/.test(head)) return 'chart';
+  return 'object';
+}
+
 /** Converts ODF body XML into ProseMirror JSON. */
-export function createConverter({ ns, autoIndex, styleIndex }) {
+export function createConverter({ ns, autoIndex, styleIndex, objectKind = null }) {
   const q = (el) => qname(el, ns);
 
   /** Resolves a paragraph style reference → { styleName, auto }. */
@@ -375,7 +386,9 @@ export function createConverter({ ns, autoIndex, styleIndex }) {
           case 'text:change-start': case 'text:change-end': case 'text:change':
             atom({ type: 'change_marker', attrs: { kind: name.slice(12) || 'point', changeId: a['text:change-id'] || '' } }, false);
             break;
-          case 'draw:frame': atom({ type: 'frame', attrs: frame(node, a) }); break;
+          case 'draw:frame': case 'draw:custom-shape': case 'draw:line': case 'draw:rect': case 'draw:ellipse':
+            atom({ type: 'frame', attrs: drawObject(node, name, a) });
+            break;
           default: {
             const onlyText = [...node.childNodes].every((c) => c.nodeType === 3 || c.nodeType === 4);
             if (name.startsWith('text:') && !STRUCTURAL_INLINE.has(name) && onlyText) {
@@ -420,17 +433,44 @@ export function createConverter({ ns, autoIndex, styleIndex }) {
     return { name: a['office:name'] || null, creator, date, initials, body, extra: Object.keys(extra).length ? extra : null };
   }
 
-  function frame(el, a) {
-    let kind = 'other';
+  /**
+   * A drawing object (see the frame node in schema.js): the graphic style is
+   * resolved like paragraph styles; children are kept as trees except the
+   * text of text boxes and shapes, which becomes editable blocks.
+   */
+  function drawObject(el, name, a) {
+    let styleName = null;
+    let auto = null;
+    const ref = a['draw:style-name'];
+    if (ref) {
+      const t = autoIndex.get(`graphic:${ref}`);
+      if (t) { const r = autoFromTree(t); styleName = r.parent; auto = r.auto; } else styleName = ref;
+    }
+    const parts = [];
+    const body = [];
+    let kind = '';
     let href = '';
-    let txt = '';
-    const first = [...el.children].find((c) => !['svg:title', 'svg:desc'].includes(q(c)));
-    const fn = first ? q(first) : '';
-    if (fn === 'draw:image') { kind = 'image'; href = first.getAttribute('xlink:href') || attrsOf(first, ns)['xlink:href'] || ''; }
-    else if (fn === 'draw:text-box') { kind = 'textbox'; txt = first.textContent.replace(/\s+/g, ' ').trim().slice(0, 400); }
-    else if (fn === 'draw:object' || fn === 'draw:object-ole') { kind = 'object'; href = attrsOf(first, ns)['xlink:href'] || ''; }
-    const innerXml = [...el.children].map((c) => elementToXml(c, ns)).join('');
-    return { frameAttrs: a, innerXml, kind, href, text: txt };
+    let bodyPlaced = false;
+    for (const c of el.children) {
+      const n = q(c);
+      if (name === 'draw:frame' && n === 'draw:text-box' && !bodyPlaced) {
+        parts.push({ n, a: attrsOf(c, ns), '#body': true });
+        body.push(...blocks(c));
+        bodyPlaced = true;
+        kind = kind || 'textbox';
+      } else if (name !== 'draw:frame' && (n === 'text:p' || n === 'text:h' || n === 'text:list')) {
+        if (!bodyPlaced) { parts.push({ n: '#body' }); bodyPlaced = true; }
+        body.push(...block(c));
+      } else {
+        const t = toTree(c, ns);
+        parts.push(t);
+        if (n === 'draw:image' && !kind) { kind = 'image'; href = t.a['xlink:href'] || ''; }
+        if ((n === 'draw:object' || n === 'draw:object-ole') && !kind) { href = t.a['xlink:href'] || ''; kind = objectKind ? objectKind(href) : 'object'; }
+        if (n === 'draw:enhanced-geometry' && t.a['draw:text-path'] === 'true') kind = 'wordart';
+      }
+    }
+    if (!kind) kind = name === 'draw:frame' ? 'object' : (name === 'draw:line' ? 'line' : 'shape');
+    return { element: name, styleName, auto, frameAttrs: without(a, 'draw:style-name') || {}, parts, body, kind, href };
   }
 
   return { block, blocks, inlines };
