@@ -85,6 +85,8 @@ function sizeTabs(p, stops, interval, zoom) {
   for (const t of tabs) {
     const x = (t.getBoundingClientRect().left - originLeft) / zoom;
     let stop = stops.find((s) => s.pos > x + 0.5);
+    // In a hanging first line the left indent is a tab stop too.
+    if (x < -0.5 && (!stop || stop.pos > 0)) stop = { pos: 0, type: 'left', leader: null };
     if (!stop) stop = { pos: (Math.floor(x / interval) + 1) * interval, type: 'left', leader: null };
     let w = stop.pos - x;
     if (stop.type === 'right') w -= textWidthAfter(t) / zoom;

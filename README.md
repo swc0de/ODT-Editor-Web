@@ -105,6 +105,9 @@ reference/             UI reference screenshots; compare/ holds generated compar
   License 1.1 (see `assets/fonts/LICENSE.md`).
 - Libraries bundled into the HTML file: ProseMirror incl. prosemirror-tables (MIT), fflate (MIT),
   MathLive (MIT; the equation editor, with the KaTeX maths fonts, MIT),
+  citeproc-js (CPAL-1.0 / AGPL-1.0; the citation engine) with Citation Style
+  Language styles and locales (CC BY-SA 3.0: APA, MLA, Chicago author-date,
+  IEEE, Cite Them Right Harvard),
   Lucide icons (ISC), hyphen (ISC) with British English hyphenation patterns
   from CTAN (hyph-en-gb).
 
@@ -193,7 +196,32 @@ UI inspired by the open-source WordCraft project (MIT/Apache-2.0).
 - Insert ▸ Symbol ▸ More Symbols searches characters by name or code; Alt+X
   turns a hex code before the caret into its character (and back).
 
-## Known limitations (M7)
+## References
+
+- References ▸ Table of Contents inserts a contents list built from the
+  headings, with page numbers from the layout; Update Table refreshes it.
+  Add Text sets a paragraph's level.
+- Insert Footnote (Ctrl+Alt+F) / Insert Endnote (Ctrl+Alt+D): type the note
+  at the bottom of the page (or the end of the document). The dialog
+  launcher sets numbering (1, a, i…, restart per page or chapter, custom
+  mark) and converts between footnotes and endnotes. Double-click a number to
+  jump between the note and its reference.
+- Manage Sources keeps your sources (import BibTeX, RIS or CSL JSON from
+  Zotero, Mendeley, JabRef…). Insert Citation cites one; Style switches
+  between APA, MLA, Chicago, IEEE and Harvard; Bibliography inserts the list.
+  The Zotero tab does the same from a Zotero library export (the live Zotero
+  connection isn't reachable from a page opened from disk).
+- Insert Caption numbers figures, tables and equations; Insert Table of
+  Figures lists them; Cross-reference points at headings, bookmarks, notes
+  and captions. F9 updates fields.
+- Mark Entry (Alt+Shift+X) marks index entries; Insert Index builds the index.
+
+## Known limitations (M8)
+
+- References: a footnote too long for its page isn't continued on the next
+  page; one source per citation (no page locators or multi-source citations
+  yet); Zotero ▸ Add Note, index "See" cross-references and page ranges are
+  Coming soon.
 
 - Objects: text wraps on one side of a floating object, and floating objects
   anchored in the same paragraph stack rather than overlap. Objects anchored
@@ -212,9 +240,7 @@ UI inspired by the open-source WordCraft project (MIT/Apache-2.0).
   Margins (they need text frames, M7).
 - Coming soon on the Home tab: the Clipboard pane, Phonetic Guide, Enclose
   Characters, Glow, the Editor (spelling) pane.
-- Footnotes at the page bottom aren't laid out yet (M8).
-- Footnotes, comments, tables of contents and tracked changes are kept and
-  displayed but not editable yet.
+- Comments and tracked changes are kept and displayed but not editable yet.
 - Content inside merged-away table cells (rare) is not kept.
 - Password-protected ODT files can't be opened.
 - Backstage Info, Print, Export and Options are placeholders.

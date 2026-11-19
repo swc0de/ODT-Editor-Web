@@ -93,14 +93,14 @@ function entryContent(html) {
     .replace(/<\/?div[^>]*>/g, '');
   const wrap = document.createElement('div');
   wrap.innerHTML = `<p>${fixed.trim()}</p>`;
-  for (const tab of wrap.querySelectorAll('span[data-tab]')) tab.replaceWith('\t');
+  for (const tab of wrap.querySelectorAll('span[data-tab]')) tab.replaceWith('\uE000');
   const doc = PMDOMParser.fromSchema(schema).parse(wrap);
   const p = doc.firstChild;
   // Tabs from the left margin: real tab nodes.
   const parts = [];
   p.forEach((n) => {
-    if (n.isText && n.text.includes('\t')) {
-      n.text.split('\t').forEach((s, i) => { if (i) parts.push(schema.nodes.tab.create()); if (s) parts.push(schema.text(s, n.marks)); });
+    if (n.isText && n.text.includes('\uE000')) {
+      n.text.replace(/\uE000\s*/g, '\uE000').split('\uE000').forEach((s, i) => { if (i) parts.push(schema.nodes.tab.create()); if (s) parts.push(schema.text(s, n.marks)); });
     } else parts.push(n);
   });
   return Fragment.from(parts);

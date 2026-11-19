@@ -12,7 +12,7 @@ The memory between sessions. Statuses: `todo`, `in progress`, `awaiting approval
 | M5 — Layout and Design tabs, headers/footers, sections | approved |
 | M6 — Tables | approved |
 | M7 — Insert tab: pictures, shapes, text boxes, links, symbols | approved |
-| M8 — References | in progress |
+| M8 — References | awaiting approval |
 | M9 — Review: comments, track changes, proofing | todo |
 | M10 — Draw tab | todo |
 | M11 — Mailings and Developer | todo |
@@ -253,5 +253,32 @@ Decisions:
 Known limitations:
 - Text wraps on one side of a floating object (CSS floats), and floating objects in the same paragraph don't overlap (they stack). Objects anchored to the page itself (not a paragraph) in other files are kept but not drawn.
 - Shapes from other files whose path uses formulas are drawn as their preset (or as a rectangle); WordArt is plain (no warped text effects).
-- Coming soon: Remove Background, Artistic Effects, Compress Pictures, Picture Layout, Crop to Shape, Edit Shape, Edit Wrap Points, Group/Ungroup, Text Effects, Create Link (shapes), Stock Images, Online Pictures, New Drawing Canvas, SmartArt, Ink Equation, Object… (OLE), Drop Cap in Margin (ODF has no such option). Cross-reference arrives with M8, comments with M9.
+- Coming soon: Remove Background, Artistic Effects, Compress Pictures, Picture Layout, Crop to Shape, Edit Shape, Edit Wrap Points, Group/Ungroup, Text Effects, Create Link (shapes), Stock Images, Online Pictures, New Drawing Canvas, SmartArt, Ink Equation, Object… (OLE), Drop Cap in Margin (ODF has no such option). Cross-reference arrived with M8, comments with M9.
+
+## M8 — References (awaiting approval)
+
+Built:
+- **Index blocks** (schema `index` node): tables of contents, tables of figures/tables, alphabetical indexes, bibliographies (and LibreOffice's user/object indexes) are no longer opaque. Each keeps its ODF `*-source` element (the templates LibreOffice regenerates from) and an editable body.
+- **Table of Contents**: gallery (Automatic Table 1 "Contents" / 2 "Table of Contents"), Custom Table of Contents dialog (title, page numbers, right align, tab leader, levels, hyperlinks, preview), Remove, Add Text (Do Not Show / Level 1–3), Update Table (page numbers only / entire table). Page numbers come from the layout engine; entries link to `#Heading|outline` like LibreOffice. Saved as `text:table-of-content`.
+- **Footnotes and endnotes**: Insert Footnote (Ctrl+Alt+F) / Endnote (Ctrl+Alt+D) put the caret in the note's text, edited in place in the note area. The paginator reserves room for each page's footnotes (a note stays on the page of its reference; long notes push the text on), draws them at the page bottom under a separator, and puts endnotes after the last paragraph (on a new page if needed). Numbers follow document order automatically. Footnote and Endnote dialog: location (bottom of page / end of document), number format (1, a, A, i, I), custom mark, start at, numbering continuous / restart each chapter / restart each page, convert footnotes ↔ endnotes, Insert / Apply. Next/Previous Footnote/Endnote, Show Notes (to the note and back), double-click a reference or a note number to jump.
+- **Citations & Bibliography**: citeproc-js with five CSL styles (APA 7, MLA 9, Chicago author-date, IEEE, Harvard — Cite Them Right) and en-GB/en-US locales, built as a lazily loaded chunk embedded in the HTML file. Source Manager (master list kept in this browser ↔ the document's list, search, copy, edit, new, delete — cited sources are protected — preview in the current style, **Import BibTeX, RIS and CSL-JSON**), Create Source dialog (11 source types), Add New Placeholder, Insert Citation menu listing the document's sources, Style (live, undoable — citations and bibliographies re-format), Bibliography gallery (Bibliography / References / Works Cited) + Insert Bibliography + Update. Citations are `text:bibliography-mark` fields carrying the source's fields (so LibreOffice knows them); the full sources and style are also kept in `Bibliography/sources.json` in the package.
+- **Captions**: Insert Caption (Figure / Table / Equation / New Label…, above or below, exclude label, number format) — a caption paragraph with a `text:sequence` field, declared in `text:sequence-decls`, renumbered automatically in document order. Insert Table of Figures (by label, include label and number, page numbers, right align, leader, hyperlinks) as `text:illustration-index` / `text:table-index`; Update Table.
+- **Cross-references**: to headings (adds LibreOffice's `__RefHeading__` bookmark pair), bookmarks, footnotes, endnotes and captions; formats text, page number, heading level, above/below, label and number, caption text. Page and above/below references follow the layout live; **F9** (Update Fields) updates all references, tables of contents and figures, and citations.
+- **Index**: Mark Entry (Alt+Shift+X; main entry + subentry, Mark / Mark All) as `text:alphabetical-index-mark`; Insert Index (columns 1–4 in a section, right-aligned page numbers with leader, letter headings); Update Index. Marks show as {XE} with formatting marks on.
+- **Zotero tab**: the live connector can't be reached (see decisions), so the tab works from Zotero's exports: Import Library (BibTeX/RIS/CSL-JSON), Add/Edit Citation (picker), Add/Edit Bibliography, Refresh, Document Preferences (citation style), Unlink Citations (to plain text). Add Note is Coming soon.
+- Also: Enter at the end of a paragraph continues with its style's next style (default: the same style — Word/LibreOffice behaviour; captions and headings go back to Normal); the left indent of a hanging first line is a tab stop (IEEE lists line up); ribbon drop-down selects show the current value; nested dialogs keep their own keys; inserting an index at the end of the document keeps a paragraph after it.
+- Tests: 57 unit + 123 e2e (7 new in `tests/e2e/references.spec.js`), all saving and re-opening with an identical model; **LibreOffice re-saves** the TOC, footnotes/endnotes with their numbering configuration, citations and bibliography, captions/cross-references/table of figures, and the index. Performance: 100 pages, 3 ms median per keystroke.
+- Screenshots: `reference/compare/m8-*.png` (References tab with a TOC, footnotes at the page bottom, IEEE bibliography with the Style menu, Source Manager, Footnote/Cross-reference/Index dialogs, Zotero tab) in dark and light.
+
+Decisions:
+- **Zotero connector**: not possible from this app. It runs from a `file://` page whose Content-Security-Policy allows only `data:`/`blob:` connections (the app never touches the network), and a file:// page is an opaque origin that Zotero's local server (127.0.0.1:23119) doesn't answer with the CORS / Private Network Access headers a browser requires. The milestone said to leave the tab out in that case, but the reference screenshots show it, so it stays and works from Zotero's exports instead (and References ▸ Manage Sources ▸ Import does the same).
+- Chicago is the author-date variant (in-text citations); notes-bibliography would need citations inside footnotes.
+- Sources not yet cited live in `Bibliography/sources.json` (LibreOffice ignores the file, and keeps the cited ones as marks).
+- A split paragraph's footnotes go to the page where the paragraph ends.
+
+Known limitations:
+- A footnote taller than the space left on its page isn't continued on the next page (it overlaps the margin); footnotes in multi-column sections are laid out at the page bottom across the full width.
+- One source per citation (no multi-source clusters, page locators or suppressed author/year yet).
+- Restart-each-chapter counts from each Heading 1; caption numbers don't include chapter numbers.
+- Coming soon: Zotero ▸ Add Note; index cross-references ("See …") and page-range entries; editing a citation in place (delete and re-insert it).
 
