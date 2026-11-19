@@ -199,7 +199,13 @@ export function createControlFactory(env) {
 
   function number(spec, tab) {
     const id = resolve(tab, spec.cmd);
-    return h('input', { class: 'rb-number', type: 'text', inputmode: 'numeric', value: String(spec.value), 'data-command': id, 'aria-label': registry.label(id), style: `width:${spec.width}px` });
+    const el = h('input', { class: 'rb-number rb-synced', type: 'text', inputmode: 'numeric', value: String(spec.value), 'data-command': id, 'aria-label': registry.label(id), style: `width:${spec.width}px` });
+    // Enter or leaving the box runs the command with the number; the box shows the command's value.
+    const commit = () => { const v = Number(el.value); if (Number.isFinite(v) && registry.isEnabled(id)) registry.run(id, v); };
+    el.addEventListener('change', commit);
+    el.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); commit(); } });
+    el._sync = () => { const v = registry.get(id)?.value?.(registry.context()); if (v != null && document.activeElement !== el) el.value = String(v); };
+    return el;
   }
 
   function check(spec, tab) {

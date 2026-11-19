@@ -10,6 +10,7 @@
  */
 import { SOURCES_FILE } from '../bibliography.js';
 import { exportChanges } from '../track-changes.js';
+import { MERGE_FILE } from '../mailmerge.js';
 import { schema } from '../schema.js';
 import { escText, escAttr, attrsToXml, treeToXml, treeText, nsDeclarations, XML_DECL } from './xml.js';
 import { ROOT_PREFIXES } from './namespaces.js';
@@ -477,6 +478,7 @@ export function exportOdt(state, opts = {}) {
     if (path.startsWith('ObjectReplacements/') && !allXml.includes(path)) continue;
     entries.push([path, f.bytes, { mediaType: f.mediaType || undefined }]);
   }
+  if (state.mailMerge?.fields?.length) entries.push([MERGE_FILE, JSON.stringify(state.mailMerge), { mediaType: 'application/json' }]);
   const bib = state.bibliography;
   if (bib && (bib.sources?.length || (bib.style && bib.style !== 'apa'))) entries.push([SOURCES_FILE, JSON.stringify({ style: bib.style || 'apa', sources: bib.sources || [] }, null, 1), { mediaType: 'application/json' }]);
   if (opts.thumbnail) entries.push(['Thumbnails/thumbnail.png', opts.thumbnail, { mediaType: 'image/png' }]);

@@ -55,4 +55,18 @@ function citationList(o) {
   return wrap;
 }
 
-export const REFERENCE_WIDGETS = { tocGallery, bibliographyGallery, citationList };
+/** Insert Merge Field: the recipient list's columns. */
+function mergeFieldList(o) {
+  const c = o.registry.context();
+  const fields = o.registry.get('mailings.insertMergeField')?.fields?.(c) || [];
+  const wrap = h('div', { class: 'menu-widget cite-list', role: 'group', 'aria-label': t('mm.fields') });
+  if (!fields.length) wrap.append(h('div', { class: 'menu-note' }, t('mm.noList')));
+  fields.forEach((f, i) => {
+    const b = h('button', { type: 'button', class: 'menu-item', role: 'menuitem', tabindex: '-1', 'data-menu-focus': i === 0 ? '' : null }, h('span', { class: 'menu-label' }, f));
+    bind(b, o, 'mailings.insertMergeField', () => o.registry.run('mailings.insertMergeField', f));
+    wrap.append(b);
+  });
+  return wrap;
+}
+
+export const REFERENCE_WIDGETS = { tocGallery, bibliographyGallery, citationList, mergeFieldList };

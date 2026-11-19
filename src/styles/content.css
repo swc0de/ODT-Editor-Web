@@ -166,3 +166,6 @@
 .tc-show-all :is(p, h1, h2, h3, h4, h5, h6):is(:has(.tc-ins, .tc-del, .tc-fmt), .tc-break) { box-shadow: -14px 0 0 -12px #8c8c8c; }
 .tc-show-simple :is(p, h1, h2, h3, h4, h5, h6):is(:has(.tc-ins, .tc-del, .tc-fmt), .tc-break) { box-shadow: -14px 0 0 -12px #e3342f; }
 .tc-hide-insdel :is(p, h1, h2, h3, h4, h5, h6) { box-shadow: none !important; }
+/* Mail merge: Highlight Merge Fields, previewed values */
+.mm-highlight .odt-field:is(.f-text-database-display, .f-text-conditional-text, .f-text-text-input, .f-text-database-next, .f-text-database-row-number) { background: #d9d9d9; }
+.odt-field.f-text-database-next:not([data-shown])::before { content: '«Next Record»'; color: #6b6b6b; }

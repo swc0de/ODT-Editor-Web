@@ -1,39 +1,56 @@
 /** Mailings tab: Create, Start Mail Merge, Write & Insert Fields, Preview Results, Finish (M11). */
 import { defineCommands } from '../define.js';
 
+import {
+  hasList, useExistingList, typeNewList, editRecipients, insertField, insertAddressBlock, insertGreeting, ruleIfThenElse, ruleFillIn, ruleSkipRecord,
+  ruleNextRecord, ruleMergeRecord, recordCount, goRecord, setPreview, findRecipient, editIndividual, envelopes, labels, startMerge, stopMerge,
+} from './merge.js';
+import { mergeOf } from '../../core/mailmerge.js';
+
+const canEdit = (c) => !!c.mainEditor && c.state.editingMode !== 'viewing';
+const body = (c) => canEdit(c) && c.editor === c.mainEditor;
+const withList = (c) => body(c) && hasList(c);
+const preview = (c) => !!c.mainEditor && recordCount(c) > 0;
+const kind = (type) => ({ isEnabled: canEdit, isChecked: (c) => mergeOf(c.session?.state)?.type === type, run: (c) => startMerge(c, type) });
+
 export const commands = defineCommands('mailings', {
-  envelopes: { icon: 'envelope' },
-  labels: { icon: 'labels' },
-  startMailMerge: { icon: 'start-merge' },
-  mergeLetters: {},
+  envelopes: { icon: 'envelope', isEnabled: canEdit, run: envelopes },
+  labels: { icon: 'labels', isEnabled: canEdit, run: labels },
+  startMailMerge: { icon: 'start-merge', isEnabled: canEdit, menuOnly: true },
+  mergeLetters: kind('letters'),
   mergeEmail: {},
-  mergeEnvelopes: {},
-  mergeLabels: {},
-  mergeDirectory: {},
-  mergeNormal: {},
-  selectRecipients: { icon: 'recipients' },
-  typeNewList: {},
-  useExistingList: {},
-  editRecipientList: { icon: 'edit-recipients' },
-  highlightMergeFields: { icon: 'highlight-fields' },
-  addressBlock: { icon: 'address-block' },
-  greetingLine: { icon: 'greeting-line' },
-  insertMergeField: { icon: 'merge-field' },
-  rules: { icon: 'rules' },
-  ruleIfThenElse: {},
-  ruleFillIn: {},
-  ruleSkipRecord: {},
-  ruleNextRecord: {},
-  ruleMergeRecord: {},
-  previewResults: { icon: 'preview-results' },
-  firstRecord: { icon: 'first-record' },
-  previousRecord: { icon: 'previous-record' },
-  recordNumber: {},
-  nextRecord: { icon: 'next-record' },
-  lastRecord: { icon: 'last-record' },
-  findRecipient: { icon: 'find-recipient' },
-  finishMerge: { icon: 'finish-merge' },
-  editIndividual: {},
+  mergeEnvelopes: kind('envelopes'),
+  mergeLabels: kind('labels'),
+  mergeDirectory: kind('directory'),
+  mergeNormal: { isEnabled: (c) => canEdit(c) && !!mergeOf(c.session?.state), run: stopMerge },
+  selectRecipients: { icon: 'recipients', isEnabled: canEdit, menuOnly: true },
+  typeNewList: { isEnabled: canEdit, run: typeNewList },
+  useExistingList: { isEnabled: canEdit, run: useExistingList },
+  editRecipientList: { icon: 'edit-recipients', isEnabled: (c) => canEdit(c) && hasList(c), run: editRecipients },
+  highlightMergeFields: { icon: 'highlight-fields', isEnabled: (c) => !!c.mainEditor, isChecked: (c) => !!c.state.mergeHighlight, run: (c) => { c.store.set((s) => ({ mergeHighlight: !s.mergeHighlight })); const v = c.mainEditor.view; v.dispatch(v.state.tr.setMeta('tcSkip', true).setMeta('addToHistory', false)); } },
+  addressBlock: { icon: 'address-block', isEnabled: withList, run: insertAddressBlock },
+  greetingLine: { icon: 'greeting-line', isEnabled: withList, run: insertGreeting },
+  insertMergeField: {
+    icon: 'merge-field', isEnabled: withList,
+    run: (c, column) => (typeof column === 'string' ? insertField(c, column) : undefined),
+    fields: (c) => (hasList(c) ? mergeOf(c.session.state).fields : []),
+  },
+  rules: { icon: 'rules', isEnabled: withList, menuOnly: true },
+  ruleIfThenElse: { isEnabled: withList, run: ruleIfThenElse },
+  ruleFillIn: { isEnabled: body, run: ruleFillIn },
+  ruleSkipRecord: { isEnabled: withList, run: ruleSkipRecord },
+  ruleNextRecord: { isEnabled: withList, run: ruleNextRecord },
+  ruleMergeRecord: { isEnabled: withList, run: ruleMergeRecord },
+  previewResults: { icon: 'preview-results', isEnabled: preview, isChecked: (c) => !!c.state.mergePreview, run: (c) => setPreview(c, !c.state.mergePreview) },
+  firstRecord: { icon: 'first-record', isEnabled: preview, run: (c) => goRecord(c, 1) },
+  previousRecord: { icon: 'previous-record', isEnabled: (c) => preview(c) && (c.state.mergeRecord || 1) > 1, run: (c) => goRecord(c, (c.state.mergeRecord || 1) - 1) },
+  recordNumber: { isEnabled: preview, value: (c) => c.state.mergeRecord || 1, run: (c, n) => goRecord(c, Number(n) || 1) },
+  nextRecord: { icon: 'next-record', isEnabled: (c) => preview(c) && (c.state.mergeRecord || 1) < recordCount(c), run: (c) => goRecord(c, (c.state.mergeRecord || 1) + 1) },
+  lastRecord: { icon: 'last-record', isEnabled: preview, run: (c) => goRecord(c, recordCount(c)) },
+  findRecipient: { icon: 'find-recipient', isEnabled: preview, run: findRecipient },
+  finishMerge: { icon: 'finish-merge', isEnabled: preview, menuOnly: true },
+  editIndividual: { isEnabled: preview, run: editIndividual },
+  // Printing arrives with File ▸ Print (M13).
   printDocuments: {},
 });
 

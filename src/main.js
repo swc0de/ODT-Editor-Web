@@ -48,6 +48,7 @@ import { createReviewingPane } from './ui/reviewing-pane.js';
 import { proofingPlugin, problemAt, suggestions, addToDictionary, ignoreAll, recheckAll } from './core/proofing.js';
 import { createEditorPane } from './ui/editor-pane.js';
 import { createInk } from './ui/ink.js';
+import { mergePreviewPlugin } from './features/mailings/merge.js';
 import { createAccessibilityPane } from './ui/accessibility-pane.js';
 import { createReadAloud, readAloudPlugin } from './features/review/read-aloud.js';
 import { applyRestriction, savedRestriction } from './features/review/extras.js';
@@ -134,7 +135,7 @@ function boot() {
     },
     openFiles(files) { if (files[0]) session.openFile(files[0]).then((ok) => { if (ok) store.set({ backstageOpen: false }); }); },
     priorityPlugins: () => [flushSelectionPlugin(), new Plugin({ props: { handleKeyDown: (_v, e) => !!ui.handleEditorKey?.(e) } }), ...(ui.objects ? [ui.objects.keyPlugin] : []), tableKeymap, ...editingPlugins(() => ({ ...AUTOCORRECT_DEFAULTS, ...(getSetting('autocorrect') || {}) }), makeList)],
-    extraPlugins: () => [...docArea.plugins(), readAloudPlugin(), proofingPlugin({ enabled: () => getSetting('checkSpelling') !== false, fallback: () => 'en-GB', onProblems: () => { if (ui.editorPane?.isOpen) ui.editorPane.render(false); } }), trackChangesPlugin({ isOn: () => store.get().trackChanges, author: userName, display: () => store.get().reviewDisplay, hidden: () => store.get().reviewHide }), editablePlugin(() => store.get().editingMode !== 'viewing'), sequencePlugin(), notesNumberingPlugin(() => session?.state, () => (docArea.pages.length ? (pos) => docArea.pageAt(pos) : null)), ...tablePlugins(tableUI), linkFollowPlugin(() => store.get().editingMode === 'viewing'), searchPlugin(), listLabelsPlugin((name) => getListStyle(ctx(), name))],
+    extraPlugins: () => [...docArea.plugins(), mergePreviewPlugin({ on: () => store.get().mergePreview, merge: () => session?.state?.mailMerge, record: () => (store.get().mergeRecord || 1) - 1, highlight: () => store.get().mergeHighlight }), readAloudPlugin(), proofingPlugin({ enabled: () => getSetting('checkSpelling') !== false, fallback: () => 'en-GB', onProblems: () => { if (ui.editorPane?.isOpen) ui.editorPane.render(false); } }), trackChangesPlugin({ isOn: () => store.get().trackChanges, author: userName, display: () => store.get().reviewDisplay, hidden: () => store.get().reviewHide }), editablePlugin(() => store.get().editingMode !== 'viewing'), sequencePlugin(), notesNumberingPlugin(() => session?.state, () => (docArea.pages.length ? (pos) => docArea.pageAt(pos) : null)), ...tablePlugins(tableUI), linkFollowPlugin(() => store.get().editingMode === 'viewing'), searchPlugin(), listLabelsPlugin((name) => getListStyle(ctx(), name))],
     pasteMode(event) {
       const once = clipboard?.takeMode();
       if (once) return once;

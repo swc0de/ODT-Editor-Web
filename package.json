@@ -38,6 +38,7 @@
     "esbuild": "^0.28.2",
     "hyphen": "^1.10.6",
     "mathlive": "0.111.4",
-    "nspell": "^2.1.5"
+    "nspell": "^2.1.5",
+    "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz"
   }
 }

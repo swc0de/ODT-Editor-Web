@@ -140,6 +140,18 @@ async function buildSpell() {
 }
 let spellChunk = null;
 
+/** The spreadsheet reader chunk (SheetJS), base64-encoded like the others. */
+async function buildSheetJs() {
+  const r = await esbuild.build({
+    entryPoints: [path.join(root, 'src', 'vendor', 'sheetjs-entry.js')],
+    bundle: true, format: 'esm', platform: 'browser', target: ['chrome110', 'firefox115', 'safari16'],
+    minify: true, legalComments: 'none', write: false, logLevel: 'warning',
+    alias: { xlsx: path.join(root, 'node_modules', 'xlsx', 'xlsx.mjs') },
+  });
+  return Buffer.from(r.outputFiles[0].text, 'utf8').toString('base64');
+}
+let sheetChunk = null;
+
 async function writeHtml(jsText, cssText) {
   const appName = await readAppName();
   const template = await readFile(path.join(root, 'src', 'index.html'), 'utf8');
@@ -154,6 +166,7 @@ async function writeHtml(jsText, cssText) {
     MATHLIVE: mathLiveChunk ??= await buildMathLive(),
     CITEPROC: citeprocChunk ??= await buildCiteproc(),
     SPELL: spellChunk ??= await buildSpell(),
+    SHEETJS: sheetChunk ??= await buildSheetJs(),
     // A literal "</script" inside the bundle would end the inline script early.
     APP_JS: jsText.replace(/<\/script/gi, '<\\/script').replace(/<!--/g, '<\\!--'),
   });

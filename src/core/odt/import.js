@@ -8,6 +8,7 @@
 import { Fragment } from 'prosemirror-model';
 import { SOURCES_FILE } from '../bibliography.js';
 import { importChanges } from '../track-changes.js';
+import { MERGE_FILE } from '../mailmerge.js';
 import { schema } from '../schema.js';
 import { readPackage, strFromU8, PackageError } from './package.js';
 import { parseXml, toTree, qname, attrsOf, createNsContext, elementToXml, treeText } from './xml.js';
@@ -112,6 +113,11 @@ export function importOdt(bytes) {
     else state.extraFiles[path] = entry;
   }
   state.extraManifest = pkg.manifest.filter((e) => e.path && e.path !== '/' && e.path.endsWith('/'));
+  // The mail-merge recipient list (see core/mailmerge.js).
+  if (state.extraFiles[MERGE_FILE]) {
+    try { state.mailMerge = JSON.parse(strFromU8(state.extraFiles[MERGE_FILE].bytes)); } catch { /* unreadable: ignored */ }
+    delete state.extraFiles[MERGE_FILE];
+  }
   // The document's sources and citation style (see core/bibliography.js).
   if (state.extraFiles[SOURCES_FILE]) {
     try {

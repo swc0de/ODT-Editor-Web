@@ -118,3 +118,16 @@
 .xref-list { min-height: 180px; }
 .idx-preview { column-gap: 16px; font-size: 12px; min-height: 70px; }
 .idx-prev-head { font-weight: 600; }
+.mm-dlg { display: flex; flex-direction: column; gap: 8px; min-width: 720px; }
+.mm-bar { display: flex; gap: 8px; align-items: center; }
+.mm-bar .fm-input { flex: 1; }
+.mm-count { color: var(--text-muted); font-size: 12px; white-space: nowrap; }
+.mm-table-wrap { max-height: 340px; overflow: auto; border: 1px solid var(--control-border-soft); border-radius: 3px; }
+.mm-table { border-collapse: collapse; font: 12px var(--font-ui); min-width: 100%; }
+.mm-table th, .mm-table td { border-bottom: 1px solid var(--control-border-soft); padding: 3px 6px; text-align: left; white-space: nowrap; }
+.mm-table th { position: sticky; top: 0; background: var(--ribbon-bg); }
+.mm-sort { background: none; border: 0; color: var(--text); font: 600 12px var(--font-ui); cursor: pointer; padding: 0; }
+.mm-cell { width: 120px; background: var(--control-bg); color: var(--text); border: 1px solid var(--control-border-soft); border-radius: 2px; padding: 2px 4px; font: 12px var(--font-ui); }
+.mm-tools { display: flex; gap: 6px; }
+.mm-preview { white-space: pre-line; min-height: 60px; font: 13px "Carlito", sans-serif; }
+.mm-area { width: 100%; resize: vertical; font: 13px var(--font-ui); }
