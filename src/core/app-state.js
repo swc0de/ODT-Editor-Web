@@ -41,6 +41,7 @@ export const INITIAL_APP_STATE = Object.freeze({
   reviewingPane: null, // null | 'vertical' | 'horizontal'
   commentsView: 'contextual', // 'contextual' (balloons) | 'list' (Comments pane)
   restrict: null, // null | 'readonly' | 'comments' | 'tracked'
+  readingAloud: false,
   drawTool: 'select',
   fontName: 'Aptos',
   fontSize: 12,

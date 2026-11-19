@@ -19,9 +19,9 @@ export const commands = defineCommands('app', {
   },
   editingMode: { icon: 'editing-mode', menuOnly: true },
   // Editing: change the document directly; Reviewing: Track Changes on; Viewing: read-only.
-  modeEditing: { icon: 'editing-mode', isEnabled: (ctx) => !ctx.state.trackLock, run: (ctx) => { setTracking(ctx, false); ctx.store.set({ editingMode: 'editing' }); refreshView(ctx); }, isChecked: (ctx) => ctx.state.editingMode === 'editing' },
-  modeReviewing: { icon: 'track-changes', run: (ctx) => setTracking(ctx, true), isChecked: (ctx) => ctx.state.editingMode === 'reviewing' },
-  modeViewing: { icon: 'eye', run: (ctx) => { ctx.store.set({ editingMode: 'viewing' }); refreshView(ctx); }, isChecked: (ctx) => ctx.state.editingMode === 'viewing' },
+  modeEditing: { icon: 'editing-mode', isEnabled: (ctx) => !ctx.state.trackLock && !ctx.state.restrict, run: (ctx) => { setTracking(ctx, false); ctx.store.set({ editingMode: 'editing' }); refreshView(ctx); }, isChecked: (ctx) => ctx.state.editingMode === 'editing' },
+  modeReviewing: { icon: 'track-changes', isEnabled: (ctx) => !ctx.state.restrict || ctx.state.restrict === 'tracked', run: (ctx) => setTracking(ctx, true), isChecked: (ctx) => ctx.state.editingMode === 'reviewing' },
+  modeViewing: { icon: 'eye', isEnabled: (ctx) => !ctx.state.restrict || ctx.state.restrict === 'readonly', run: (ctx) => { ctx.store.set({ editingMode: 'viewing' }); refreshView(ctx); }, isChecked: (ctx) => ctx.state.editingMode === 'viewing' },
   goBack: { shortcut: 'Shift-F5', run: (ctx) => ctx.ui.goBack() },
   extendSelection: { shortcut: 'F8', run: (ctx) => ctx.ui.extendSelection() },
   statusWordCount: { label: 'cmd.review.wordCount', hidden: true },

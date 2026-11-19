@@ -25,7 +25,7 @@ import {
   Undo2, Redo2, Unlink, UserPen, UserSearch, Users, Volume2, WrapText, X, ZoomIn, ZoomOut, Scissors, Lasso, Radical,
   Puzzle, DraftingCompass,
   ImageOff, SunDim, Paintbrush, WandSparkles, Blend, Shrink, ImageUp, RotateCcw, Frame, Layers, Crop, MoveVertical,
-  MoveHorizontal, PenTool, PenLine, AlignVerticalJustifyCenter, ImageMinus, Image, Shapes,
+  MoveHorizontal, PenTool, PenLine, AlignVerticalJustifyCenter, ImageMinus, Image, Shapes, Pause, Play, TriangleAlert, CircleX,
 } from 'lucide';
 import { LOGO_SVG } from './logo.js';
 
@@ -260,6 +260,7 @@ const LUCIDE = {
   help: CircleHelp, feedback: MessageSquareHeart, 'whats-new': Gift, about: Info, file: File, back: ChevronLeft,
   home: House, new: FilePlus, open: FolderOpen, info: Info, save: Save, print: Printer, export: FileOutput, close: X,
   options: Settings, download: Download, undo: Undo2, redo: Redo2, 'chevron-up': ChevronUp, 'chevron-down': ChevronDown,
+  pause: Pause, play: Play, 'alert-triangle': TriangleAlert, 'circle-x': CircleX,
   'chevron-left': ChevronLeft, 'chevron-right': ChevronRight, keyboard: Keyboard, comments: MessageSquareText,
   eye: Eye, monitor: Monitor, moon: Moon, sun: Sun, minus: Minus, plus: Plus, 'arrow-right': ArrowRight,
   'arrow-left': ArrowLeft, 'file-text': FileText, files: Files, 'file-clock': FileClock, 'file-pen': FilePen,

@@ -266,4 +266,69 @@ test.describe('review', () => {
     expect(rt.diff).toBe(null);
     expect(rt.content).toMatch(/fo:language="fr" fo:country="FR"/);
   });
+
+  test('read aloud, accessibility checker, compare documents, restrict editing', async ({ page }) => {
+    // Read Aloud (the speech itself is the browser's; the player and highlight are ours).
+    await typeText(page, 'First sentence to read. Second one.');
+    await page.keyboard.press('Control+Home');
+    await run(page, 'review.readAloud');
+    await expect(page.locator('.ra-player')).toBeVisible();
+    await expect(page.locator('.page-flow .ra-word').first()).toBeVisible();
+    await run(page, 'review.readAloud');
+    await expect(page.locator('.ra-player')).toHaveCount(0);
+    // Accessibility: a heading that skips a level, a table without a header row, no title.
+    await page.evaluate(() => {
+      const v = window.odtEditor.editor.view;
+      const { schema } = v.state;
+      const cell = (t) => schema.nodes.table_cell.create(null, schema.nodes.paragraph.create(null, schema.text(t)));
+      const row = (a, b) => schema.nodes.table_row.create(null, [cell(a), cell(b)]);
+      v.dispatch(v.state.tr.insert(v.state.doc.content.size, [
+        schema.nodes.heading.create({ styleName: 'Heading_20_1', level: 1 }, schema.text('Top')),
+        schema.nodes.heading.create({ styleName: 'Heading_20_3', level: 3 }, schema.text('Too deep')),
+        schema.nodes.table.create(null, [row('a', 'b'), row('c', 'd')]),
+      ]));
+    });
+    await run(page, 'review.checkAccessibility');
+    await expect(page.locator('.acc-rule')).toContainText(['Missing table header', 'Skipped heading level', 'Document title missing']);
+    await page.locator('.acc-fix', { hasText: 'Use first row as header' }).click();
+    await expect(page.locator('.acc-rule')).not.toContainText(['Missing table header'], { timeout: 4000 });
+    // Compare: this document against a revised copy (saved, edited, saved).
+    const revised = await page.evaluate(async () => {
+      const { io, session } = window.odtEditor;
+      const st = io.importOdt(await session.serialize());
+      const j = st.doc.toJSON();
+      j.content[0].content[0].text = 'First sentence to hear. Second one.';
+      st.doc = window.odtEditor.editor.view.state.schema.nodeFromJSON(j);
+      const { bytes } = io.exportOdt(st);
+      let bin = '';
+      for (const c of bytes) bin += String.fromCharCode(c);
+      return btoa(bin);
+    });
+    await run(page, 'review.compareDocuments');
+    const chooser = page.waitForEvent('filechooser');
+    await page.locator('.cmp-dlg button', { hasText: 'Browse' }).click();
+    await (await chooser).setFiles({ name: 'revised.odt', mimeType: 'application/vnd.oasis.opendocument.text', buffer: Buffer.from(revised, 'base64') });
+    await page.locator('.dlg button.primary').click();
+    // The current document has unsaved changes: don't save them.
+    await page.locator('.dlg button', { hasText: 'Don’t Save' }).click();
+    await expect.poll(() => marked(page)).toContain('First sentence to [-read-][+hear+]. Second one.');
+    await expect(page.locator('.page-flow .tc-del').first()).toHaveText('read');
+    // Restrict Editing: read only, saved in the settings, enforced again on re-open.
+    await run(page, 'review.restrictEditing');
+    await page.locator('.rst-pane input[type=checkbox]').check();
+    await page.locator('.rst-pane select').selectOption('readonly');
+    await page.locator('.rst-pane button', { hasText: 'Start Enforcing' }).click();
+    await expect(page.locator('.page-flow .ProseMirror')).toHaveAttribute('contenteditable', 'false');
+    const rt = await roundTrip(page, 'restricted.odt');
+    expect(rt.zip['settings.xml']).toBeTruthy();
+    const settings = Buffer.from(rt.zip['settings.xml']).toString();
+    expect(settings).toContain('<config:config-item config:name="LoadReadonly" config:type="boolean">true</config:config-item>');
+    expect(settings).toContain('config:name="ODTEditorRestrictEditing" config:type="string">readonly<');
+    await page.locator('.rst-pane button', { hasText: 'Stop Protection' }).click();
+    await expect(page.locator('.page-flow .ProseMirror')).toHaveAttribute('contenteditable', 'true');
+    // Re-opening the restricted file enforces it again.
+    await page.evaluate(async (b64) => { const bytes = Uint8Array.from(atob(b64), (c) => c.charCodeAt(0)); await window.odtEditor.session.openBytes(bytes, { name: 'r.odt', skipGuard: true }); }, readFileSync(rt.file).toString('base64'));
+    await expect(page.locator('.page-flow .ProseMirror')).toHaveAttribute('contenteditable', 'false');
+    await expect.poll(() => page.evaluate(() => window.odtEditor.store.get().restrict)).toBe('readonly');
+  });
 });

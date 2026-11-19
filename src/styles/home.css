@@ -160,3 +160,29 @@
 .ed-done { padding: 12px 0; color: var(--text-muted); }
 .ed-done-title { font-size: 15px; color: var(--text); font-weight: 600; margin-bottom: 4px; }
 .ed-none { color: var(--text-muted); }
+/* Read Aloud player */
+.ra-player { position: absolute; top: 12px; right: 24px; z-index: 6; display: flex; align-items: center; gap: 4px; background: var(--panel-bg); border: 1px solid var(--control-border-soft, var(--border)); border-radius: 6px; padding: 4px 6px; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3); }
+.ra-btn { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; background: transparent; border: 1px solid transparent; border-radius: 4px; color: var(--text); cursor: pointer; }
+.ra-btn:hover, .ra-btn:focus-visible { background: var(--hover-bg); }
+.ra-label { display: inline-flex; align-items: center; gap: 4px; font: 12px var(--font-ui); color: var(--text-muted); margin: 0 4px; }
+.ra-speed { width: 70px; }
+.ra-select { max-width: 150px; font: 12px var(--font-ui); background: var(--panel-bg); color: var(--text); border: 1px solid var(--control-border-soft, var(--border)); border-radius: 3px; }
+.odt-doc .ra-word { background: color-mix(in srgb, #7c8cf8 40%, transparent); }
+/* Accessibility pane */
+.acc-pane { display: flex; flex-direction: column; gap: 10px; padding: 10px 12px; overflow: auto; flex: 1; min-height: 0; }
+.acc-head { display: flex; align-items: center; gap: 6px; font-size: 13px; margin: 0 0 4px; }
+.acc-group.error .acc-icon { color: #e3342f; } .acc-group.warning .acc-icon { color: #e8a33c; } .acc-group.tip .acc-icon { color: var(--accent); }
+.acc-item { border-left: 2px solid var(--control-border-soft, var(--border)); padding: 4px 0 6px 8px; margin-bottom: 4px; display: flex; flex-direction: column; gap: 3px; }
+.acc-go { display: flex; flex-direction: column; align-items: flex-start; background: transparent; border: 0; padding: 0; color: var(--text); font: 12.5px var(--font-ui); text-align: left; cursor: pointer; }
+.acc-go:hover .acc-rule { text-decoration: underline; }
+.acc-rule { font-weight: 600; }
+.acc-label { color: var(--text-muted); font-size: 11.5px; }
+.acc-why { color: var(--text-muted); font-size: 11.5px; }
+.acc-fix { align-self: flex-start; }
+.acc-good { display: flex; gap: 8px; align-items: flex-start; color: var(--text); }
+/* Restrict Editing */
+.rst-pane { display: flex; flex-direction: column; gap: 8px; padding: 10px 12px; }
+.rst-pane h3 { font-size: 13px; margin: 6px 0 0; }
+.rst-actions { display: flex; gap: 6px; }
+.cmp-row { display: flex; gap: 8px; align-items: center; }
+.cmp-file { color: var(--text-muted); font-size: 12px; }

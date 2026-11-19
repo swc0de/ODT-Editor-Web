@@ -358,7 +358,7 @@ function updatedMeta(state) {
 
 // ------------------------------------------------------------------ main
 
-const DEFAULT_SETTINGS = `${XML_DECL}<office:document-settings xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0" xmlns:config="urn:oasis:names:tc:opendocument:xmlns:config:1.0" office:version="1.3"><office:settings><config:config-item-set config:name="ooo:view-settings"><config:config-item config:name="ViewAreaTop" config:type="long">0</config:config-item></config:config-item-set></office:settings></office:document-settings>\n`;
+export const DEFAULT_SETTINGS = `${XML_DECL}<office:document-settings xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0" xmlns:config="urn:oasis:names:tc:opendocument:xmlns:config:1.0" office:version="1.3"><office:settings><config:config-item-set config:name="ooo:view-settings"><config:config-item config:name="ViewAreaTop" config:type="long">0</config:config-item></config:config-item-set></office:settings></office:document-settings>\n`;
 
 /**
  * @param {object} state DocumentState

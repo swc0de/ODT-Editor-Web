@@ -47,6 +47,9 @@ import { userName, userInitials } from './features/review/track.js';
 import { createReviewingPane } from './ui/reviewing-pane.js';
 import { proofingPlugin, problemAt, suggestions, addToDictionary, ignoreAll, recheckAll } from './core/proofing.js';
 import { createEditorPane } from './ui/editor-pane.js';
+import { createAccessibilityPane } from './ui/accessibility-pane.js';
+import { createReadAloud, readAloudPlugin } from './features/review/read-aloud.js';
+import { applyRestriction, savedRestriction } from './features/review/extras.js';
 import { refreshCitations } from './features/references/citations.js';
 import { renderEquation } from './ui/equation-editor.js';
 import { renderChartFrame } from './ui/chart-dialog.js';
@@ -130,7 +133,7 @@ function boot() {
     },
     openFiles(files) { if (files[0]) session.openFile(files[0]).then((ok) => { if (ok) store.set({ backstageOpen: false }); }); },
     priorityPlugins: () => [flushSelectionPlugin(), new Plugin({ props: { handleKeyDown: (_v, e) => !!ui.handleEditorKey?.(e) } }), ...(ui.objects ? [ui.objects.keyPlugin] : []), tableKeymap, ...editingPlugins(() => ({ ...AUTOCORRECT_DEFAULTS, ...(getSetting('autocorrect') || {}) }), makeList)],
-    extraPlugins: () => [...docArea.plugins(), proofingPlugin({ enabled: () => getSetting('checkSpelling') !== false, fallback: () => 'en-GB', onProblems: () => { if (ui.editorPane?.isOpen) ui.editorPane.render(false); } }), trackChangesPlugin({ isOn: () => store.get().trackChanges, author: userName, display: () => store.get().reviewDisplay, hidden: () => store.get().reviewHide }), editablePlugin(() => store.get().editingMode !== 'viewing'), sequencePlugin(), notesNumberingPlugin(() => session?.state, () => (docArea.pages.length ? (pos) => docArea.pageAt(pos) : null)), ...tablePlugins(tableUI), linkFollowPlugin(() => store.get().editingMode === 'viewing'), searchPlugin(), listLabelsPlugin((name) => getListStyle(ctx(), name))],
+    extraPlugins: () => [...docArea.plugins(), readAloudPlugin(), proofingPlugin({ enabled: () => getSetting('checkSpelling') !== false, fallback: () => 'en-GB', onProblems: () => { if (ui.editorPane?.isOpen) ui.editorPane.render(false); } }), trackChangesPlugin({ isOn: () => store.get().trackChanges, author: userName, display: () => store.get().reviewDisplay, hidden: () => store.get().reviewHide }), editablePlugin(() => store.get().editingMode !== 'viewing'), sequencePlugin(), notesNumberingPlugin(() => session?.state, () => (docArea.pages.length ? (pos) => docArea.pageAt(pos) : null)), ...tablePlugins(tableUI), linkFollowPlugin(() => store.get().editingMode === 'viewing'), searchPlugin(), listLabelsPlugin((name) => getListStyle(ctx(), name))],
     pasteMode(event) {
       const once = clipboard?.takeMode();
       if (once) return once;
@@ -183,6 +186,7 @@ function boot() {
     ui.trackEdit?.(tr, view.state);
     scheduleSync(tr.docChanged && !tr.getMeta('load'));
     if ((tr.selectionSet || tr.docChanged) && !tr.getMeta('pagination') && ui.comments && view === editor.view) queueMicrotask(() => ui.comments.onSelection(editor.view.state));
+    if (tr.docChanged && !tr.getMeta('pagination')) ui.accessibilityPane?.changed();
     if (tr.docChanged && ui.reviewingPane?.isOpen) { clearTimeout(rvTimer); rvTimer = setTimeout(() => ui.reviewingPane.render(), 300); }
   };
   let rvTimer = 0;
@@ -359,6 +363,13 @@ function boot() {
 
   const mini = createMiniToolbar({ registry, store, editor });
   ui.editorPane = createEditorPane({ dock: rightDock, getEditor: () => editor });
+  ui.accessibilityPane = createAccessibilityPane({ dock: rightDock, getEditor: () => editor, getSession: () => session, getPages: () => docArea.pages.length, runCommand: (id) => registry.run(id) });
+  ui.readAloud = createReadAloud({ store, getView: () => editor.view, container: () => docArea.el });
+  ui.io = { importOdt, exportOdt };
+  // Editing ▾ Viewing (and Restrict Editing) switch the document to read-only and back.
+  store.subscribe((s, changed) => {
+    if (changed.includes('editingMode') && editor) editor.view.dispatch(editor.view.state.tr.setMeta('tcView', true).setMeta('addToHistory', false).setMeta('pagination', true));
+  });
   attachContextMenu({
     registry, editor, mini,
     // A misspelled word: its suggestions, Ignore All and Add to Dictionary first.
@@ -428,7 +439,10 @@ function boot() {
     toast,
     onLoad(state) {
       // A document saved with Track Changes on opens with it on.
-      store.set((st) => ({ trackChanges: !!state.trackChanges, editingMode: state.trackChanges ? 'reviewing' : (st.editingMode === 'reviewing' ? 'editing' : st.editingMode) }));
+      store.set((st) => ({ trackChanges: !!state.trackChanges, restrict: null, trackLock: false, editingMode: state.trackChanges ? 'reviewing' : (st.editingMode === 'reviewing' || st.editingMode === 'viewing' ? 'editing' : st.editingMode) }));
+      // Restrict Editing saved in the document.
+      const restriction = savedRestriction(state);
+      if (restriction) queueMicrotask(() => applyRestriction(ctx(), restriction));
       for (const url of pictureUrls.values()) URL.revokeObjectURL(url);
       pictureUrls = new Map();
       docArea.applyDocument(state);

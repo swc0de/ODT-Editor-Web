@@ -3,6 +3,8 @@ import { defineCommands } from '../define.js';
 import { setTracking, refreshView, resolveHere, resolveAll, gotoChange, reviewers, hasChanges, changesHere, userName, userInitials, setUser } from './track.js';
 import { trackingOptionsDialog, reviewersDialog } from '../../ui/review-dialogs.js';
 import { wordCount, setLanguage } from './proofing.js';
+import { compareDocuments, openRestrictPane } from './extras.js';
+import { canSpeak } from './read-aloud.js';
 import { hasComments, deleteCurrent, deleteAll, gotoComment, openCommentsPane, closeCommentsPane, currentThread } from './comments.js';
 import { authorKey } from '../../core/schema.js';
 
@@ -18,8 +20,8 @@ export const commands = defineCommands('review', {
   spelling: { icon: 'spelling', shortcut: 'F7', isEnabled: (c) => !!c.mainEditor, run: (c) => c.ui.editorPane.open() },
   thesaurus: { icon: 'thesaurus', shortcut: 'Shift-F7' },
   wordCount: { icon: 'word-count', shortcut: 'Mod-Shift-g', isEnabled: (c) => !!c.mainEditor, run: wordCount },
-  readAloud: { icon: 'read-aloud' },
-  checkAccessibility: { icon: 'accessibility' },
+  readAloud: { icon: 'read-aloud', isEnabled: (c) => !!c.mainEditor && canSpeak(), isChecked: (c) => !!c.state.readingAloud, run: (c) => c.ui.readAloud.toggle() },
+  checkAccessibility: { icon: 'accessibility', isEnabled: (c) => !!c.mainEditor, run: (c) => c.ui.accessibilityPane.open() },
   translate: { icon: 'translate' },
   language: { icon: 'language', isEnabled: (c) => !!c.editor && canEdit(c), run: setLanguage },
   setProofingLanguage: { isEnabled: (c) => !!c.editor && canEdit(c), run: setLanguage },
@@ -93,10 +95,10 @@ export const commands = defineCommands('review', {
   rejectAllAndStop: { isEnabled: (c) => canEdit(c) && (hasChanges(c) || !!c.state.trackChanges), run: (c) => { resolveAll(c, false); setTracking(c, false); } },
   previousChange: { icon: 'previous', isEnabled: hasChanges, run: (c) => gotoChange(c, -1) },
   nextChange: { icon: 'next', isEnabled: hasChanges, run: (c) => gotoChange(c, 1) },
-  compare: { icon: 'compare' },
-  compareDocuments: {},
+  compare: { icon: 'compare', menuOnly: true },
+  compareDocuments: { isEnabled: (c) => !!c.mainEditor, run: compareDocuments },
   combineDocuments: {},
-  restrictEditing: { icon: 'restrict' },
+  restrictEditing: { icon: 'restrict', isEnabled: (c) => !!c.mainEditor, isChecked: (c) => !!c.state.restrict, run: openRestrictPane },
 });
 
 export const ribbon = {
