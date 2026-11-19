@@ -39,20 +39,20 @@ export function ensureIndexStyles(c, names) {
   editState(c.mainEditor.view, c.session.state, ['commonStyles'], (st) => { const a = ensureStyles(st, 'paragraph', names); const b = ensureStyles(st, 'text', names); return a || b; });
 }
 
-/** Inserts a block node at the caret: replacing an empty paragraph, else before the current top-level block. */
+/**
+ * Inserts a block node (an index) before the current top-level block; the
+ * caret stays in that block, after the new node (an empty paragraph is
+ * kept, so there is always somewhere to type after a table at the end).
+ */
 export function insertBlockAtCaret(c, node) {
   const view = c.mainEditor.view;
   const { $from } = view.state.selection;
   const tr = view.state.tr;
-  let pos;
-  if ($from.depth >= 1 && $from.parent.isTextblock && !$from.parent.content.size && $from.depth === 1) {
-    pos = $from.before(1);
-    tr.replaceWith(pos, pos + $from.parent.nodeSize, node);
-  } else {
-    pos = $from.depth >= 1 ? $from.before(1) : $from.pos;
-    tr.insert(pos, node);
-  }
-  tr.setSelection(TextSelection.near(tr.doc.resolve(pos + 1)));
+  const pos = $from.depth >= 1 ? $from.before(1) : $from.pos;
+  tr.insert(pos, node);
+  const after = pos + node.nodeSize;
+  if (after >= tr.doc.content.size) tr.insert(after, schema.nodes.paragraph.create({ styleName: 'Standard' }));
+  tr.setSelection(TextSelection.near(tr.doc.resolve(Math.min(after + 1, tr.doc.content.size))));
   view.dispatch(tr.scrollIntoView());
   view.focus();
   return pos;

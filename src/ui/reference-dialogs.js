@@ -77,4 +77,75 @@ export async function footnoteDialog(cur, initialCls = 'footnote') {
   return { action, cls: loc.value(), position: position.value, numFormat: format.value, startAt: Math.max(1, Number(start.value) || 1), restart: restart.value, mark: mark.value.trim() || null, convert: convert.value || null };
 }
 
+/**
+ * Insert Caption. labels: available labels; cur = { label, position }.
+ * → { label, text, position, excludeLabel, numFormat } or null
+ */
+export async function captionDialog(labels, cur) {
+  let list = [...labels];
+  const label = select(list.map((l) => [l, l]), cur.label);
+  const textIn = text('', { 'aria-label': t('ref.captionText') });
+  const prefix = h('span', { class: 'cap-prefix' });
+  const exclude = check(t('ref.excludeLabel'), false);
+  const position = select([['below', t('ref.belowItem')], ['above', t('ref.aboveItem')]], cur.position);
+  const numFormat = select(FORMATS(), '1');
+  const drawPrefix = () => { prefix.textContent = `${exclude.input.checked ? '' : `${label.value} `}${{ 1: '1', a: 'a', A: 'A', i: 'i', I: 'I' }[numFormat.value]}: `; };
+  [label, numFormat].forEach((x) => x.addEventListener('change', drawPrefix));
+  exclude.input.addEventListener('change', drawPrefix);
+  drawPrefix();
+  const newLabel = h('button', { type: 'button', class: 'dlg-btn', onclick: async () => {
+    const name = text('');
+    const ok = await showDialog({ title: t('ref.newLabel'), message: field(t('ref.labelName'), name, { wide: true }), buttons: okCancel(), cancelValue: false, validate: () => /^[\p{L}\p{N} _-]+$/u.test(name.value.trim()) });
+    const v = name.value.trim();
+    if (!ok || !v) return;
+    if (!list.includes(v)) { list = [...list, v]; label.append(h('option', { value: v }, v)); }
+    label.value = v;
+    drawPrefix();
+  } }, t('ref.newLabel'));
+  const body = h('div', { class: 'ref-dlg cap-dlg' },
+    h('label', { class: 'fm-label' }, t('ref.captionLabel')),
+    h('div', { class: 'cap-line' }, prefix, textIn),
+    group(t('ref.options'), row(field(t('ref.label'), label), field(t('ref.position'), position)), exclude, row(field(t('ref.numberFormat'), numFormat), newLabel)));
+  const ok = await showDialog({ title: t('ref.captionTitle'), message: body, buttons: okCancel(), cancelValue: false });
+  if (!ok) return null;
+  return { label: label.value, text: textIn.value.trim(), position: position.value, excludeLabel: exclude.input.checked, numFormat: numFormat.value };
+}
+
+/** Table of Figures. labels, cur = TOF options → options or null */
+export async function tofDialog(labels, cur) {
+  const label = select(labels.map((l) => [l, l]), cur.label);
+  const include = check(t('ref.includeLabel'), cur.includeLabel);
+  const pages = check(t('ref.showPageNumbers'), cur.pageNumbers);
+  const right = check(t('ref.rightAlign'), cur.rightAlign);
+  const leader = select(LEADERS(), cur.leader);
+  const links = check(t('ref.useLinks'), cur.links);
+  const body = h('div', { class: 'ref-dlg' }, pages, right, field(t('ref.tabLeader'), leader), links, group(t('ref.general'), field(t('ref.captionLabelPick'), label), include));
+  const ok = await showDialog({ title: t('ref.tofTitle'), message: body, buttons: okCancel(), cancelValue: false });
+  if (!ok) return null;
+  return { label: label.value, includeLabel: include.input.checked, pageNumbers: pages.input.checked, rightAlign: right.input.checked, leader: leader.value, links: links.input.checked };
+}
+
+/**
+ * Cross-reference. api: types [[id, label]], items(type) → [{id,label}], formats(type) → [[fmt, key]].
+ * → { type, id, format } or null
+ */
+export async function crossRefDialog(api, initialType = 'heading') {
+  const type = select(api.types, initialType);
+  const format = select([], '');
+  const list = h('select', { class: 'src-list xref-list', size: '10', 'aria-label': t('ref.forWhich') });
+  const empty = h('div', { class: 'menu-note' });
+  const draw = () => {
+    format.replaceChildren(...api.formats(type.value).map(([v, k]) => h('option', { value: v }, t(k))));
+    const items = api.items(type.value);
+    list.replaceChildren(...items.map((it, i) => { const o = h('option', { value: it.id }, it.label); if (i === 0) o.selected = true; return o; }));
+    empty.textContent = items.length ? '' : t('ref.noItems');
+  };
+  type.addEventListener('change', draw);
+  draw();
+  const body = h('div', { class: 'ref-dlg xref-dlg' }, row(field(t('ref.refType'), type), field(t('ref.insertRefTo'), format)), h('label', { class: 'fm-label' }, t('ref.forWhich')), list, empty);
+  const ok = await showDialog({ title: t('ref.crossRefTitle'), message: body, buttons: [{ label: t('ref.insert'), value: true, primary: true }, { label: t('common.cancel'), value: false }], cancelValue: false, validate: () => !!list.value });
+  if (!ok || !list.value) return null;
+  return { type: type.value, id: list.value, format: format.value };
+}
+
 export { field, number, select, check, radios, row, group, text, okCancel };

@@ -111,3 +111,8 @@
 .cite-tag { font-weight: 600; }
 .cite-label { font-size: 11px; color: var(--text-muted); max-width: 340px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .menu-note { padding: 6px 12px; color: var(--text-muted); font-size: 12px; }
+.cap-line { display: flex; align-items: center; gap: 4px; border: 1px solid var(--control-border, var(--border)); border-radius: 3px; padding: 0 0 0 6px; background: var(--input-bg, var(--panel-bg)); }
+.cap-line .fm-input { flex: 1; border: 0; }
+.cap-prefix { white-space: pre; color: var(--text); }
+.xref-dlg { min-width: 460px; }
+.xref-list { min-height: 180px; }

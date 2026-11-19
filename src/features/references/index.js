@@ -1,8 +1,10 @@
 /** References tab: TOC, Footnotes, Citations & Bibliography, Captions, Index (M8). */
 import { defineCommands } from '../define.js';
+import { t } from '../../i18n/index.js';
 import { insertToc, removeToc, updateAllTocs, outlineLevelAt, setOutlineLevel } from './toc.js';
 import { findIndexes, tocOptions, TOC_DEFAULTS } from '../../core/indexes.js';
-import { tocDialog, updateTableDialog, footnoteDialog } from '../../ui/reference-dialogs.js';
+import { tocDialog, updateTableDialog, footnoteDialog, captionDialog, tofDialog, crossRefDialog } from '../../ui/reference-dialogs.js';
+import { insertCaption, captionLabels, suggestedLabel, insertTableOfFigures, updateTablesOfFigures, hasTof, tofOptions, TOF_DEFAULTS, refItems, refFormats, insertCrossReference, updateFields } from './captions.js';
 import { insertCitation, insertBibliography, refreshCitations, allSources, bibState, setCitationStyle, saveSources, deleteSource, citationsOf, formatWith } from './citations.js';
 import { sourceDialog, placeholderDialog, manageSourcesDialog } from '../../ui/source-dialogs.js';
 import { sourceLabel } from '../../core/bibliography.js';
@@ -106,10 +108,35 @@ export const commands = defineCommands('references', {
   bibliography: { icon: 'bibliography', isEnabled: bodyOnly, menuOnly: true },
   insertBibliography: { isEnabled: bodyOnly, run: (c, kind) => insertBibliography(c, typeof kind === 'string' ? kind : null) },
   updateCitations: { icon: 'update-table', isEnabled: (c) => canEdit(c) && !!c.mainEditor, run: (c) => refreshCitations(c, { history: true }) },
-  insertCaption: { icon: 'caption' },
-  insertTableOfFigures: { icon: 'table-of-figures' },
-  updateFigures: { icon: 'update-table' },
-  crossReference: { icon: 'cross-reference' },
+  insertCaption: {
+    icon: 'caption', isEnabled: bodyOnly,
+    run: async (c) => {
+      const label = suggestedLabel(c);
+      const r = await captionDialog(captionLabels(c), { label, position: label === 'Table' ? 'above' : 'below' });
+      if (r) insertCaption(c, r);
+    },
+  },
+  insertTableOfFigures: {
+    icon: 'table-of-figures', isEnabled: bodyOnly,
+    run: async (c) => {
+      const cur = findIndexes(c.mainEditor.view.state.doc).find((x) => /illustration-index|table-index/.test(x.node.attrs.element));
+      const r = await tofDialog(captionLabels(c), cur ? tofOptions(cur.node.attrs.source) : TOF_DEFAULTS);
+      if (r) insertTableOfFigures(c, r);
+    },
+  },
+  updateFigures: {
+    icon: 'update-table', isEnabled: (c) => bodyOnly(c) && hasTof(c),
+    run: async (c) => { const mode = await updateTableDialog('figures'); if (mode) updateTablesOfFigures(c); },
+  },
+  crossReference: {
+    icon: 'cross-reference', isEnabled: bodyOnly,
+    run: async (c) => {
+      const types = [['heading', t('ref.type.heading')], ['bookmark', t('ref.type.bookmark')], ['footnote', t('ref.type.footnote')], ['endnote', t('ref.type.endnote')], ...captionLabels(c).map((l) => [l, l])];
+      const r = await crossRefDialog({ types, items: (type) => refItems(c, type), formats: refFormats });
+      if (r) insertCrossReference(c, r);
+    },
+  },
+  updateFields: { icon: 'update-table', shortcut: 'F9', isEnabled: (c) => canEdit(c) && !!c.mainEditor, run: updateFields },
   markEntry: { icon: 'mark-entry', shortcut: 'Alt-Shift-x' },
   insertIndex: { icon: 'insert-index' },
   updateIndex: { icon: 'update-table' },

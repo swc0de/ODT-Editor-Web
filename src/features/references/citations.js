@@ -115,7 +115,7 @@ export function bibliographySource(title) {
   return {
     n: 'text:bibliography-source', a: {},
     c: [
-      { n: 'text:index-title-template', a: { 'text:style-name': 'Bibliography_20_Heading' }, c: title ? [title] : [] },
+      { n: 'text:index-title-template', a: { 'text:style-name': 'Bibliography_20_Heading' }, ...(title ? { c: [title] } : {}) },
       ...ODF_TYPES.map((type) => ({ n: 'text:bibliography-entry-template', a: { 'text:bibliography-type': type, 'text:style-name': 'Bibliography_20_1' }, c: [field('author'), span(' ('), field('year'), span('). '), field('title'), span('.')] })),
     ],
   };

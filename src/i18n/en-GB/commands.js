@@ -362,6 +362,7 @@ export default {
   'cmd.references.markEntry': 'Mark Entry',
   'cmd.references.insertIndex': 'Insert Index',
   'cmd.references.updateIndex': 'Update Index',
+  'cmd.references.updateFields': 'Update Fields',
 
   // Mailings
   'cmd.mailings.envelopes': 'Envelopes',

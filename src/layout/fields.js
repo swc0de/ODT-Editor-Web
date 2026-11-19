@@ -6,6 +6,7 @@
 import { Plugin, PluginKey } from 'prosemirror-state';
 import { Decoration, DecorationSet } from 'prosemirror-view';
 import { formatNumber } from '../core/commands/lists.js';
+import { REF_ELEMENTS, refText } from '../core/captions.js';
 
 export const fieldsKey = new PluginKey('pageFields');
 
@@ -28,9 +29,19 @@ export function fieldsPlugin() {
 export function updatePageFields(view, pages, model) {
   if (!pages.length) return;
   const items = [];
+  const pageOf = (pos) => {
+    let i = 0;
+    for (let k = pages.length - 1; k >= 0; k--) if (pages[k].startPos <= pos) { i = k; break; }
+    return String(pages[i].number ?? i + 1);
+  };
   view.state.doc.descendants((node, pos) => {
     if (node.type.name !== 'field') return true;
     const el = node.attrs.element;
+    // Cross-references to a page, or "above" / "below", follow the layout.
+    if (REF_ELEMENTS.has(el) && ['page', 'direction'].includes(node.attrs.fieldAttrs?.['text:reference-format'])) {
+      items.push([pos, node, refText(view.state.doc, node.attrs, pageOf, pos)]);
+      return false;
+    }
     if (el !== 'text:page-number' && el !== 'text:page-count') return false;
     let i = 0;
     for (let k = pages.length - 1; k >= 0; k--) if (pages[k].startPos <= pos) { i = k; break; }

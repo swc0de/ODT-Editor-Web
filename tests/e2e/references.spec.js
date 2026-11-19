@@ -43,7 +43,11 @@ async function roundTrip(page, name) {
     const b = io.importOdt(bytes);
     let bin = '';
     for (const c of bytes) bin += String.fromCharCode(c);
-    return { same: JSON.stringify(editor.getDoc().toJSON()) === JSON.stringify(b.doc.toJSON()), out: btoa(bin) };
+    const A = JSON.stringify(editor.getDoc().toJSON());
+    const B = JSON.stringify(b.doc.toJSON());
+    let i = 0;
+    while (i < A.length && A[i] === B[i]) i++;
+    return { same: A === B, diff: A === B ? null : [A.slice(Math.max(0, i - 200), i + 200), B.slice(Math.max(0, i - 200), i + 200)], out: btoa(bin) };
   });
   const bytes = Buffer.from(r.out, 'base64');
   const file = path.join(OUT, name);
@@ -291,6 +295,93 @@ test.describe('references', () => {
       const lo = libreOfficeResave(rt.file);
       expect(lo['content.xml']).toContain('text:identifier="smith2020"');
       expect(lo['content.xml']).toContain('text:bibliography');
+    }
+  });
+
+  test('captions, table of figures and cross-references (F9), round trip', async ({ page }) => {
+    await typeText(page, 'Methods');
+    await run(page, 'home.styleHeading1');
+    await page.keyboard.press('Enter');
+    await page.keyboard.type('A paragraph with a chart.');
+    // Insert Caption (Figure, below) twice, a table caption, then reorder.
+    for (const txt of ['First chart', 'Second chart']) {
+      await run(page, 'references.insertCaption');
+      await page.locator('.cap-line input').fill(txt);
+      await dialogOk(page);
+      await page.keyboard.press('End');
+      await page.keyboard.press('Enter');
+      await page.keyboard.type('Text after.');
+    }
+    const caps = () => page.evaluate(() => {
+      const out = [];
+      window.odtEditor.editor.view.state.doc.descendants((n) => { if (n.type.name === 'paragraph' && ['Figure', 'Table'].includes(n.attrs.styleName)) out.push(n.textContent); return true; });
+      return out;
+    });
+    await expect.poll(caps).toEqual(['Figure 1: First chart', 'Figure 2: Second chart']);
+    // Deleting the first caption renumbers the second.
+    await page.evaluate(() => {
+      const v = window.odtEditor.editor.view;
+      let at = null;
+      v.state.doc.descendants((n, pos) => { if (at == null && n.attrs?.styleName === 'Figure') at = [pos, pos + n.nodeSize]; return true; });
+      v.dispatch(v.state.tr.delete(at[0], at[1]));
+    });
+    await expect.poll(caps).toEqual(['Figure 1: Second chart']);
+    await page.evaluate(() => window.odtEditor.editor.focus());
+    await page.keyboard.press('Control+z');
+    await expect.poll(caps).toEqual(['Figure 1: First chart', 'Figure 2: Second chart']);
+    // Table of figures at the end.
+    await page.keyboard.press('Control+End');
+    await page.keyboard.press('Enter');
+    await run(page, 'references.insertTableOfFigures');
+    await dialogOk(page);
+    await settled(page);
+    const tof = () => page.evaluate(() => { let t = ''; window.odtEditor.editor.view.state.doc.descendants((n) => { if (n.type.name === 'index') { n.forEach((p) => { t += p.textContent + '\n'; }); return false; } return true; }); return t; });
+    await expect.poll(tof).toBe('Figure 1: First chart\t1\nFigure 2: Second chart\t1\n');
+    // Cross-references: to the second figure (label and number) and to the heading's page.
+    await page.keyboard.press('Control+End');
+    await page.keyboard.press('Enter');
+    await page.keyboard.type('See ');
+    await run(page, 'references.crossReference');
+    await page.locator('.xref-dlg select').first().selectOption('Figure');
+    await page.locator('.xref-dlg select').nth(1).selectOption('category-and-value');
+    await page.locator('.xref-list').selectOption({ index: 1 });
+    await page.locator('.dlg button.primary').click();
+    await page.keyboard.type(' on page ');
+    await run(page, 'references.crossReference');
+    await page.locator('.xref-dlg select').first().selectOption('heading');
+    await page.locator('.xref-dlg select').nth(1).selectOption('page');
+    await page.locator('.dlg button.primary').click();
+    await page.keyboard.type(', in ');
+    await run(page, 'references.crossReference');
+    await page.locator('.xref-dlg select').first().selectOption('heading');
+    await page.locator('.dlg button.primary').click();
+    const lastPara = () => page.evaluate(() => { const d = window.odtEditor.editor.view.state.doc; return d.lastChild.textContent + '|' + [...document.querySelectorAll('.page-flow .ProseMirror > p:last-child .odt-field')].map((f) => f.dataset.shown ?? f.textContent).join(','); });
+    await expect.poll(lastPara).toMatch(/^See Figure 2 on page 1, in Methods\|Figure 2,1,Methods$/);
+    // Rename the heading and the second caption moves first; F9 updates the references.
+    await page.evaluate(() => {
+      const v = window.odtEditor.editor.view;
+      const h = v.state.doc.firstChild;
+      const end = h.content.size; // before the bookmark-end atom
+      v.dispatch(v.state.tr.insertText(' and data', end, end));
+    });
+    await page.evaluate(() => window.odtEditor.editor.focus());
+    await page.keyboard.press('F9');
+    await expect.poll(lastPara).toMatch(/in Methods and data/);
+    const headingRefs = await page.evaluate(() => { const out = []; window.odtEditor.editor.view.state.doc.firstChild.forEach((n) => { if (n.type.name === 'bookmark') out.push(n.attrs.element); }); return out; });
+    expect(headingRefs).toEqual(['text:bookmark-start', 'text:bookmark-end']);
+    await settled(page);
+    const rt = await roundTrip(page, 'captions.odt');
+    expect(rt.diff).toBe(null);
+    expect(rt.same).toBe(true);
+    expect(rt.content).toMatch(/<text:sequence text:ref-name="refFigure\d" text:name="Figure" text:formula="ooow:Figure\+1" style:num-format="1">2<\/text:sequence>/);
+    expect(rt.content).toContain('<text:sequence-ref text:reference-format="category-and-value" text:ref-name="refFigure');
+    expect(rt.content).toMatch(/<text:bookmark-ref text:reference-format="page" text:ref-name="__RefHeading___Toc\d+_\d+">1<\/text:bookmark-ref>/);
+    expect(rt.content).toContain('<text:illustration-index ');
+    if (soffice) {
+      const lo = libreOfficeResave(rt.file);
+      expect(lo['content.xml']).toContain('text:sequence-ref');
+      expect(lo['content.xml']).toMatch(/text:bookmark-ref[^>]*>Methods and data</);
+      expect(lo['content.xml']).toContain('Second chart');
     }
   });
 });

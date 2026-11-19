@@ -41,6 +41,7 @@ import { createHeaderFooter } from './ui/header-footer.js';
 import { createObjectServices } from './ui/objects.js';
 import { notesNumberingPlugin } from './core/notes.js';
 import { findStyle } from './core/style-edit.js';
+import { sequencePlugin } from './core/captions.js';
 import { refreshCitations } from './features/references/citations.js';
 import { renderEquation } from './ui/equation-editor.js';
 import { renderChartFrame } from './ui/chart-dialog.js';
@@ -123,7 +124,7 @@ function boot() {
     },
     openFiles(files) { if (files[0]) session.openFile(files[0]).then((ok) => { if (ok) store.set({ backstageOpen: false }); }); },
     priorityPlugins: () => [new Plugin({ props: { handleKeyDown: (_v, e) => !!ui.handleEditorKey?.(e) } }), ...(ui.objects ? [ui.objects.keyPlugin] : []), tableKeymap, ...editingPlugins(() => ({ ...AUTOCORRECT_DEFAULTS, ...(getSetting('autocorrect') || {}) }), makeList)],
-    extraPlugins: () => [...docArea.plugins(), notesNumberingPlugin(() => session?.state, () => (docArea.pages.length ? (pos) => docArea.pageAt(pos) : null)), ...tablePlugins(tableUI), linkFollowPlugin(() => store.get().editingMode === 'viewing'), searchPlugin(), listLabelsPlugin((name) => getListStyle(ctx(), name))],
+    extraPlugins: () => [...docArea.plugins(), sequencePlugin(), notesNumberingPlugin(() => session?.state, () => (docArea.pages.length ? (pos) => docArea.pageAt(pos) : null)), ...tablePlugins(tableUI), linkFollowPlugin(() => store.get().editingMode === 'viewing'), searchPlugin(), listLabelsPlugin((name) => getListStyle(ctx(), name))],
     pasteMode(event) {
       const once = clipboard?.takeMode();
       if (once) return once;

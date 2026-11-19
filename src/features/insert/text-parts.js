@@ -102,6 +102,10 @@ export function goToTarget(view, href) {
       const want = target.slice(0, -8);
       const text = n.textContent.trim();
       if (text === want || want.replace(/^[\d.]+\s*/, '') === text) pos = p + 1;
+    } else if (target.endsWith('|sequence') && n.type.name === 'field' && n.attrs.element === 'text:sequence') {
+      // "#Figure!2|sequence": the caption with that number.
+      const [name, value] = target.slice(0, -9).split('!');
+      if (n.attrs.fieldAttrs['text:name'] === name && n.attrs.text === value) pos = p;
     }
     return true;
   });

@@ -20,7 +20,7 @@ export const TOC_DEFAULTS = { title: 'Contents', levels: 3, pageNumbers: true, r
 
 /** The text:table-of-content-source element for options. */
 export function tocSource(o) {
-  const c = [{ n: 'text:index-title-template', a: { 'text:style-name': 'Contents_20_Heading' }, c: o.title ? [o.title] : [] }];
+  const c = [{ n: 'text:index-title-template', a: { 'text:style-name': 'Contents_20_Heading' }, ...(o.title ? { c: [o.title] } : {}) }];
   for (let lv = 1; lv <= 10; lv++) {
     const parts = [];
     if (o.links) parts.push({ n: 'text:index-entry-link-start', a: { 'text:style-name': 'Index_20_Link' } });

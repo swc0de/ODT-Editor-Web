@@ -89,10 +89,13 @@ export const DEFAULT_STYLES_XML = `<?xml version="1.0" encoding="UTF-8"?>
   <style:style style:name="Table_20_Heading" style:display-name="Table Heading" style:family="paragraph" style:parent-style-name="Table_20_Contents" style:class="extra">
    <style:text-properties fo:font-weight="bold"/>
   </style:style>
-  <style:style style:name="Caption" style:family="paragraph" style:parent-style-name="Standard" style:class="extra">
+  <style:style style:name="Caption" style:family="paragraph" style:parent-style-name="Standard" style:next-style-name="Standard" style:class="extra">
    <style:paragraph-properties fo:margin-bottom="0.353cm" fo:line-height="100%"/>
    <style:text-properties fo:font-size="9pt" fo:font-style="italic" fo:color="#0e2841"/>
   </style:style>
+  <style:style style:name="Figure" style:family="paragraph" style:parent-style-name="Caption" style:next-style-name="Standard" style:class="extra"/>
+  <style:style style:name="Table" style:family="paragraph" style:parent-style-name="Caption" style:next-style-name="Standard" style:class="extra"/>
+  <style:style style:name="Equation" style:family="paragraph" style:parent-style-name="Caption" style:next-style-name="Standard" style:class="extra"/>
   <style:style style:name="Header" style:family="paragraph" style:parent-style-name="Standard" style:class="extra">
    <style:paragraph-properties fo:margin-bottom="0cm" fo:line-height="100%"><style:tab-stops><style:tab-stop style:position="7.96cm" style:type="center"/><style:tab-stop style:position="15.92cm" style:type="right"/></style:tab-stops></style:paragraph-properties>
   </style:style>
