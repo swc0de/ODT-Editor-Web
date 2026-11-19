@@ -43,7 +43,7 @@ import { notesNumberingPlugin } from './core/notes.js';
 import { findStyle } from './core/style-edit.js';
 import { sequencePlugin } from './core/captions.js';
 import { trackChangesPlugin, editablePlugin, flushSelectionPlugin } from './core/track-recording.js';
-import { userName } from './features/review/track.js';
+import { userName, userInitials } from './features/review/track.js';
 import { createReviewingPane } from './ui/reviewing-pane.js';
 import { refreshCitations } from './features/references/citations.js';
 import { renderEquation } from './ui/equation-editor.js';
@@ -77,6 +77,7 @@ function boot() {
   const registry = new CommandRegistry({ translate: t, context: () => ({ store, state: store.get(), ui, editor: activeEditor(), mainEditor: editor, session, clipboard }) });
   ui.registry = registry;
   ui.toast = (msg) => toast(msg);
+  ui.runCommand = (id, ...a) => registry.run(id, ...a);
   const ctx = () => ({ store, state: store.get(), ui, editor: activeEditor(), mainEditor: editor, session, clipboard });
   registerFeatures(registry);
   store.subscribe((s, changed) => {
@@ -179,6 +180,7 @@ function boot() {
     if (hasSelection !== store.get().hasSelection) store.set({ hasSelection });
     ui.trackEdit?.(tr, view.state);
     scheduleSync(tr.docChanged && !tr.getMeta('load'));
+    if ((tr.selectionSet || tr.docChanged) && !tr.getMeta('pagination') && ui.comments && view === editor.view) queueMicrotask(() => ui.comments.onSelection(editor.view.state));
     if (tr.docChanged && ui.reviewingPane?.isOpen) { clearTimeout(rvTimer); rvTimer = setTimeout(() => ui.reviewingPane.render(), 300); }
   };
   let rvTimer = 0;
@@ -252,6 +254,15 @@ function boot() {
   });
   Object.assign(editorEnv, ui.objects.env);
   docArea.notes.setCreateNested(ui.objects.createNested);
+  // Comment balloons (Review ▸ Comments).
+  ui.comments = docArea.attachComments({
+    createNested: ui.objects.createNested,
+    user: () => ({ author: userName(), initials: userInitials() }),
+    t,
+    isShown: () => { const s = store.get(); return !s.reviewHide?.comments && s.reviewDisplay !== 'none' && s.reviewDisplay !== 'original' && s.pageMovement !== 'side'; },
+    openMenu: (anchor, items) => openMenu({ anchor, items: items.map((it) => ({ label: it.label, run: it.run })) }),
+    onChange: () => docArea.relayout(),
+  });
   ui.objects.renderers.equation = renderEquation;
   ui.objects.renderers.chart = renderChartFrame;
   ui.objects.setAddPicture((bytes, type) => editorEnv.addPicture(bytes, type));
@@ -275,6 +286,8 @@ function boot() {
   const relayoutDocks = () => requestAnimationFrame(() => docArea.syncRulers());
   const leftDock = createDock('left', { onResize: relayoutDocks });
   const rightDock = createDock('right', { onResize: relayoutDocks });
+  ui.rightDock = rightDock;
+  ui.leftDock = leftDock;
   ui.findDialog = createFindDialog({ editor, docArea, toast });
   const nav = createNavigationPane({ dock: leftDock, editor, docArea, store, openReplace: (tab, q) => ui.findDialog.open(tab, q) });
   ui.nav = nav;

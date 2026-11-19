@@ -96,7 +96,7 @@ export function createNotesLayer({ layer, getView, getModel, getZoom, isEndnoteM
         const f = find();
         if (!f) return;
         const view = getView();
-        view.dispatch(view.state.tr.setNodeMarkup(f.pos, null, attrs).setMeta('noteEdit', true));
+        view.dispatch(view.state.tr.setNodeMarkup(f.pos, null, attrs).setMeta('noteEdit', true).setMeta('tcSkip', true));
       },
     };
   }

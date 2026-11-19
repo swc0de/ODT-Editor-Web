@@ -2,6 +2,7 @@
 import { defineCommands } from '../define.js';
 import { setTracking, refreshView, resolveHere, resolveAll, gotoChange, reviewers, hasChanges, changesHere, userName, userInitials, setUser } from './track.js';
 import { trackingOptionsDialog, reviewersDialog } from '../../ui/review-dialogs.js';
+import { hasComments, deleteCurrent, deleteAll, gotoComment, openCommentsPane, closeCommentsPane, currentThread } from './comments.js';
 import { authorKey } from '../../core/schema.js';
 
 const canEdit = (c) => !!c.mainEditor && c.state.editingMode !== 'viewing';
@@ -22,14 +23,14 @@ export const commands = defineCommands('review', {
   language: { icon: 'language' },
   setProofingLanguage: {},
   languagePreferences: {},
-  deleteComment: { icon: 'delete-comment' },
-  deleteAllShown: {},
-  deleteAllComments: {},
-  previousComment: { icon: 'previous' },
-  nextComment: { icon: 'next' },
-  showComments: { icon: 'show-comments' },
-  commentsContextual: {},
-  commentsList: {},
+  deleteComment: { icon: 'delete-comment', isEnabled: (c) => canEdit(c) && hasComments(c) && !!currentThread(c), run: deleteCurrent },
+  deleteAllShown: { isEnabled: (c) => canEdit(c) && hasComments(c), run: (c) => deleteAll(c, { shownOnly: true }) },
+  deleteAllComments: { isEnabled: (c) => canEdit(c) && hasComments(c), run: (c) => deleteAll(c) },
+  previousComment: { icon: 'previous', isEnabled: hasComments, run: (c) => gotoComment(c, -1) },
+  nextComment: { icon: 'next', isEnabled: hasComments, run: (c) => gotoComment(c, 1) },
+  showComments: { icon: 'show-comments', isEnabled: (c) => !!c.mainEditor, menuOnly: true },
+  commentsContextual: { isEnabled: (c) => !!c.mainEditor, isChecked: (c) => c.state.commentsView !== 'list', run: (c) => { closeCommentsPane(c); c.store.set((s) => ({ commentsView: 'contextual', reviewHide: { ...s.reviewHide, comments: false } })); refreshView(c); } },
+  commentsList: { isEnabled: (c) => !!c.mainEditor, isChecked: (c) => c.state.commentsView === 'list', run: openCommentsPane },
   trackChanges: {
     icon: 'track-changes', shortcut: 'Mod-Shift-e', isEnabled: (c) => canEdit(c) && !c.state.trackLock,
     isChecked: (c) => !!c.state.trackChanges, run: (c) => setTracking(c, !c.state.trackChanges),

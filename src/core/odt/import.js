@@ -523,7 +523,7 @@ export function createConverter({ ns, autoIndex, styleIndex, objectKind = null, 
       const n = q(c);
       if (n === 'dc:creator') creator = c.textContent;
       else if (n === 'dc:date') date = c.textContent;
-      else if (n === 'meta:creator-initials' || n === 'loext:sender-initials') { initials = c.textContent; extra['#initialsEl'] = n; }
+      else if (n === 'meta:creator-initials' || n === 'loext:sender-initials') { initials = c.textContent; if (n !== 'meta:creator-initials') extra['#initialsEl'] = n; }
       else body.push(...block(c));
     }
     return { name: a['office:name'] || null, creator, date, initials, body: normalBody(body), extra: Object.keys(extra).length ? extra : null };

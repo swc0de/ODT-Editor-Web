@@ -15,6 +15,7 @@ import { renderLineNumbers } from './line-numbers.js';
 import { fieldsPlugin, updatePageFields } from './fields.js';
 import { renderRepeatedRows } from './repeat-rows.js';
 import { createNotesLayer } from './notes-layer.js';
+import { createCommentsLayer } from './comments-layer.js';
 import { notesConfig, numberNotes } from '../core/notes.js';
 import { hyphenation } from '../core/page-setup.js';
 import { buildPageModel, measureMasters } from './page-model.js';
@@ -153,6 +154,7 @@ export function createDocumentArea({ store, getEditor, getSession, onPagesChange
         renderRepeatedRows({ view: getEditor().view, layer: view.repeatLayer, zoom: options().zoom, origin: () => view.stack });
       });
       notes.render(pages);
+      comments?.render();
       // Footnotes numbered per page: renumber once the pages are known.
       const st = getSession()?.state;
       if (st && notesConfig(st, 'footnote').restart === 'page') {
@@ -284,14 +286,31 @@ export function createDocumentArea({ store, getEditor, getSession, onPagesChange
     }
   });
 
+  /** Comment balloons: created once the nested-editor factory exists (attachComments). */
+  let comments = null;
+  function attachComments(o) {
+    comments = createCommentsLayer({
+      layer: view.commentsLayer,
+      getView: () => getEditor()?.view,
+      getZoom: () => options().zoom,
+      origin: () => view.stack,
+      pageRight: (pos) => { const el = view.pageElement(paginator?.pageAt(pos) ?? 0); return el ? el.offsetLeft + el.offsetWidth : 800; },
+      onCount: (n) => view.stack.classList.toggle('with-comments', n > 0 && !view.commentsLayer.hidden),
+      ...o,
+    });
+    return comments;
+  }
+
   return {
     el: area,
+    attachComments,
+    get comments() { return comments; },
     canvas,
     view,
     rulers,
     attach,
     applyDocument,
-    plugins: () => [notes.plugin, paginationPlugin(), regionsPlugin(() => model, () => styleIndex), hyphenationPlugin(() => ({ index: styleIndex, caps: hyphCaps, any: hyphAny })), fieldsPlugin()],
+    plugins: () => [notes.plugin, ...(comments ? [comments.plugin] : []), paginationPlugin(), regionsPlugin(() => model, () => styleIndex), hyphenationPlugin(() => ({ index: styleIndex, caps: hyphCaps, any: hyphAny })), fieldsPlugin()],
     /** After a document change. */
     update: () => paginator?.update(),
     relayout: () => paginator?.relayout(),

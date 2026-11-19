@@ -1,5 +1,6 @@
 /** Insert tab: Pages, Tables, Illustrations, Links, Comments, Header & Footer, Text, Symbols. */
 import { defineCommands } from '../define.js';
+import { newComment } from '../review/comments.js';
 import { applyPreset, pageNumberAt, removePageNumbers, fields, insertInline, pageNumberFormat, setPageNumberFormat } from '../headerfooter/actions.js';
 import { insertDateTime } from '../headerfooter/index.js';
 import { pageNumberDialog } from '../../ui/layout-dialogs.js';
@@ -43,8 +44,8 @@ export const commands = defineCommands('insert', {
   link: { icon: 'link', shortcut: 'Mod-k', isEnabled: canEdit, run: editLink },
   removeLink: { icon: 'unlink', isEnabled: (c) => canEdit(c) && !!linkAt(c.editor.view.state), run: (c) => { const l = linkAt(c.editor.view.state); if (l) { const v = c.editor.view; v.dispatch(v.state.tr.removeMark(l.from, l.to, v.state.schema.marks.link)); c.editor.focus(); } } },
   bookmark: { icon: 'bookmark', isEnabled: canEdit, run: bookmarks },
-  crossReference: { icon: 'cross-reference' },
-  comment: { icon: 'comment', shortcut: 'Mod-Alt-m' },
+  crossReference: { icon: 'cross-reference', isEnabled: (c) => canEdit(c) && c.editor === c.mainEditor, run: (c) => c.ui.runCommand?.('references.crossReference') },
+  comment: { icon: 'comment', shortcut: 'Mod-Alt-m', isEnabled: (c) => !!c.mainEditor && c.editor === c.mainEditor && c.state.editingMode !== 'viewing' && c.state.restrict !== 'readonly', run: newComment },
   header: { icon: 'header', isEnabled: canEdit, run: (c, preset) => (typeof preset === 'string' ? applyPreset(c, 'header', preset) : c.ui.hf.open({ part: 'header' })) },
   editHeader: { isEnabled: canEdit, run: (c) => c.ui.hf.open({ part: 'header' }) },
   removeHeader: { isEnabled: canEdit, run: (c) => c.ui.hf.remove('header') },

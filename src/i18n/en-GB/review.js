@@ -37,4 +37,13 @@ export default {
   'lang.mark': 'Mark selected text as:',
   'lang.noProof': 'Do not check spelling or grammar',
   'lang.hint': 'The speller and other proofing tools automatically use dictionaries of the selected language, if available.',
+  'cmt.text': 'Comment text',
+  'cmt.reply': 'Reply',
+  'cmt.resolve': 'Resolve',
+  'cmt.reopen': 'Reopen',
+  'cmt.delete': 'Delete thread',
+  'cmt.more': 'More thread actions',
+  'cmt.none': 'There are no comments in this document. Select some text and choose New Comment.',
+  'cmt.new': 'New',
+  'cmt.paneTitle': 'Comments',
 };

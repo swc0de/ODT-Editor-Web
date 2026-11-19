@@ -121,3 +121,37 @@
 .fn-text .ProseMirror { outline: none; min-height: 1em; }
 .fn-text .ProseMirror:focus-visible { outline: 1px dashed color-mix(in srgb, var(--accent) 60%, transparent); outline-offset: 1px; }
 .notes-measure { position: absolute; left: 0; top: 0; visibility: hidden; pointer-events: none; }
+/* Comment balloons (comments-layer.js) */
+.page-stack.with-comments { margin-right: 300px; }
+.odt-doc.comments-layer { position: absolute; left: 0; top: 0; width: 100%; height: 0; min-height: 0; z-index: 3; }
+.comments-layer .cmt-card { position: absolute; width: 264px; }
+.cmt-card { box-sizing: border-box; background: var(--panel-bg, #2b2b2b); color: var(--text); border: 1px solid var(--control-border-soft, #444); border-radius: 6px; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25); padding: 8px 10px 6px; font: 12.5px var(--font-ui); transition: box-shadow 0.12s; }
+.cmt-card.is-active { border-color: var(--accent); box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35); }
+.cmt-card.is-resolved { opacity: 0.6; }
+.cmt-card.is-resolved .cmt-text { text-decoration: none; }
+.cmt-entry + .cmt-entry { margin-top: 8px; padding-top: 6px; border-top: 1px solid var(--control-border-soft, #444); padding-left: 10px; }
+.cmt-head { display: flex; align-items: center; gap: 6px; margin-bottom: 3px; }
+.cmt-avatar { flex: none; width: 22px; height: 22px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 600; color: #fff; background: #5b6ee1; }
+.cmt-avatar[data-author="0"] { background: #b5082e; } .cmt-avatar[data-author="1"] { background: #2b57d9; } .cmt-avatar[data-author="2"] { background: #127a3a; } .cmt-avatar[data-author="3"] { background: #8a3fb5; }
+.cmt-avatar[data-author="4"] { background: #c25e00; } .cmt-avatar[data-author="5"] { background: #00808a; } .cmt-avatar[data-author="6"] { background: #b0306a; } .cmt-avatar[data-author="7"] { background: #5c6b00; }
+.cmt-who { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cmt-date { margin-left: auto; color: var(--text-muted); font-size: 11px; white-space: nowrap; }
+.cmt-text .ProseMirror { outline: none; min-height: 1.3em; color: var(--text); }
+.cmt-text .ProseMirror :is(p, h1, h2, h3, h4, h5, h6) { font: 12.5px/1.35 var(--font-ui) !important; margin: 0 !important; color: inherit !important; text-indent: 0 !important; }
+.cmt-text .ProseMirror:focus { box-shadow: 0 1px 0 var(--accent); }
+.cmt-actions { display: flex; gap: 4px; margin-top: 6px; }
+.cmt-actions button { background: transparent; border: 1px solid transparent; border-radius: 3px; color: var(--text); font: 12px var(--font-ui); padding: 2px 6px; cursor: pointer; }
+.cmt-actions button:hover, .cmt-actions button:focus-visible { background: var(--hover-bg); border-color: var(--control-border-soft, #555); }
+.cmt-actions .cmt-more { margin-left: auto; }
+.cmt-lines { position: absolute; left: 0; top: 0; width: 1px; height: 1px; overflow: visible; pointer-events: none; }
+.cmt-line { fill: none; stroke: var(--accent); stroke-width: 1; stroke-dasharray: 3 2; }
+.odt-doc .cmt-range { background: color-mix(in srgb, #e8a33c 22%, transparent); }
+.odt-doc .cmt-range.is-active { background: color-mix(in srgb, #e8a33c 45%, transparent); }
+.odt-doc .cmt-range.is-resolved { background: color-mix(in srgb, #9e9e9e 18%, transparent); }
+.tc-show-none .cmt-range, .tc-show-original .cmt-range { background: none; }
+/* Comments pane (List view) */
+.cmt-pane { display: flex; flex-direction: column; gap: 8px; padding: 8px 10px; overflow: auto; flex: 1; min-height: 0; }
+.cmt-pane-bar { display: flex; justify-content: flex-end; }
+.cmt-list { display: flex; flex-direction: column; gap: 8px; }
+.cmt-list .cmt-card { position: static; width: auto; }
+.cmt-empty { color: var(--text-muted); padding: 12px 2px; }

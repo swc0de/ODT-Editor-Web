@@ -39,6 +39,8 @@ export const INITIAL_APP_STATE = Object.freeze({
   reviewDisplay: 'all', // 'simple' | 'all' | 'none' | 'original'
   reviewHide: { insdel: false, fmt: false, comments: false, authors: [] },
   reviewingPane: null, // null | 'vertical' | 'horizontal'
+  commentsView: 'contextual', // 'contextual' (balloons) | 'list' (Comments pane)
+  restrict: null, // null | 'readonly' | 'comments' | 'tracked'
   drawTool: 'select',
   fontName: 'Aptos',
   fontSize: 12,

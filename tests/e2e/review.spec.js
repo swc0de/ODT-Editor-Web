@@ -173,4 +173,57 @@ test.describe('review', () => {
     await run(page, 'app.modeEditing');
     await expect(page.locator('.page-flow .ProseMirror')).toHaveAttribute('contenteditable', 'true');
   });
+
+  test('comments: new, reply, resolve, previous/next, Comments pane, delete, round trip', async ({ page }) => {
+    await typeText(page, 'The harbour opened at dawn. Boats came in.');
+    // Select "harbour" and add a comment.
+    await page.evaluate(() => { const v = window.odtEditor.editor.view; v.dispatch(v.state.tr.setSelection(window.odtEditor.pm.TextSelection.create(v.state.doc, 5, 12))); v.focus(); });
+    await page.keyboard.press('Control+Alt+M');
+    await expect(page.locator('.comments-layer .cmt-card')).toHaveCount(1);
+    await expect.poll(() => page.evaluate(() => !!document.activeElement?.closest('.cmt-card'))).toBe(true);
+    await page.keyboard.type('Which harbour?');
+    await expect(page.locator('.cmt-card .cmt-who').first()).toHaveText('Ada Reviewer');
+    await expect(page.locator('.page-flow .cmt-range')).toHaveText('harbour');
+    // Reply.
+    await page.locator('.cmt-card .cmt-reply').click();
+    await expect(page.locator('.cmt-card .cmt-entry')).toHaveCount(2);
+    await page.keyboard.type('The old one.');
+    // A point comment later in the text.
+    await page.evaluate(() => { const v = window.odtEditor.editor.view; v.dispatch(v.state.tr.setSelection(window.odtEditor.pm.TextSelection.atEnd(v.state.doc))); v.focus(); });
+    await run(page, 'insert.comment');
+    await expect(page.locator('.comments-layer .cmt-card')).toHaveCount(2);
+    await page.keyboard.type('Add the time.');
+    // Balloons don't overlap and sit right of the page.
+    const boxes = await page.locator('.comments-layer .cmt-card').evaluateAll((els) => els.map((e) => e.getBoundingClientRect().toJSON()));
+    const pg = await page.locator('.page-bgs .pg').first().boundingBox();
+    expect(boxes[0].left).toBeGreaterThan(pg.x + pg.width);
+    expect(boxes[1].top).toBeGreaterThanOrEqual(boxes[0].bottom);
+    // Previous / Next.
+    await page.evaluate(() => window.odtEditor.editor.focus());
+    await run(page, 'review.previousComment');
+    await expect.poll(() => page.evaluate(() => document.activeElement?.closest('.cmt-card')?.textContent || '')).toContain('Which harbour?');
+    // Resolve the first thread.
+    await page.locator('.cmt-card').first().locator('.cmt-resolve').click();
+    await expect(page.locator('.cmt-card').first()).toHaveClass(/is-resolved/);
+    // List view: the Comments pane holds the cards.
+    await page.locator('[data-command="app.commentsPane"]').click();
+    await expect(page.locator('.cmt-pane .cmt-card')).toHaveCount(2);
+    await expect(page.locator('.comments-layer')).toBeHidden();
+    const rt = await roundTrip(page, 'comments.odt');
+    expect(rt.diff).toBe(null);
+    expect(rt.content).toMatch(/<office:annotation office:name="__Annotation__1" loext:resolved="true"><dc:creator>Ada Reviewer<\/dc:creator>/);
+    expect(rt.content).toMatch(/<office:annotation office:name="__Annotation__\d" loext:parent-name="__Annotation__1"><dc:creator>Ada Reviewer/);
+    expect(rt.content).toContain('<office:annotation-end office:name="__Annotation__1"/>');
+    if (soffice) {
+      const lo = libreOfficeResave(rt.file);
+      expect(lo['content.xml']).toContain('Which harbour?');
+      expect(lo['content.xml']).toContain('loext:parent-name="__Annotation__1"');
+      expect(lo['content.xml']).toContain('loext:resolved="true"');
+    }
+    // Delete All Comments.
+    await page.locator('.pane-x').last().click();
+    await run(page, 'review.deleteAllComments');
+    await expect(page.locator('.cmt-card')).toHaveCount(0);
+    expect(await page.evaluate(() => window.odtEditor.editor.view.state.doc.textContent)).toBe('The harbour opened at dawn. Boats came in.');
+  });
 });

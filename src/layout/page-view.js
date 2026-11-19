@@ -24,7 +24,9 @@ export function createPageView({ getPictureUrl } = {}) {
   const repeatLayer = h('div', { class: 'odt-doc repeat-layer', 'aria-hidden': 'true' }, h('div', { class: 'odt-mirror' }));
   // Footnote and endnote areas (see notes-layer.js).
   const notesLayer = h('div', { class: 'odt-doc notes-layer' }, h('div', { class: 'odt-mirror' }));
-  const stack = h('div', { class: 'page-stack' }, bgs, lnLayer, flow, repeatLayer, notesLayer);
+  // Comment balloons beside the pages (see comments-layer.js).
+  const commentsLayer = h('div', { class: 'odt-doc comments-layer', hidden: true });
+  const stack = h('div', { class: 'page-stack' }, bgs, lnLayer, flow, repeatLayer, notesLayer, commentsLayer);
   const pagesEl = h('div', { class: 'pages' }, stack);
   let model = null;
   let opts = { zoom: 1, side: false, hideWhiteSpace: false, gridlines: false };
@@ -190,7 +192,7 @@ export function createPageView({ getPictureUrl } = {}) {
   }
 
   return {
-    el: pagesEl, stack, flow, mount, bgs, lnLayer, repeatLayer, notesLayer, setModel, setOptions, renderPages, renderSide, leaveSide,
+    el: pagesEl, stack, flow, mount, bgs, lnLayer, repeatLayer, notesLayer, commentsLayer, setModel, setOptions, renderPages, renderSide, leaveSide,
     pageElement: (i) => pageEls[i] || pageEls[0] || null,
     get options() { return opts; },
   };

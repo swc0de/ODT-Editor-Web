@@ -18,6 +18,16 @@ const CHANGE_MARKS = ['insertion', 'deletion', 'formatChange'];
 const FORMAT_MARKS = ['textProps', 'charStyle'];
 
 const now = () => new Date().toISOString().slice(0, 19);
+/** Inline nodes that are anchors, not content: never marked as inserted or deleted. */
+const ANCHORS = new Set(['annotation', 'annotation_end', 'bookmark', 'change_marker']);
+
+/** setNodeMarkup on an inline atom (a field's or comment's attributes): not a content change. */
+function isAttrEdit(doc, step) {
+  if (!(step instanceof ReplaceStep) || step.slice.content.childCount !== 1 || step.slice.openStart || step.slice.openEnd) return false;
+  const old = doc.nodeAt(step.from);
+  const neu = step.slice.content.firstChild;
+  return !!old && old.isAtom && old.nodeSize === step.to - step.from && old.type === neu.type;
+}
 
 /** Should this transaction be recorded? */
 function recordable(tr) {
@@ -33,6 +43,7 @@ function markDeleted(slice, schema, attrs, author) {
     const out = [];
     frag.forEach((n) => {
       if (n.isText || n.isInline) {
+        if (ANCHORS.has(n.type.name)) { out.push(n); return; }
         const ins = n.marks.find((m) => m.type.name === 'insertion');
         if (ins && ins.attrs.author === author) return; // your own new text: really gone
         if (n.marks.some((m) => m.type.name === 'deletion')) { out.push(n); return; }
@@ -107,6 +118,7 @@ export function trackChangesPlugin(o) {
         const toFinal = tr.mapping.slice(i + 1);
         const map = (pos, assoc) => out.mapping.map(toFinal.map(pos, assoc), assoc);
         if (step instanceof AddMarkStep || step instanceof RemoveMarkStep) return; // below
+        if (isAttrEdit(docBefore, step)) return;
         // Deleted content goes back in, marked as deleted.
         if (step.to > step.from) {
           const deleted = docBefore.slice(step.from, step.to);
@@ -148,7 +160,7 @@ export function trackChangesPlugin(o) {
               if (n.isInline) {
                 const a = Math.max(pos, s);
                 const b = Math.min(pos + n.nodeSize, e);
-                if (b > a && !n.marks.some((m) => m.type.name === 'insertion')) out.addMark(a, b, schema.marks.insertion.create(attrs));
+                if (b > a && !ANCHORS.has(n.type.name) && !n.marks.some((m) => m.type.name === 'insertion')) out.addMark(a, b, schema.marks.insertion.create(attrs));
                 return false;
               }
               if (n.isTextblock) {
