@@ -14,7 +14,7 @@ The memory between sessions. Statuses: `todo`, `in progress`, `awaiting approval
 | M7 — Insert tab: pictures, shapes, text boxes, links, symbols | approved |
 | M8 — References | approved |
 | M9 — Review: comments, track changes, proofing | approved |
-| M10 — Draw tab | in progress |
+| M10 — Draw tab | awaiting approval |
 | M11 — Mailings and Developer | todo |
 | M12 — View tab and windows | todo |
 | M13 — Import/export, Options, polish and final audit | todo |
@@ -310,4 +310,26 @@ Known limitations:
 - Comments in a header or footer aren't shown as balloons.
 - Grammar checks are simple rules (no full grammar engine).
 - Read Aloud depends on the voices the system provides (none in some Linux browsers).
+
+## M10 — Draw tab (awaiting approval)
+
+Built:
+- **Ink layer**: with Pen, Pencil, Highlighter, Eraser or Lasso chosen, a layer over the pages takes the pointer (mouse, touch or pen; Esc goes back to Select). Each stroke becomes a real drawing object (`draw:path`) anchored to the paragraph beside it, floating in front of the text, so it moves with its paragraph, undoes, shows in the Selection Pane, and can be selected, resized and moved like any shape.
+- **Pens**: Pen (smooth line; with a pressure-sensitive pen the stroke is a filled outline whose width follows the pressure), Pencil (grainy texture), Highlighter (50 % transparent, blends with the text). Colour (A ▾) and thickness (≡ ▾) apply to the current pen and are remembered per pen; **Add Pen** ▸ Pen / Pencil / Highlighter saves the current one, and saved pens are listed at the top of the menu (kept in the settings).
+- **Eraser** removes whole strokes it touches (also strokes on a canvas). **Lasso** selects the strokes and shapes inside the loop; drag the selection to move it, Delete to delete, Esc to clear.
+- **Ink to Shape**: a toggle — strokes drawn while it is on become a line, arrow, rectangle, ellipse or triangle (shapes in the pen's colour) when they look like one; with a lasso selection it converts the selected strokes. Ink to Math stays unavailable.
+- **Drawing Canvas**: a 15.24 × 7.62 cm canvas (a `draw:g` group: a white rectangle plus the strokes and shapes drawn on it, which stay inside it and move with it).
+- **Ink Replay**: redraws every stroke in the order it was drawn, with a progress bar and Stop.
+- **ODF**: strokes are `draw:path` (svg:viewBox in 1/100 mm, svg:d) with a graphic style for colour, width, line caps and transparency; canvases are `draw:g` with each shape's own style. LibreOffice opens and re-saves them and draws them (checked: `reference/compare/m10-libreoffice-*.png`). Paths, polylines, polygons and simple groups from other documents are now drawn too instead of being kept as hidden XML.
+- Tests: 72 unit (new: ink geometry, pressure outline, shape recognition) + 131 e2e (3 new in `tests/e2e/draw.spec.js`: pens / eraser / lasso / Ink to Shape; canvas / Add Pen / Replay; pressure), all re-opening identically, LibreOffice re-saving the paths and the group. Performance unchanged (50 pages 3 ms per keystroke).
+- Screenshots: `reference/compare/m10-*.png` and `ribbon-draw-*-m10.png` (matches `ribbon-draw-dark.png`), dark and light.
+
+Decisions:
+- Ink is ordinary ODF drawing objects rather than a separate layer, so it saves, undoes and opens in LibreOffice without anything special. The tool is in the object's name ("Pen 3", "Pencil 1", "Highlighter 2").
+- A pressure stroke is saved as its outline (ODF has no variable-width line); the outline keeps the same number of points down each side so its centre line can be recovered for Ink to Shape.
+
+Known limitations:
+- Clicking a stroke with Select selects the whole object; there is no point editing of strokes.
+- Groups containing frames, text or other groups (from other documents) are kept but not drawn.
+- The Pencil texture is drawn only in this editor; LibreOffice draws a plain line.
 

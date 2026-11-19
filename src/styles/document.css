@@ -155,3 +155,19 @@
 .cmt-list { display: flex; flex-direction: column; gap: 8px; }
 .cmt-list .cmt-card { position: static; width: auto; }
 .cmt-empty { color: var(--text-muted); padding: 12px 2px; }
+/* Ink layer (ui/ink.js) */
+.ink-layer { position: absolute; inset: 0; z-index: 8; touch-action: none; cursor: crosshair; }
+.ink-layer[data-tool="eraser"] { cursor: cell; }
+.ink-layer[data-tool="lasso"] { cursor: default; }
+.ink-live { position: absolute; left: 0; top: 0; width: 1px; height: 1px; overflow: visible; pointer-events: none; }
+.ink-lasso { fill: color-mix(in srgb, var(--accent) 10%, transparent); stroke: var(--accent); stroke-width: 1; stroke-dasharray: 4 3; }
+.ink-selection { position: absolute; border: 1px dashed var(--accent); background: color-mix(in srgb, var(--accent) 6%, transparent); cursor: move; }
+.ink-replay-bar { position: absolute; top: 12px; right: 24px; z-index: 6; display: flex; gap: 8px; align-items: center; background: var(--ribbon-bg); border: 1px solid var(--control-border-soft); border-radius: 6px; padding: 6px 8px; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3); }
+.odt-obj.kind-ink .obj-box, .odt-obj.kind-canvas .obj-box, .odt-obj.kind-group .obj-box { overflow: visible; }
+.saved-pens .pen-row { display: flex; flex-wrap: wrap; gap: 4px; padding: 4px 10px 8px; max-width: 220px; }
+.pen-chip { width: 34px; height: 30px; display: inline-flex; align-items: center; justify-content: center; border: 1px solid var(--control-border-soft); border-radius: 4px; background: var(--control-bg); cursor: pointer; }
+.pen-chip:hover, .pen-chip:focus-visible { border-color: var(--accent); }
+.pen-swatch { width: 22px; border-radius: 3px; }
+.pen-chip.tool-highlighter .pen-swatch { opacity: 0.6; }
+.odt-obj[data-name^="Highlighter"] .obj-svg { mix-blend-mode: multiply; }
+.group-svg [data-name^="Highlighter"] { mix-blend-mode: multiply; }

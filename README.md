@@ -234,7 +234,24 @@ UI inspired by the open-source WordCraft project (MIT/Apache-2.0).
 - Read Aloud, Check Accessibility, Compare (into a new document with the
   differences as tracked changes) and Restrict Editing are on the Review tab.
 
-## Known limitations (M9)
+## Draw
+
+- Pick Pen, Pencil or Highlighter and draw on the page (mouse, touch or a
+  pen — with a pen the line follows the pressure). Colour and thickness are
+  remembered per pen; Add Pen saves your favourites. Esc puts the pen down.
+- Eraser removes strokes; Lasso selects strokes to move (drag) or delete.
+- Ink to Shape turns rough lines, arrows, rectangles, ellipses and triangles
+  into neat shapes. Drawing Canvas inserts an area to sketch in; Ink Replay
+  plays your strokes back.
+- Drawings are saved as ordinary ODF drawing objects, so LibreOffice shows
+  them.
+
+## Known limitations (M10)
+
+- Draw: strokes can't be edited point by point; Ink to Math is unavailable;
+  the Pencil texture shows only in this editor.
+
+## Earlier limitations (M9)
 
 - Review: paragraph formatting, table structure and edits inside text boxes,
   notes and comments aren't tracked; grammar checks are simple rules; only

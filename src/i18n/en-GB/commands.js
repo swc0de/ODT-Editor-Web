@@ -225,6 +225,7 @@ export default {
   'cmd.draw.addPenPen': 'Pen',
   'cmd.draw.addPenPencil': 'Pencil',
   'cmd.draw.addPenHighlighter': 'Highlighter',
+  'cmd.draw.usePen': 'Use Saved Pen',
   'cmd.draw.penColour': 'Pen Colour',
   'cmd.draw.penThickness': 'Pen Thickness',
   'cmd.draw.inkToShape': 'Ink to Shape',

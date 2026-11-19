@@ -232,17 +232,13 @@ export function startDraw(c, spec) {
   document.addEventListener('keydown', key, true);
 }
 
-function finish(c, spec, view, sx, sy, ex, ey, square) {
+/**
+ * The paragraph that anchors an object whose top-left is at screen point
+ * (left, top) — the paragraph beside it on that page — and the object's
+ * offset from the paragraph (px): { anchor (pos of the paragraph), x, y }.
+ */
+export function anchorAtClient(c, view, left, top, sx = left, sy = top) {
   const z = c.state.zoom / 100;
-  let w = Math.abs(ex - sx) / z;
-  let h = Math.abs(ey - sy) / z;
-  const isLine = spec.shape && SHAPES[spec.shape].line;
-  const clicked = w < 4 && h < 4;
-  if (clicked) { w = CM * 2.54; h = isLine ? 0 : (spec.textBox ? CM * 2.54 : CM * 2.54); }
-  if (square && !isLine) { const m = Math.max(w, h); w = m; h = m; }
-  const left = Math.min(sx, clicked ? sx : ex);
-  const top = Math.min(sy, clicked ? sy : ey);
-  // The paragraph under the top-left corner anchors the object.
   const da = c.ui.docArea;
   const i = da.pageAt(view.posAtCoords({ left: sx, top: sy })?.pos ?? view.state.selection.from);
   const pel = da.view.pageElement(i);
@@ -258,8 +254,20 @@ function finish(c, spec, view, sx, sy, ex, ey, square) {
   if (anchor == null) anchor = view.state.selection.$from.before(1);
   const pdom = view.nodeDOM(anchor);
   const pr = pdom?.getBoundingClientRect?.() || { left: probeX, top };
-  const x = (left - pr.left) / z;
-  const y = Math.max(0, (top - pr.top) / z);
+  return { anchor, x: (left - pr.left) / z, y: Math.max(0, (top - pr.top) / z), paraLeft: pr.left, paraTop: pr.top };
+}
+
+function finish(c, spec, view, sx, sy, ex, ey, square) {
+  const z = c.state.zoom / 100;
+  let w = Math.abs(ex - sx) / z;
+  let h = Math.abs(ey - sy) / z;
+  const isLine = spec.shape && SHAPES[spec.shape].line;
+  const clicked = w < 4 && h < 4;
+  if (clicked) { w = CM * 2.54; h = isLine ? 0 : (spec.textBox ? CM * 2.54 : CM * 2.54); }
+  if (square && !isLine) { const m = Math.max(w, h); w = m; h = m; }
+  const left = Math.min(sx, clicked ? sx : ex);
+  const top = Math.min(sy, clicked ? sy : ey);
+  const { anchor, x, y } = anchorAtClient(c, view, left, top, sx, sy);
   const doc = view.state.doc;
   const ctx = { x, y, w, h, z: maxZ(doc) + 1 };
   let attrs;

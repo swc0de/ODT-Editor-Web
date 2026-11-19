@@ -13,6 +13,7 @@ import { BORDER_STYLES } from '../features/table/design.js';
 import { OBJECT_WIDGETS } from './object-widgets.js';
 import { REFERENCE_WIDGETS } from './reference-widgets.js';
 import { recentSymbols, charName } from './symbol-dialog.js';
+import { getSetting } from '../core/settings.js';
 
 const THEME_COLOURS = [
   ['#ffffff', '#000000', '#e8e8e8', '#0e2841', '#156082', '#e97132', '#196b24', '#0f9ed5', '#a02b93', '#4ea72e'],
@@ -121,9 +122,26 @@ function thicknessList(o) {
     h('div', { class: 'menu-header' }, t('menu.thickness')),
     h('div', { class: 'thickness-list' }, [0.5, 1, 2, 3.5, 5].map((w, i) => {
       const b = h('button', { type: 'button', class: 'thickness-cell', tabindex: '-1', 'data-menu-focus': i === 0 ? '' : null, 'aria-label': `${w} mm` }, h('span', { style: { height: `${Math.max(1, w * 1.6)}px` } }), `${w} mm`);
-      bind(b, o, 'draw.penThickness');
+      bind(b, o, o.cmd || 'draw.penThickness', () => o.registry.run(o.cmd || 'draw.penThickness', w));
       return b;
     })));
+}
+
+/** Add Pen: the saved pens (click to use one). */
+function savedPensWidget(o) {
+  const pens = getSetting('inkPresets') || [];
+  const wrap = h('div', { class: 'menu-widget saved-pens' });
+  if (!pens.length) { wrap.append(h('div', { class: 'menu-note' }, t('ink.noSavedPens'))); return wrap; }
+  wrap.append(h('div', { class: 'menu-header' }, t('ink.savedPens')));
+  const row = h('div', { class: 'pen-row' });
+  pens.forEach((p, i) => {
+    const b = h('button', { type: 'button', class: `pen-chip tool-${p.tool}`, tabindex: '-1', 'data-menu-focus': i === 0 ? '' : null, 'aria-label': `${t(`ink.tool.${p.tool}`)} ${p.colour} ${p.width} mm`, title: `${t(`ink.tool.${p.tool}`)} · ${p.width} mm` },
+      h('span', { class: 'pen-swatch', style: { background: p.colour, height: `${Math.max(3, Math.min(14, p.width * 3))}px` } }));
+    bind(b, o, 'draw.usePen', () => o.registry.run('draw.usePen', i));
+    row.append(b);
+  });
+  wrap.append(row);
+  return wrap;
 }
 
 function windowList() {
@@ -235,6 +253,7 @@ function pendingGallery() {
 }
 
 const WIDGETS = {
+  savedPens: savedPensWidget,
   ...OBJECT_WIDGETS,
   ...REFERENCE_WIDGETS,
   colourPalette: (o) => colourPalette(o),

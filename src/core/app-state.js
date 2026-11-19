@@ -43,6 +43,8 @@ export const INITIAL_APP_STATE = Object.freeze({
   restrict: null, // null | 'readonly' | 'comments' | 'tracked'
   readingAloud: false,
   drawTool: 'select',
+  inkToShape: false,
+  inkReplaying: false,
   fontName: 'Aptos',
   fontSize: 12,
   paragraphStyle: 'Normal',

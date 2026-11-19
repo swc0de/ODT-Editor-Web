@@ -123,4 +123,13 @@ export default {
   'rst.stop': 'Stop Protection',
   'rst.enforced': 'This document is protected: {mode}.',
   'rst.notEnforced': 'Are you ready to apply these settings?',
+  'ink.selection': '{n} selected',
+  'ink.nothingToReplay': 'There is no ink to replay.',
+  'ink.stopReplay': 'Stop',
+  'ink.penAdded': 'Pen added',
+  'ink.noSavedPens': 'Pens you add appear here.',
+  'ink.savedPens': 'Your pens',
+  'ink.tool.pen': 'Pen',
+  'ink.tool.pencil': 'Pencil',
+  'ink.tool.highlighter': 'Highlighter',
 };

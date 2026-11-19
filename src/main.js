@@ -47,6 +47,7 @@ import { userName, userInitials } from './features/review/track.js';
 import { createReviewingPane } from './ui/reviewing-pane.js';
 import { proofingPlugin, problemAt, suggestions, addToDictionary, ignoreAll, recheckAll } from './core/proofing.js';
 import { createEditorPane } from './ui/editor-pane.js';
+import { createInk } from './ui/ink.js';
 import { createAccessibilityPane } from './ui/accessibility-pane.js';
 import { createReadAloud, readAloudPlugin } from './features/review/read-aloud.js';
 import { applyRestriction, savedRestriction } from './features/review/extras.js';
@@ -366,6 +367,8 @@ function boot() {
   ui.accessibilityPane = createAccessibilityPane({ dock: rightDock, getEditor: () => editor, getSession: () => session, getPages: () => docArea.pages.length, runCommand: (id) => registry.run(id) });
   ui.readAloud = createReadAloud({ store, getView: () => editor.view, container: () => docArea.el });
   ui.io = { importOdt, exportOdt };
+  // Inking (Draw tab).
+  ui.ink = createInk({ store, docArea, getView: () => editor.view, ctx, toast, t });
   // Editing ▾ Viewing (and Restrict Editing) switch the document to read-only and back.
   store.subscribe((s, changed) => {
     if (changed.includes('editingMode') && editor) editor.view.dispatch(editor.view.state.tr.setMeta('tcView', true).setMeta('addToHistory', false).setMeta('pagination', true));

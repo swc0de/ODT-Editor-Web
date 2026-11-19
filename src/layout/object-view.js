@@ -102,6 +102,8 @@ export class ObjectView {
       case 'shape': this.renderShape(box, gp, w, h); break;
       case 'wordart': this.renderWordArt(box, gp, w, h); break;
       case 'line': this.renderLine(box, gp); break;
+      case 'ink': this.renderInk(box, gp, w, h); break;
+      case 'canvas': case 'group': this.renderGroup(box, w, h); break;
       default: this.renderObject(box, w, h);
     }
 
@@ -247,6 +249,24 @@ export class ObjectView {
     if (a.body?.length || this.editingText) this.renderText(box, gp, shapeTextInsets(a));
   }
 
+  /** A pen stroke (draw:path / polyline / polygon), scaled from its viewBox. */
+  renderInk(box, gp, w, h) {
+    const svg = svgEl('svg', { class: 'obj-svg ink-svg', width: w, height: h, overflow: 'visible' });
+    svg.append(inkShape(this.attrs.element, this.attrs.frameAttrs, gp, w, h, this.paint(gp), this.dom.dataset.name));
+    box.append(svg);
+  }
+
+  /** A Drawing Canvas or other group: its shapes in the group's coordinates. */
+  renderGroup(box, w, h) {
+    const svg = svgEl('svg', { class: 'obj-svg group-svg', width: w, height: h, overflow: 'visible' });
+    (this.attrs.parts || []).forEach((p, i) => {
+      const g = p['#graphic'] || {};
+      const node = groupChild(p, g, this.paint(g), this.env);
+      if (node) { node.dataset.child = String(i); svg.append(node); }
+    });
+    box.append(svg);
+  }
+
   renderWordArt(box, gp, w, h) {
     const svg = svgEl('svg', { class: 'obj-svg', width: w, height: h, viewBox: `0 0 ${w} ${h}`, overflow: 'visible' });
     const text = (this.attrs.body || []).map((b) => (b.content || []).map((c) => c.text || '').join('')).join(' ') || ' ';
@@ -390,3 +410,62 @@ export class ObjectView {
     this.view.dispatch(tr);
   }
 }
+
+// ------------------------------------------------------------------ ink and groups
+
+/** The grainy look of pencil strokes (an SVG filter defined once in the page). */
+function ensurePencilFilter() {
+  if (typeof document === 'undefined' || document.getElementById('odt-pencil')) return;
+  const svg = svgEl('svg', { width: 0, height: 0, style: 'position:absolute;width:0;height:0', 'aria-hidden': 'true' });
+  const f = svgEl('filter', { id: 'odt-pencil', x: '-10%', y: '-10%', width: '120%', height: '120%' });
+  f.append(svgEl('feTurbulence', { type: 'fractalNoise', baseFrequency: '1.6', numOctaves: '2', seed: '3', result: 'noise' }));
+  f.append(svgEl('feColorMatrix', { in: 'noise', type: 'matrix', values: '0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 -1.6 1.25', result: 'grain' }));
+  f.append(svgEl('feComposite', { in: 'SourceGraphic', in2: 'grain', operator: 'in' }));
+  svg.append(f);
+  document.body.append(svg);
+}
+
+/** The SVG for a path-like element (frame attrs) in a w × h box. */
+export function inkShape(element, fa, gp, w, h, paint, name = '') {
+  const vb = String(fa['svg:viewBox'] || `0 0 ${w} ${h}`).split(/[\s,]+/).map(Number);
+  const sx = w / (vb[2] || w);
+  const sy = h / (vb[3] || h);
+  const g = svgEl('g', { transform: `scale(${sx} ${sy}) translate(${-vb[0]} ${-vb[1]})` });
+  let shape;
+  if (element === 'draw:path') shape = svgEl('path', { d: fa['svg:d'] || '' });
+  else shape = svgEl(element === 'draw:polygon' ? 'polygon' : 'polyline', { points: fa['draw:points'] || '' });
+  const p = { ...paint };
+  // Stroke widths are page lengths: undo the scale for them.
+  const sw = Number(p['stroke-width']) || 1;
+  p['stroke-width'] = (sw / Math.max(1e-6, (sx + sy) / 2)).toFixed(3);
+  if (gp['svg:stroke-linecap']) p['stroke-linecap'] = gp['svg:stroke-linecap'];
+  for (const [k, v] of Object.entries(p)) shape.setAttribute(k, v);
+  shape.setAttribute('class', `ink-stroke${/^Pencil/i.test(name) ? ' ink-pencil' : ''}`);
+  if (/^Pencil/i.test(name)) { ensurePencilFilter(); shape.setAttribute('filter', 'url(#odt-pencil)'); }
+  g.append(shape);
+  return g;
+}
+
+/** One shape of a group as SVG (positions in cm, relative to the group). */
+function groupChild(p, gp, paint, env) {
+  const a = p.a || {};
+  const x = toPx(a['svg:x'] || '0');
+  const y = toPx(a['svg:y'] || '0');
+  const w = toPx(a['svg:width'] || '0') || 1;
+  const h = toPx(a['svg:height'] || '0') || 1;
+  let node;
+  if (p.n === 'draw:rect') node = svgEl('rect', { x, y, width: w, height: h, ...paint });
+  else if (p.n === 'draw:ellipse') node = svgEl('ellipse', { cx: x + w / 2, cy: y + h / 2, rx: w / 2, ry: h / 2, ...paint });
+  else if (p.n === 'draw:line') node = svgEl('line', { x1: toPx(a['svg:x1'] || '0'), y1: toPx(a['svg:y1'] || '0'), x2: toPx(a['svg:x2'] || '0'), y2: toPx(a['svg:y2'] || '0'), ...paint, fill: 'none' });
+  else if (p.n === 'draw:custom-shape') {
+    const geo = (p.c || []).find((c) => typeof c !== 'string' && c.n === 'draw:enhanced-geometry');
+    node = svgEl('path', { d: shapePath({ parts: geo ? [geo] : [], frameAttrs: a }, w, h), transform: `translate(${x} ${y})`, ...paint });
+  } else {
+    node = svgEl('g', { transform: `translate(${x} ${y})` });
+    node.append(inkShape(p.n, a, gp, w, h, paint, a['draw:name'] || ''));
+  }
+  void env;
+  node.dataset.name = a['draw:name'] || '';
+  return node;
+}
+

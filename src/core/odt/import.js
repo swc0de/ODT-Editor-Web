@@ -480,8 +480,15 @@ export function createConverter({ ns, autoIndex, styleIndex, objectKind = null, 
             atom({ type: 'change_marker', attrs: { kind: name.slice(12) || 'point', changeId: a['text:change-id'] || '' } }, false);
             break;
           case 'draw:frame': case 'draw:custom-shape': case 'draw:line': case 'draw:rect': case 'draw:ellipse':
+          case 'draw:path': case 'draw:polyline': case 'draw:polygon':
             atom({ type: 'frame', attrs: drawObject(node, name, a) });
             break;
+          case 'draw:g': {
+            const g = drawGroup(node, a);
+            if (g) atom({ type: 'frame', attrs: g });
+            else atom({ type: 'opaque_inline', attrs: { xml: elementToXml(node, ns), text: '' } });
+            break;
+          }
           default: {
             const onlyText = [...node.childNodes].every((c) => c.nodeType === 3 || c.nodeType === 4);
             if (name.startsWith('text:') && !STRUCTURAL_INLINE.has(name) && onlyText) {
@@ -573,10 +580,49 @@ export function createConverter({ ns, autoIndex, styleIndex, objectKind = null, 
         if (n === 'draw:enhanced-geometry' && t.a['draw:text-path'] === 'true') kind = 'wordart';
       }
     }
-    if (!kind) kind = name === 'draw:frame' ? 'object' : (name === 'draw:line' ? 'line' : 'shape');
+    if (!kind) kind = name === 'draw:frame' ? 'object' : name === 'draw:line' ? 'line' : ['draw:path', 'draw:polyline', 'draw:polygon'].includes(name) ? 'ink' : 'shape';
     // Text bodies are kept exactly as ProseMirror serialises them (the nested editors write that form).
     const normal = body.length ? Fragment.fromJSON(schema, body).toJSON() : [];
     return { element: name, styleName, auto, frameAttrs: without(a, 'draw:style-name') || {}, parts, body: normal, kind, href };
+  }
+
+  /**
+   * A group (draw:g): its shapes become parts in the group's own coordinates,
+   * the group gets the bounding box (see core/ink.js; a Drawing Canvas is a
+   * group named "Drawing Canvas …"). Groups holding frames, text or nested
+   * groups stay as they are (null).
+   */
+  function drawGroup(el, a) {
+    const SHAPES = new Set(['draw:path', 'draw:polyline', 'draw:polygon', 'draw:rect', 'draw:ellipse', 'draw:line', 'draw:custom-shape']);
+    const kids = [...el.children];
+    if (!kids.length || kids.some((c) => !SHAPES.has(q(c)) || [...c.children].some((x) => q(x) === 'text:p'))) return null;
+    const num = (v) => parseFloat(v) || 0;
+    const parts = kids.map((c) => {
+      const t = toTree(c, ns);
+      const ref = t.a['draw:style-name'];
+      const st = ref && autoIndex.get(`graphic:${ref}`);
+      if (st) { t['#graphic'] = autoFromTree(st).auto?.props?.['style:graphic-properties']?.a || {}; delete t.a['draw:style-name']; }
+      return t;
+    });
+    // Bounding box (cm) of the children.
+    let x0 = Infinity; let y0 = Infinity; let x1 = -Infinity; let y1 = -Infinity;
+    for (const t of parts) {
+      const b = t.n === 'draw:line'
+        ? [Math.min(num(t.a['svg:x1']), num(t.a['svg:x2'])), Math.min(num(t.a['svg:y1']), num(t.a['svg:y2'])), Math.max(num(t.a['svg:x1']), num(t.a['svg:x2'])), Math.max(num(t.a['svg:y1']), num(t.a['svg:y2']))]
+        : [num(t.a['svg:x']), num(t.a['svg:y']), num(t.a['svg:x']) + num(t.a['svg:width']), num(t.a['svg:y']) + num(t.a['svg:height'])];
+      x0 = Math.min(x0, b[0]); y0 = Math.min(y0, b[1]); x1 = Math.max(x1, b[2]); y1 = Math.max(y1, b[3]);
+    }
+    const f = (v) => `${(Math.round(v * 1000) / 1000).toFixed(3)}cm`;
+    for (const t of parts) {
+      for (const [k, o] of [['svg:x', x0], ['svg:y', y0], ['svg:x1', x0], ['svg:x2', x0], ['svg:y1', y0], ['svg:y2', y0]]) if (t.a[k] != null) t.a[k] = f(num(t.a[k]) - o);
+    }
+    let styleName = null;
+    let auto = null;
+    const ref = a['draw:style-name'];
+    if (ref) { const t = autoIndex.get(`graphic:${ref}`); if (t) { const r = autoFromTree(t); styleName = r.parent; auto = r.auto; } else styleName = ref; }
+    const frameAttrs = { ...(without(a, 'draw:style-name', 'svg:y') || {}), 'svg:x': f(x0), 'svg:y': f(y0), 'svg:width': f(x1 - x0), 'svg:height': f(y1 - y0) };
+    const kind = /^Drawing Canvas/i.test(a['draw:name'] || '') ? 'canvas' : 'group';
+    return { element: 'draw:g', styleName, auto, frameAttrs, parts, body: [], kind, href: '' };
   }
 
   return { block, blocks, inlines };

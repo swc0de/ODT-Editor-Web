@@ -250,6 +250,7 @@ export function createBodyWriter(registry) {
 
   /** A drawing object (frame node) back to its ODF element. */
   function drawObject(a) {
+    if (a.element === 'draw:g') return drawGroup(a);
     let style = '';
     if (a.auto) style = ` draw:style-name="${registry.ref('graphic', a.styleName, a.auto, a.element === 'draw:frame' ? 'fr' : 'gr')}"`;
     else if (a.styleName) style = ` draw:style-name="${escAttr(a.styleName)}"`;
@@ -263,6 +264,28 @@ export function createBodyWriter(registry) {
       }
     }
     return `<${a.element}${style}${attrs(a.frameAttrs)}>${inner}</${a.element}>`;
+  }
+
+  /** A group: its shapes back in the anchor's coordinates, each with its own graphic style. */
+  function drawGroup(a) {
+    const num = (v) => parseFloat(v) || 0;
+    const gx = num(a.frameAttrs['svg:x']);
+    const gy = num(a.frameAttrs['svg:y']);
+    const f = (v) => `${(Math.round(v * 1000) / 1000).toFixed(3)}cm`;
+    const fa = { ...a.frameAttrs };
+    for (const k of ['svg:x', 'svg:y', 'svg:width', 'svg:height']) delete fa[k];
+    let style = '';
+    if (a.auto) style = ` draw:style-name="${registry.ref('graphic', a.styleName, a.auto, 'gr')}"`;
+    else if (a.styleName) style = ` draw:style-name="${escAttr(a.styleName)}"`;
+    let inner = '';
+    for (const p of a.parts || []) {
+      const pa = { ...p.a };
+      for (const [k, o] of [['svg:x', gx], ['svg:y', gy], ['svg:x1', gx], ['svg:x2', gx], ['svg:y1', gy], ['svg:y2', gy]]) if (pa[k] != null) pa[k] = f(num(pa[k]) + o);
+      const st = p['#graphic'] ? ` draw:style-name="${registry.ref('graphic', null, { styleAttrs: {}, props: { 'style:graphic-properties': { a: p['#graphic'] } } }, 'gr')}"` : '';
+      const kids = (p.c || []).map((k) => (typeof k === 'string' ? escText(k) : treeToXml(k))).join('');
+      inner += `<${p.n}${st}${attrsToXml(pa)}${kids ? `>${kids}</${p.n}>` : '/>'}`;
+    }
+    return `<draw:g${style}${attrs(fa)}>${inner}</draw:g>`;
   }
 
   function blocksFromJSON(list) {
