@@ -39,6 +39,8 @@ import { createFindDialog } from './ui/find-dialog.js';
 import { createMiniToolbar, attachContextMenu } from './ui/mini-toolbar.js';
 import { createHeaderFooter } from './ui/header-footer.js';
 import { createObjectServices } from './ui/objects.js';
+import { notesNumberingPlugin } from './core/notes.js';
+import { findStyle } from './core/style-edit.js';
 import { renderEquation } from './ui/equation-editor.js';
 import { renderChartFrame } from './ui/chart-dialog.js';
 import { createSelectionPane } from './ui/selection-pane.js';
@@ -98,6 +100,8 @@ function boot() {
   };
   const docArea = createDocumentArea({ store, getEditor: () => editor, getSession: () => session, pictureUrl: (p) => editorEnv.pictureUrl(p), onPagesChange: () => ui.onPages?.() });
   const editorEnv = {
+    // Enter at the end of a paragraph: its style's next style.
+    nextStyle: (name) => { const st = session && findStyle(session.state, 'paragraph', name); return st ? (st.a['style:next-style-name'] || name) : name; },
     pictureUrl(path) {
       if (!path || !session?.state) return '';
       path = path.replace(/^\.\//, '');
@@ -118,7 +122,7 @@ function boot() {
     },
     openFiles(files) { if (files[0]) session.openFile(files[0]).then((ok) => { if (ok) store.set({ backstageOpen: false }); }); },
     priorityPlugins: () => [new Plugin({ props: { handleKeyDown: (_v, e) => !!ui.handleEditorKey?.(e) } }), ...(ui.objects ? [ui.objects.keyPlugin] : []), tableKeymap, ...editingPlugins(() => ({ ...AUTOCORRECT_DEFAULTS, ...(getSetting('autocorrect') || {}) }), makeList)],
-    extraPlugins: () => [...docArea.plugins(), ...tablePlugins(tableUI), linkFollowPlugin(() => store.get().editingMode === 'viewing'), searchPlugin(), listLabelsPlugin((name) => getListStyle(ctx(), name))],
+    extraPlugins: () => [...docArea.plugins(), notesNumberingPlugin(() => session?.state, () => (docArea.pages.length ? (pos) => docArea.pageAt(pos) : null)), ...tablePlugins(tableUI), linkFollowPlugin(() => store.get().editingMode === 'viewing'), searchPlugin(), listLabelsPlugin((name) => getListStyle(ctx(), name))],
     pasteMode(event) {
       const once = clipboard?.takeMode();
       if (once) return once;
@@ -236,6 +240,7 @@ function boot() {
     }),
   });
   Object.assign(editorEnv, ui.objects.env);
+  docArea.notes.setCreateNested(ui.objects.createNested);
   ui.objects.renderers.equation = renderEquation;
   ui.objects.renderers.chart = renderChartFrame;
   ui.objects.setAddPicture((bytes, type) => editorEnv.addPicture(bytes, type));

@@ -36,6 +36,20 @@ function splitHeadingToParagraph(state, dispatch) {
   return true;
 }
 
+/**
+ * Enter at the end of a paragraph continues with its style's next style
+ * (style:next-style-name), which by default is the same style.
+ */
+const splitToNextStyle = (env) => (state, dispatch) => {
+  const { $from, empty } = state.selection;
+  const p = $from.parent;
+  if (!empty || p.type !== schema.nodes.paragraph || $from.parentOffset !== p.content.size || !p.content.size) return false;
+  const next = env.nextStyle?.(p.attrs.styleName) || 'Standard';
+  if (next === 'Standard') return false;
+  if (dispatch) dispatch(state.tr.split($from.pos, 1, [{ type: schema.nodes.paragraph, attrs: { styleName: next } }]).scrollIntoView());
+  return true;
+};
+
 /** Ctrl+Home / Ctrl+End (with Shift: extend the selection). */
 const docEdge = (dir, extend) => (state, dispatch) => {
   const target = dir < 0 ? TextSelection.atStart(state.doc) : TextSelection.atEnd(state.doc);
@@ -90,7 +104,7 @@ export function createEditor(mount, env) {
     'Mod-y': redo,
     'Mod-Shift-z': redo,
     'Shift-Enter': shiftEnter,
-    Enter: splitHeadingToParagraph,
+    Enter: chainCommands(splitHeadingToParagraph, splitToNextStyle(env)),
     Tab: insertNode(schema.nodes.tab),
     'Mod-a': selectAll,
     // Start / end of the document, done here rather than by the browser, which

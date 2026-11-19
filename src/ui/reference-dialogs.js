@@ -42,4 +42,39 @@ export async function updateTableDialog(kind = 'toc') {
   return ok ? mode.value() : null;
 }
 
+const FORMATS = () => [['1', '1, 2, 3, …'], ['a', 'a, b, c, …'], ['A', 'A, B, C, …'], ['i', 'i, ii, iii, …'], ['I', 'I, II, III, …']];
+
+/**
+ * Footnote and Endnote. cur(cls) → current options of a class.
+ * → { action: 'insert' | 'apply', cls, position, numFormat, startAt, restart, mark, convert } or null
+ */
+export async function footnoteDialog(cur, initialCls = 'footnote') {
+  const loc = radios('fn-loc', [['footnote', t('ref.footnotes')], ['endnote', t('ref.endnotes')]], initialCls);
+  const position = select([['page', t('ref.bottomOfPage')], ['document', t('ref.endOfDocument')]], 'page');
+  const endPos = select([['document', t('ref.endOfDocument')]], 'document', { disabled: '' });
+  const convert = select([['', t('ref.convertNone')], ['toEndnotes', t('ref.convertToEndnotes')], ['toFootnotes', t('ref.convertToFootnotes')], ['swap', t('ref.convertSwap')]], '');
+  const format = select(FORMATS(), '1');
+  const mark = text('', { maxlength: '8', 'aria-label': t('ref.customMark') });
+  const start = number(1, { min: '1', max: '999' });
+  const restart = select([['document', t('ref.continuous')], ['chapter', t('ref.restartChapter')], ['page', t('ref.restartPage')]], 'document');
+  const load = () => {
+    const cls = loc.value();
+    const o = cur(cls);
+    format.value = o.numFormat;
+    start.value = String(o.startAt);
+    position.value = o.position;
+    restart.value = o.restart;
+    position.disabled = cls !== 'footnote';
+    restart.disabled = cls !== 'footnote';
+  };
+  loc.addEventListener('change', load);
+  load();
+  const body = h('div', { class: 'ref-dlg fn-dlg' },
+    h('fieldset', { class: 'fm-group' }, h('legend', {}, t('ref.location')), loc, row(field(t('ref.footnotes'), position), field(t('ref.endnotes'), endPos)), field(t('ref.convert'), convert)),
+    h('fieldset', { class: 'fm-group' }, h('legend', {}, t('ref.format')), field(t('ref.numberFormat'), format), field(t('ref.customMark'), mark), row(field(t('ref.startAt'), start), field(t('ref.numbering'), restart))));
+  const action = await showDialog({ title: t('ref.footnoteDialogTitle'), message: body, buttons: [{ label: t('ref.insert'), value: 'insert', primary: true }, { label: t('ref.apply'), value: 'apply' }, { label: t('common.cancel'), value: false }], cancelValue: false });
+  if (!action) return null;
+  return { action, cls: loc.value(), position: position.value, numFormat: format.value, startAt: Math.max(1, Number(start.value) || 1), restart: restart.value, mark: mark.value.trim() || null, convert: convert.value || null };
+}
+
 export { field, number, select, check, radios, row, group, text, okCancel };

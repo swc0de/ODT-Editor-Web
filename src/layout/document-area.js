@@ -14,6 +14,8 @@ import { hyphenationPlugin, hyphenKey } from './hyphenate.js';
 import { renderLineNumbers } from './line-numbers.js';
 import { fieldsPlugin, updatePageFields } from './fields.js';
 import { renderRepeatedRows } from './repeat-rows.js';
+import { createNotesLayer } from './notes-layer.js';
+import { notesConfig, numberNotes } from '../core/notes.js';
 import { hyphenation } from '../core/page-setup.js';
 import { buildPageModel, measureMasters } from './page-model.js';
 import { layoutTabs, tabStopsOf, defaultTabInterval } from './tabs.js';
@@ -39,6 +41,14 @@ export function createDocumentArea({ store, getEditor, getSession, onPagesChange
   let lnFrame = 0;
   let paginator = null;
   let pages = [];
+  const notes = createNotesLayer({
+    layer: view.notesLayer,
+    getView: () => getEditor()?.view,
+    getModel: () => model,
+    getZoom: () => options().zoom,
+    isEndnoteMode: () => notesConfig(getSession()?.state, 'footnote').position === 'document',
+    labelOf: (node) => t(node?.attrs.noteClass === 'endnote' ? 'ref.endnoteText' : 'ref.footnoteText'),
+  });
 
   const options = () => {
     const s = store.get();
@@ -142,7 +152,17 @@ export function createDocumentArea({ store, getEditor, getSession, onPagesChange
         updatePageFields(getEditor().view, pages, model);
         renderRepeatedRows({ view: getEditor().view, layer: view.repeatLayer, zoom: options().zoom, origin: () => view.stack });
       });
-    } else view.repeatLayer.firstChild.replaceChildren();
+      notes.render(pages);
+      // Footnotes numbered per page: renumber once the pages are known.
+      const st = getSession()?.state;
+      if (st && notesConfig(st, 'footnote').restart === 'page') {
+        requestAnimationFrame(() => {
+          const ev = getEditor().view;
+          const tr = numberNotes(ev.state, st, (pos) => paginator.pageAt(pos));
+          if (tr) ev.dispatch(tr.setMeta('addToHistory', false));
+        });
+      }
+    } else { view.repeatLayer.firstChild.replaceChildren(); view.notesLayer.firstChild.replaceChildren(); }
     cancelAnimationFrame(lnFrame);
     if (model?.lineNumbering && store.get().pageMovement !== 'side') {
       lnFrame = requestAnimationFrame(() => renderLineNumbers({ view: getEditor().view, layer: view.lnLayer, model, pages, index: styleIndex, zoom: options().zoom, origin: () => view.stack }));
@@ -161,6 +181,8 @@ export function createDocumentArea({ store, getEditor, getSession, onPagesChange
       origin: () => view.stack,
       beforeMeasure: (from) => layoutTabs(editor.view, styleIndex, options().zoom, from),
       onLayout: handleLayout,
+      noteHeights: (pos, node) => notes.heights(pos, node),
+      endnotesHeight: () => notes.endnotesHeight(),
     });
   }
 
@@ -269,7 +291,7 @@ export function createDocumentArea({ store, getEditor, getSession, onPagesChange
     rulers,
     attach,
     applyDocument,
-    plugins: () => [paginationPlugin(), regionsPlugin(() => model, () => styleIndex), hyphenationPlugin(() => ({ index: styleIndex, caps: hyphCaps, any: hyphAny })), fieldsPlugin()],
+    plugins: () => [notes.plugin, paginationPlugin(), regionsPlugin(() => model, () => styleIndex), hyphenationPlugin(() => ({ index: styleIndex, caps: hyphCaps, any: hyphAny })), fieldsPlugin()],
     /** After a document change. */
     update: () => paginator?.update(),
     relayout: () => paginator?.relayout(),
@@ -286,5 +308,6 @@ export function createDocumentArea({ store, getEditor, getSession, onPagesChange
     get model() { return model; },
     pageAt: (pos) => paginator?.pageAt(pos) ?? 0,
     get layoutPending() { return !!paginator?.pending; },
+    notes,
   };
 }

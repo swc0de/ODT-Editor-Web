@@ -2,7 +2,8 @@
 import { defineCommands } from '../define.js';
 import { insertToc, removeToc, updateAllTocs, outlineLevelAt, setOutlineLevel } from './toc.js';
 import { findIndexes, tocOptions, TOC_DEFAULTS } from '../../core/indexes.js';
-import { tocDialog, updateTableDialog } from '../../ui/reference-dialogs.js';
+import { tocDialog, updateTableDialog, footnoteDialog } from '../../ui/reference-dialogs.js';
+import { insertNote, gotoNote, showNotes, applyNoteOptions, noteOptions, hasNotes, focusedNote } from './notes.js';
 
 const canEdit = (c) => !!c.editor && c.state.editingMode !== 'viewing';
 const bodyOnly = (c) => canEdit(c) && !c.state.hfEditing && c.editor === c.mainEditor;
@@ -30,14 +31,22 @@ export const commands = defineCommands('references', {
     icon: 'update-table', isEnabled: (c) => bodyOnly(c) && hasToc(c),
     run: async (c) => { const mode = await updateTableDialog('toc'); if (mode) updateAllTocs(c, { pagesOnly: mode === 'pages' }); },
   },
-  insertFootnote: { icon: 'footnote', shortcut: 'Mod-Alt-f' },
-  insertEndnote: { icon: 'endnote', shortcut: 'Mod-Alt-d' },
-  nextFootnote: { icon: 'next-footnote' },
-  previousFootnote: {},
-  nextEndnote: {},
-  previousEndnote: {},
-  showNotes: { icon: 'show-notes' },
-  footnoteOptions: { icon: 'footnote' },
+  insertFootnote: { icon: 'footnote', shortcut: 'Mod-Alt-f', isEnabled: bodyOnly, run: (c) => insertNote(c, 'footnote') },
+  insertEndnote: { icon: 'endnote', shortcut: 'Mod-Alt-d', isEnabled: bodyOnly, run: (c) => insertNote(c, 'endnote') },
+  nextFootnote: { icon: 'next-footnote', isEnabled: (c) => hasNotes(c, 'footnote'), run: (c) => gotoNote(c, 'footnote', 1) },
+  previousFootnote: { isEnabled: (c) => hasNotes(c, 'footnote'), run: (c) => gotoNote(c, 'footnote', -1) },
+  nextEndnote: { isEnabled: (c) => hasNotes(c, 'endnote'), run: (c) => gotoNote(c, 'endnote', 1) },
+  previousEndnote: { isEnabled: (c) => hasNotes(c, 'endnote'), run: (c) => gotoNote(c, 'endnote', -1) },
+  showNotes: { icon: 'show-notes', isEnabled: (c) => hasNotes(c) || !!focusedNote(c), run: showNotes },
+  footnoteOptions: {
+    icon: 'footnote', isEnabled: (c) => canEdit(c) && !!c.mainEditor,
+    run: async (c) => {
+      const r = await footnoteDialog((cls) => noteOptions(c, cls));
+      if (!r) return;
+      applyNoteOptions(c, r);
+      if (r.action === 'insert' && bodyOnly(c)) insertNote(c, r.cls, r.mark);
+    },
+  },
   insertCitation: { icon: 'citation' },
   addNewSource: {},
   addNewPlaceholder: {},

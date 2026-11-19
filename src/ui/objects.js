@@ -28,11 +28,11 @@ export function createObjectServices({ store, docArea, getSession, getMainEditor
         ov.setAttrs({ ...ov.node.attrs, body: v.state.doc.content.toJSON() });
       },
     }));
-    const docOf = (body) => schema.node('doc', null, Fragment.fromJSON(schema, body?.length ? body : [{ type: 'paragraph', attrs: { styleName: ov.node.attrs.kind === 'textbox' ? 'Frame_20_contents' : 'Standard' } }]));
+    const docOf = (body) => schema.node('doc', null, Fragment.fromJSON(schema, body?.length ? body : [{ type: 'paragraph', attrs: { styleName: ov.defaultStyle || (ov.node.attrs.kind === 'textbox' ? 'Frame_20_contents' : 'Standard') } }]));
     syncing = true;
     ed.setDoc(docOf(ov.node.attrs.body));
     syncing = false;
-    ed.view.dom.setAttribute('aria-label', ov.node.attrs.kind === 'textbox' ? t('obj.textBoxText') : t('obj.shapeText'));
+    ed.view.dom.setAttribute('aria-label', ov.label || (ov.node.attrs.kind === 'textbox' ? t('obj.textBoxText') : t('obj.shapeText')));
     ed.view.dom.addEventListener('focus', () => { activeInner = { editor: ed, ov }; store.set({ objectText: true }); });
     return {
       view: ed.view,
@@ -164,7 +164,7 @@ export function createObjectServices({ store, docArea, getSession, getMainEditor
       const sel = view.state.selection;
       if (sel instanceof NodeSelection && sel.node.type.name === 'frame') return { view, pos: sel.from, node: sel.node, ov: selectedView?.node === sel.node ? selectedView : null };
     }
-    if (activeInner) {
+    if (activeInner && !activeInner.ov.isNote) {
       const ov = activeInner.ov;
       const pos = ov.getPos();
       if (pos != null) return { view: ov.view, pos, node: ov.node, ov, inText: true };
@@ -276,6 +276,7 @@ export function createObjectServices({ store, docArea, getSession, getMainEditor
     insertPictures,
     setAddPicture(fn) { nestedAddPicture = fn; },
     sizeOf,
+    createNested,
   };
 }
 

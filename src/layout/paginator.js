@@ -25,6 +25,8 @@ import { autoFromTree, mergeAuto } from '../core/odt/styles.js';
 
 export const paginationKey = new PluginKey('pagination');
 export const PAGE_GAP = 16;
+/** Space above a page's footnotes (for the separator line). */
+export const NOTE_SEP = 12;
 
 const gapPos = (g) => (g.type === 'rows' ? g.tablePos : g.pos);
 
@@ -96,7 +98,7 @@ export function paginationPlugin() {
             if (!r.deleted) gaps.push({ ...g, pos: r.pos });
           }
         }
-        const pages = prev.pages.map((p) => ({ ...p, startPos: m.map(p.startPos, -1) }));
+        const pages = prev.pages.map((p) => ({ ...p, startPos: m.map(p.startPos, -1), notes: (p.notes || []).map((n) => ({ ...n, pos: m.map(n.pos) })) }));
         return { decos: prev.decos.map(m, tr.doc), gaps, pages, dirtyFrom: Number.isFinite(from) ? from : prev.dirtyFrom };
       },
     },
@@ -219,7 +221,7 @@ export function createPaginator(o) {
     const box = bodyBox(master, indexInMaster, number, o.getOptions());
     const gap = o.getOptions().hideWhiteSpace ? 1 : PAGE_GAP;
     const top = prev ? prev.top + prev.box.pageHeight + gap : 0;
-    return { index: prev ? prev.index + 1 : 0, master: master.name, indexInMaster, number, box, top, startPos: unit ? unit.pos : 0, clean: true, D: 0 };
+    return { index: prev ? prev.index + 1 : 0, master: master.name, indexInMaster, number, box, top, startPos: unit ? unit.pos : 0, clean: true, D: 0, notes: [], notesH: 0 };
   }
 
   /** Lays out from `startIndex`; yields periodically. Uses the gaps currently rendered for measuring. */
@@ -308,9 +310,16 @@ export function createPaginator(o) {
     let page = startIndex === 0 ? makePage(null, null, null) : pages[startIndex];
     if (startIndex === 0) pages.push(page);
     const restartPos = page.startPos;
+    // The restart page keeps only the footnotes of what comes before the restart.
+    page.notes = (page.notes || []).filter((n) => n.pos < restartPos);
+    page.notesH = page.notes.reduce((a, n) => a + n.h, 0);
+    delete page.endnotes;
     const newGaps = gaps.filter((g) => gapPos(g) < restartPos && (g.type !== 'rows' || g.tableEnd <= restartPos));
     const bodyTop = (p) => p.top + p.box.top;
-    const bodyBottom = (p) => p.top + p.box.bottom;
+    // The page's footnotes take room at the bottom of its body.
+    const bodyBottom = (p) => p.top + p.box.bottom - (p.notesH ? p.notesH + NOTE_SEP : 0);
+    const extraNotes = (p, h) => (h ? h + (p.notesH ? 0 : NOTE_SEP) : 0);
+    let lastBottom = 0; // visual bottom of the last unit placed (for endnotes)
     let first = startIndex === 0;
     let prevUnit = null;
     let breakAfterPending = false;
@@ -339,6 +348,9 @@ export function createPaginator(o) {
     const caughtUp = (pos) => {
       if (full) return false;
       const old = oldPages[page.index];
+      const prevNew = pages[page.index - 1];
+      const prevOld = oldPages[page.index - 1];
+      if (prevNew && prevOld && Math.abs((prevNew.notesH || 0) - (prevOld.notesH || 0)) > 0.5) return false;
       if (!old || old.startPos !== pos || Math.abs(old.D - page.D) > 0.5 || old.master !== page.master || old.number !== page.number || Math.abs(old.top - page.top) > 0.5 || !old.clean || !page.clean) return false;
       // The boundary's own gap is already in newGaps; reuse everything after it.
       for (const g of gaps) if (gapPos(g) > pos) newGaps.push(g);
@@ -590,13 +602,17 @@ export function createPaginator(o) {
         if (u.kind === 'row') { rows.shifts.set(u.pos, page.D - rows.base); rows.h = page.D - rows.base; } else if (caughtUp(u.pos)) return { pages, gaps: newGaps, again: Number.isFinite(regionAgain) ? regionAgain : null };
       }
 
-      const fits = m.bottom + page.D <= bodyBottom(page) + 0.5;
+      // Footnotes referenced here must fit on the same page.
+      const unitNotes = (u.kind === 'para' || u.kind === 'row') && o.noteHeights ? o.noteHeights(u.pos, u.node) : [];
+      const unitNotesH = unitNotes.reduce((a, n) => a + n.h, 0);
+      const fits = m.bottom + page.D <= bodyBottom(page) - extraNotes(page, unitNotesH) + 0.5;
       if (!fits) {
         let handled = false;
         if (u.kind === 'para' && ((!u.props.keepTogether && !m.hasFloat) || first)) {
           const ls = lines(u, m.dom);
           const n = ls.length;
-          const limit = bodyBottom(page) - page.D;
+          // Lines up to the limit stay; the footnotes go with the last part.
+          const limit = bodyBottom(page) - extraNotes(page, unitNotesH) - page.D;
           let kk = 0;
           while (kk < n && ls[kk].bottom <= limit + 0.5) kk++;
           if (kk >= n) handled = true; // only padding/border overflows: keep it here
@@ -613,7 +629,7 @@ export function createPaginator(o) {
                 page.clean = false;
                 newGaps.push({ type: 'inline', pos: ls[j].pos(), h: bodyTop(page) - (ls[j].top + before.D) });
                 page.D = bodyTop(page) - ls[j].top;
-                const lim = bodyBottom(page) - page.D;
+                const lim = bodyBottom(page) - extraNotes(page, unitNotesH) - page.D;
                 let next = j;
                 while (next < n && ls[next].bottom <= lim + 0.5) next++;
                 if (next >= n || next === j) break;
@@ -636,11 +652,25 @@ export function createPaginator(o) {
           if (u.kind === 'row') { rows.shifts.set(u.pos, page.D - rows.base); rows.h = page.D - rows.base; } else if (caughtUp(mover.pos)) return { pages, gaps: newGaps, again: Number.isFinite(regionAgain) ? regionAgain : null };
         }
       }
+      if (unitNotes.length) { page.notes = [...page.notes, ...unitNotes]; page.notesH += unitNotesH; }
+      lastBottom = m.bottom + page.D;
       first = false;
       prevUnit = u;
       if (u.kind === 'para' && u.props.breakAfter) breakAfterPending = true;
     }
     if (rows) rows.h = page.D - rows.base;
+    // Endnotes follow the last paragraph (on a new page if they don't fit).
+    const endH = o.endnotesHeight ? o.endnotesHeight() : 0;
+    if (endH > 0) {
+      let y = Math.max(lastBottom, bodyTop(page)) + NOTE_SEP * 2;
+      if (y + endH > bodyBottom(page) + 0.5 && lastBottom > bodyTop(page) + 1) {
+        newPage(null, null);
+        page.startPos = view.state.doc.content.size;
+        page.clean = false;
+        y = bodyTop(page);
+      }
+      page.endnotes = { y, h: endH };
+    }
     return { pages, gaps: newGaps, again: Number.isFinite(regionAgain) ? regionAgain : null };
   }
 
