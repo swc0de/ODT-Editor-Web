@@ -469,6 +469,17 @@ export function createConverter({ ns, autoIndex, styleIndex, objectKind = null, 
           case 'text:tab': atom({ type: 'tab' }); break;
           case 'text:line-break': atom(a['loext:clear'] ? { type: 'hard_break', attrs: { clear: a['loext:clear'] } } : { type: 'hard_break' }); break;
           case 'text:span': walk(node, spanMarks(a['text:style-name'], marks)); break;
+          case 'loext:content-control': {
+            // List items first, then the content (text, or a picture).
+            const items = [...node.children].filter((c) => q(c) === 'loext:list-item').map((c) => { const la = attrsOf(c, ns); return { display: la['loext:display-text'] || '', value: la['loext:value'] || '' }; });
+            const cc = { type: 'contentControl', attrs: { attrs: a, items } };
+            const before = out.length;
+            walk(node, [cc, ...marks.filter((m) => m.type !== 'contentControl')]);
+            // Atoms (a picture) inside the control carry the control too.
+            for (let k = before; k < out.length; k++) if (out[k].type !== 'text' && !out[k].marks) out[k] = { ...out[k], marks: [cc] };
+            break;
+          }
+          case 'loext:list-item': break;
           case 'text:a': {
             const link = { type: 'link', attrs: { href: a['xlink:href'] || '', extra: without(a, 'xlink:href', 'xlink:type') } };
             walk(node, [...marks.filter((m) => m.type !== 'link'), link]);

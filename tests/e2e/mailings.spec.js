@@ -178,4 +178,68 @@ test.describe('mailings', () => {
     const rt = await roundTrip(page, 'labels.odt');
     expect(rt.diff).toBe(null);
   });
+
+  test('Developer: content controls, properties, design mode, filling in forms, round trip with LibreOffice', async ({ page }) => {
+    await typeText(page, 'Name: ');
+    await run(page, 'developer.plainText');
+    await page.keyboard.press('End');
+    await page.keyboard.type(' Agree: ');
+    await run(page, 'developer.checkBox');
+    await page.keyboard.type(' Colour: ');
+    await run(page, 'developer.dropDownList');
+    await page.keyboard.press('End');
+    await page.keyboard.type(' Date: ');
+    await run(page, 'developer.datePicker');
+    const ccs = () => page.evaluate(() => [...document.querySelectorAll('.page-flow .cc')].map((e) => `${e.dataset.kind}:${e.textContent}`));
+    expect(await ccs()).toEqual(['plain:Click or tap here to enter text.', 'checkbox:☐', 'dropdown:Choose an item.', 'date:Click or tap to enter a date.']);
+    // Clicking the placeholder selects it; typing replaces it and ends the placeholder.
+    await page.locator('.page-flow .cc-plain').click();
+    await page.keyboard.type('Ada Lovelace');
+    await expect(page.locator('.page-flow .cc-plain')).toHaveText('Ada Lovelace');
+    await expect(page.locator('.page-flow .cc-plain')).not.toHaveClass(/cc-placeholder/);
+    // Check box toggles.
+    await page.locator('.page-flow .cc-checkbox').click();
+    await expect(page.locator('.page-flow .cc-checkbox')).toHaveText('☒');
+    // Drop-down: add items in Properties, then choose one.
+    await page.evaluate(() => { const v = window.odtEditor.editor.view; const el = document.querySelector('.page-flow .cc-dropdown'); const pos = v.posAtDOM(el, 0) + 1; v.dispatch(v.state.tr.setSelection(window.odtEditor.pm.TextSelection.create(v.state.doc, pos))); v.focus(); });
+    await run(page, 'developer.properties');
+    await page.locator('.cc-dlg input').first().fill('Favourite colour');
+    for (const c of ['Red', 'Green', 'Blue']) { await page.locator('.cc-row input').first().fill(c); await page.locator('.cc-row button', { hasText: 'Add' }).click(); }
+    await page.locator('.dlg button.primary').click();
+    await page.locator('.page-flow .cc-dropdown').click();
+    await page.locator('.menu .menu-item', { hasText: 'Green' }).click();
+    await expect(page.locator('.page-flow .cc-dropdown')).toHaveText('Green');
+    // Date picker.
+    await page.locator('.page-flow .cc-date').click();
+    await page.locator('.cc-date-input').fill('2026-03-05');
+    await expect(page.locator('.page-flow .cc-date')).toHaveText('05/03/2026');
+    // Design Mode shows titles.
+    await run(page, 'developer.designMode');
+    await expect(page.locator('.page-flow .ProseMirror')).toHaveClass(/cc-design/);
+    await run(page, 'developer.designMode');
+    // Restrict Editing: filling in forms — text outside controls can't change, inside can.
+    await run(page, 'review.restrictEditing');
+    await page.locator('.rst-pane input[type=checkbox]').check();
+    await page.locator('.rst-pane select').selectOption('forms');
+    await page.locator('.rst-pane button', { hasText: 'Start Enforcing' }).click();
+    await page.evaluate(() => window.odtEditor.editor.focus());
+    await page.keyboard.press('Control+Home');
+    await page.keyboard.type('XX');
+    expect(await page.evaluate(() => window.odtEditor.editor.view.state.doc.textContent.startsWith('Name: '))).toBe(true);
+    await page.locator('.page-flow .cc-plain').click();
+    await page.keyboard.press('End');
+    await page.keyboard.type(' B');
+    await expect(page.locator('.page-flow .cc-plain')).toContainText('Lovelace');
+    await page.locator('.rst-pane button', { hasText: 'Stop Protection' }).click();
+    const rt = await roundTrip(page, 'form.odt');
+    expect(rt.diff).toBe(null);
+    expect(rt.content).toMatch(/<loext:content-control loext:checkbox="true" loext:checked="true" loext:checked-state="☒" loext:unchecked-state="☐" loext:id="\d+">☒<\/loext:content-control>/);
+    expect(rt.content).toMatch(/<loext:content-control loext:dropdown="true" loext:id="\d+" loext:alias="Favourite colour"><loext:list-item loext:display-text="Red" loext:value="Red"\/>/);
+    if (soffice) {
+      const lo = libreOfficeResave(rt.file);
+      expect(lo['content.xml']).toMatch(/loext:content-control[^>]*loext:checkbox="true"/);
+      expect(lo['content.xml']).toMatch(/loext:list-item loext:display-text="Green"/);
+      expect(lo['content.xml']).toContain('05/03/2026');
+    }
+  });
 });

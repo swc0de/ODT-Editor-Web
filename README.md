@@ -111,7 +111,8 @@ reference/             UI reference screenshots; compare/ holds generated compar
   Language styles and locales (CC BY-SA 3.0: APA, MLA, Chicago author-date,
   IEEE, Cite Them Right Harvard),
   Lucide icons (ISC), hyphen (ISC) with British English hyphenation patterns
-  from CTAN (hyph-en-gb).
+  from CTAN (hyph-en-gb), SheetJS Community Edition (Apache-2.0; reading
+  spreadsheet recipient lists).
 
 UI inspired by the open-source WordCraft project (MIT/Apache-2.0).
 
@@ -246,7 +247,34 @@ UI inspired by the open-source WordCraft project (MIT/Apache-2.0).
 - Drawings are saved as ordinary ODF drawing objects, so LibreOffice shows
   them.
 
-## Known limitations (M10)
+## Mailings
+
+- Select Recipients from a CSV, XLSX, XLS or ODS file, or type a new list;
+  Edit Recipient List to filter, sort and choose recipients. The list is
+  saved inside the document.
+- Insert merge fields, an Address Block and a Greeting Line; Rules add
+  If…Then…Else, Fill-in, Next Record, Merge Record # and Skip Record If.
+- Preview Results steps through the recipients; Finish & Merge ▸ Edit
+  Individual Documents makes one document with a copy per recipient.
+- Envelopes and Labels make ready-to-print documents in common sizes.
+- Merge fields are ODF database fields, so LibreOffice keeps them.
+
+## Developer
+
+- Content controls: rich text, plain text, picture, check box, combo box,
+  drop-down list and date picker, with Properties (title, tag, locking,
+  items, date format) and Design Mode. Restrict Editing ▸ Filling in forms
+  allows changes only inside the controls. Controls are saved the way
+  LibreOffice saves them.
+
+## Known limitations (M11)
+
+- Mailings: Print Documents and Send Email Messages are Coming soon; only
+  the first sheet of a workbook is read; no database or contacts sources;
+  no custom label sizes.
+- Developer: no repeating-section or building-block controls.
+
+## Earlier limitations (M10)
 
 - Draw: strokes can't be edited point by point; Ink to Math is unavailable;
   the Pencil texture shows only in this editor.

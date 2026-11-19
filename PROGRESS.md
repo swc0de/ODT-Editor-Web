@@ -15,7 +15,7 @@ The memory between sessions. Statuses: `todo`, `in progress`, `awaiting approval
 | M8 — References | approved |
 | M9 — Review: comments, track changes, proofing | approved |
 | M10 — Draw tab | approved |
-| M11 — Mailings and Developer | in progress |
+| M11 — Mailings and Developer | awaiting approval |
 | M12 — View tab and windows | todo |
 | M13 — Import/export, Options, polish and final audit | todo |
 
@@ -332,4 +332,30 @@ Known limitations:
 - Clicking a stroke with Select selects the whole object; there is no point editing of strokes.
 - Groups containing frames, text or other groups (from other documents) are kept but not drawn.
 - The Pencil texture is drawn only in this editor; LibreOffice draws a plain line.
+
+## M11 — Mailings and Developer (awaiting approval)
+
+Built:
+- **Recipients**: Select Recipients ▸ Use an Existing List reads CSV/TXT/TSV directly and XLSX/XLS/ODS with SheetJS (first sheet, first row = column names); ▸ Type a New List opens an editable grid (New Entry, Delete Entry, Add Column). **Edit Recipient List**: filter, sort by column, tick/untick recipients; a typed list stays editable. The list is saved inside the .odt (`MailMerge/recipients.json`), so a merge document re-opens ready to preview.
+- **Fields**: Insert Merge Field ▾ (the list's columns), **Address Block** (name format, company, address lines, country; live preview with the first recipient; empty lines are dropped when merging), **Greeting Line** (salutation, name format, punctuation). Merge fields are ODF database fields (`text:database-display`, database/table/column), which LibreOffice keeps.
+- **Rules**: If…Then…Else (`text:conditional-text` with an `ooow:[db.table.field] >= "v"` condition), Fill-in (`text:text-input`, asked once per merge), Next Record (`text:database-next`), Merge Record # (`text:database-row-number`), Skip Record If (kept with the merge settings).
+- **Highlight Merge Fields**; **Preview Results** with first/previous/record number/next/last and Find Recipient, showing the record's values in place.
+- **Finish & Merge ▸ Edit Individual Documents** (all/current/from–to): a new document with one copy per recipient, each on a new page (labels and directories are continuous).
+- **Envelopes** (DL, C4, C5, C6, US #10, Monarch; delivery and return address, omit return) and **Labels** (Avery L7160, L7163, L7173, L7159, L7651, 5160, 5163; full page or a single label at row/column) create new documents with the right page size and a borderless table of exact-size cells. Start Mail Merge ▸ Envelopes/Labels lays out a merge document with the address block in every label (with Next Record between labels).
+- **Developer ▸ Controls**: Rich Text, Plain Text, Picture, Check Box, Combo Box, Drop-Down List, Date Picker content controls. Placeholders select whole on click and are replaced by typing; the check box toggles on click; drop-down/combo box open their list; the date picker opens a calendar and writes the date in the control's format; the picture control asks for a picture. **Design Mode** outlines the controls and allows editing them freely. **Properties**: title, tag, locking (can't delete / can't edit), check-box symbols, date format, list items (add, remove, move up).
+- **Restrict Editing ▸ Filling in forms**: only the content of controls can be changed (saved in settings.xml like the other restrictions).
+- **ODF**: controls are LibreOffice's `loext:content-control` (with `loext:list-item`s), which is also what LibreOffice makes from Word content controls. Our XML for `tests/fixtures/lo-content-controls.odt` (made by LibreOffice) matches LibreOffice's byte for byte, and it round-trips identically.
+- Tests: 77 unit (new: CSV parsing, conditions, address block/greeting, merging) + 133 e2e (3 new in `tests/e2e/mailings.spec.js`: letters from CSV with preview/merge and a LibreOffice re-save keeping the database fields; XLSX list, typed list, envelopes, labels; content controls with properties, design mode, forms restriction and a LibreOffice re-save). Performance unchanged (100 pages: 3.6 ms median per keystroke).
+- Screenshots (dark and light): `reference/compare/m11-mailings-fields-*`, `m11-mailings-preview-*`, `m11-recipients-*`, `m11-labels-dialog-*`, `m11-labels-doc-*`, `m11-envelope-doc-*`, `m11-developer-*`, `m11-developer-design-*`, `m11-control-properties-*`, `m11-control-dropdown-*`. There is no reference screenshot of these tabs; they follow the ribbon conventions of the other tabs.
+
+Decisions:
+- SheetJS 0.20.3 from the official SheetJS CDN tarball (the npm package is out of date), bundled as a lazily loaded chunk.
+- The recipient list is stored in the document package rather than linking to the original file (a browser can't re-open a file by path).
+- Finish & Merge ▸ Print Documents and Send Email Messages stay "Coming soon": printing arrives in M13, and e-mail needs a mail service.
+- Content controls are a mark on their content (not a node), so text inside them edits normally; typing straight after a control you're filling continues inside it, and typing after moving the caret there goes outside.
+
+Known limitations:
+- No Outlook/contacts sources or database connections; only the first sheet of a workbook is read.
+- Envelope printing options (feed method) and custom label sizes aren't available.
+- Repeating-section and building-block content controls and legacy form fields aren't offered (legacy fields from other files are kept).
 

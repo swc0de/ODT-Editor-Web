@@ -339,6 +339,25 @@ export const marks = {
   insertion: { attrs: changeAttrs, inclusive: true, excludes: 'insertion', parseDOM: changeParse('ins'), toDOM: changeDom('ins') },
   deletion: { attrs: changeAttrs, inclusive: false, excludes: 'deletion', parseDOM: changeParse('del'), toDOM: changeDom('del') },
   formatChange: { attrs: changeAttrs, inclusive: false, excludes: 'formatChange', parseDOM: changeParse('fmt'), toDOM: changeDom('fmt') },
+  /**
+   * A content control (Developer tab; LibreOffice's loext:content-control):
+   * attrs = the element's attributes (loext:checkbox, loext:dropdown,
+   * loext:alias, loext:tag, loext:lock…), items = drop-down entries.
+   */
+  contentControl: {
+    attrs: { attrs: { default: {} }, items: { default: [] } },
+    inclusive: false,
+    excludes: 'contentControl',
+    parseDOM: [{ tag: 'span[data-cc]', priority: 80, getAttrs: (dom) => ({ attrs: parseJson(dom.getAttribute('data-cc')) || {}, items: parseJson(dom.getAttribute('data-items')) || [] }) }],
+    toDOM: (mark) => {
+      const a = mark.attrs.attrs || {};
+      const kind = a['loext:checkbox'] === 'true' ? 'checkbox' : a['loext:combobox'] === 'true' ? 'combobox' : a['loext:dropdown'] === 'true' ? 'dropdown' : a['loext:date'] === 'true' ? 'date' : a['loext:picture'] === 'true' ? 'picture' : a['loext:plain-text'] === 'true' ? 'plain' : 'rich';
+      return ['span', {
+        'data-cc': json(a), 'data-items': mark.attrs.items?.length ? json(mark.attrs.items) : null, 'data-kind': kind,
+        'data-title': a['loext:alias'] || null, class: `cc cc-${kind}${a['loext:showing-place-holder'] === 'true' ? ' cc-placeholder' : ''}`,
+      }, 0];
+    },
+  },
   link: {
     attrs: { href: { default: '' }, extra: EXTRA },
     inclusive: false,

@@ -38,7 +38,7 @@
 
 /* Dialogs */
 .dlg-overlay { position: fixed; inset: 0; z-index: 2500; display: grid; place-items: center; background: var(--overlay); }
-.dlg { min-width: 360px; max-width: min(520px, calc(100vw - 32px)); background: var(--menu-bg); color: var(--text); border: 1px solid var(--menu-border); border-radius: 8px; box-shadow: var(--menu-shadow); }
+.dlg { max-height: calc(100vh - 24px); overflow: auto; min-width: 360px; max-width: min(520px, calc(100vw - 32px)); background: var(--menu-bg); color: var(--text); border: 1px solid var(--menu-border); border-radius: 8px; box-shadow: var(--menu-shadow); }
 .dlg-head { display: flex; align-items: center; justify-content: space-between; padding: 12px 16px 4px; }
 .dlg-title { margin: 0; font-size: 15px; font-weight: 600; }
 .dlg-x { border: 0; background: transparent; color: var(--text-muted); font-size: 20px; line-height: 1; padding: 2px 6px; border-radius: 4px; }
@@ -169,3 +169,16 @@
 /* Mail merge: Highlight Merge Fields, previewed values */
 .mm-highlight .odt-field:is(.f-text-database-display, .f-text-conditional-text, .f-text-text-input, .f-text-database-next, .f-text-database-row-number) { background: #d9d9d9; }
 .odt-field.f-text-database-next:not([data-shown])::before { content: '«Next Record»'; color: #6b6b6b; }
+/* Content controls (Developer tab) */
+.odt-doc .cc { border-radius: 2px; box-shadow: 0 0 0 1px transparent; transition: box-shadow 0.1s; }
+.odt-doc .cc:hover { box-shadow: 0 0 0 1px #8a99d6; }
+.odt-doc .cc-placeholder { color: #767676; }
+.odt-doc .cc-checkbox, .odt-doc .cc-dropdown, .odt-doc .cc-date, .odt-doc .cc-picture { cursor: pointer; }
+.odt-doc .cc-dropdown::after, .odt-doc .cc-combobox::after { content: '▾'; font-size: 0.75em; color: #6b6b6b; margin-left: 2px; }
+.cc-design .cc { box-shadow: 0 0 0 1px #5b6ee1; background: color-mix(in srgb, #5b6ee1 8%, transparent); }
+.cc-design .cc[data-title]::before { content: attr(data-title); font: 9px var(--font-ui, sans-serif); color: #fff; background: #5b6ee1; padding: 0 3px; margin-right: 2px; border-radius: 2px; }
+.cc-date-pop { position: fixed; z-index: 1000; background: var(--menu-bg); border: 1px solid var(--menu-border); border-radius: 4px; padding: 6px; box-shadow: var(--menu-shadow); }
+.cc-date-input { font: 13px var(--font-ui); }
+.cc-row { display: flex; gap: 4px; margin-top: 4px; }
+.cc-row input { flex: 1; min-width: 0; }
+.cc-dlg .src-list { width: 100%; }

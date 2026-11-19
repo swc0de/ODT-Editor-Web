@@ -41,7 +41,7 @@ export const commands = defineCommands('mailings', {
   ruleSkipRecord: { isEnabled: withList, run: ruleSkipRecord },
   ruleNextRecord: { isEnabled: withList, run: ruleNextRecord },
   ruleMergeRecord: { isEnabled: withList, run: ruleMergeRecord },
-  previewResults: { icon: 'preview-results', isEnabled: preview, isChecked: (c) => !!c.state.mergePreview, run: (c) => setPreview(c, !c.state.mergePreview) },
+  previewResults: { icon: 'preview-results', isEnabled: preview, isChecked: (c) => !!c.state.mergePreview && preview(c), run: (c) => setPreview(c, !c.state.mergePreview) },
   firstRecord: { icon: 'first-record', isEnabled: preview, run: (c) => goRecord(c, 1) },
   previousRecord: { icon: 'previous-record', isEnabled: (c) => preview(c) && (c.state.mergeRecord || 1) > 1, run: (c) => goRecord(c, (c.state.mergeRecord || 1) - 1) },
   recordNumber: { isEnabled: preview, value: (c) => c.state.mergeRecord || 1, run: (c, n) => goRecord(c, Number(n) || 1) },

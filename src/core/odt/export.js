@@ -145,12 +145,29 @@ export function createBodyWriter(registry) {
     return `${s}</table:table>`;
   }
 
-  /** Inline content: links outermost, then spans; ODF white-space encoding. */
+  /** Inline content: content controls outermost, then links, then spans; ODF white-space encoding. */
   function inlines(parent) {
     const items = [];
     parent.forEach((child) => items.push(child));
     if (!items.length) return '';
     const st = { prevSpace: true };
+    let out = '';
+    let i = 0;
+    while (i < items.length) {
+      const cc = items[i].marks.find((m) => m.type.name === 'contentControl');
+      let j = i + 1;
+      while (j < items.length && sameMark(items[j], cc, 'contentControl')) j++;
+      const inner = linked(items.slice(i, j), st);
+      if (cc) {
+        const list = (cc.attrs.items || []).map((it) => `<loext:list-item loext:display-text="${escAttr(it.display)}" loext:value="${escAttr(it.value)}"/>`).join('');
+        out += `<loext:content-control${attrs(cc.attrs.attrs)}>${list}${inner}</loext:content-control>`;
+      } else out += inner;
+      i = j;
+    }
+    return out;
+  }
+
+  function linked(items, st) {
     let out = '';
     let i = 0;
     while (i < items.length) {
@@ -166,6 +183,11 @@ export function createBodyWriter(registry) {
     }
     return out;
   }
+
+  const sameMark = (node, mark, name) => {
+    const m = node.marks.find((x) => x.type.name === name);
+    return mark ? !!m && m.eq(mark) : !m;
+  };
 
   const sameLink = (node, link) => {
     const l = node.marks.find((m) => m.type.name === 'link');

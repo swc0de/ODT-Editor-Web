@@ -93,7 +93,7 @@ export function openRestrictPane(c) {
   const dock = c.ui.rightDock;
   if (dock.isOpen('restrict')) { dock.close('restrict'); return; }
   const allow = check(t('rst.allowOnly'), !!c.state.restrict);
-  const mode = select([['readonly', t('rst.readonly')], ['comments', t('rst.comments')], ['tracked', t('rst.tracked')]], c.state.restrict || 'readonly');
+  const mode = select([['readonly', t('rst.readonly')], ['forms', t('rst.forms')], ['comments', t('rst.comments')], ['tracked', t('rst.tracked')]], c.state.restrict || 'readonly');
   const status = h('p', { class: 'rst-status' });
   const start = h('button', { type: 'button', class: 'dlg-btn primary' }, t('rst.start'));
   const stop = h('button', { type: 'button', class: 'dlg-btn' }, t('rst.stop'));

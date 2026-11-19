@@ -40,11 +40,12 @@ export const INITIAL_APP_STATE = Object.freeze({
   reviewHide: { insdel: false, fmt: false, comments: false, authors: [] },
   reviewingPane: null, // null | 'vertical' | 'horizontal'
   commentsView: 'contextual', // 'contextual' (balloons) | 'list' (Comments pane)
-  restrict: null, // null | 'readonly' | 'comments' | 'tracked'
+  restrict: null, // null | 'readonly' | 'comments' | 'tracked' | 'forms'
   readingAloud: false,
   drawTool: 'select',
   inkToShape: false,
   mergePreview: false,
+  ccDesign: false,
   mergeRecord: 1,
   mergeHighlight: false,
   inkReplaying: false,

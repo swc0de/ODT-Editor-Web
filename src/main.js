@@ -49,6 +49,7 @@ import { proofingPlugin, problemAt, suggestions, addToDictionary, ignoreAll, rec
 import { createEditorPane } from './ui/editor-pane.js';
 import { createInk } from './ui/ink.js';
 import { mergePreviewPlugin } from './features/mailings/merge.js';
+import { controlsPlugin, controlAt, setControl, withoutPlaceholder } from './features/developer/controls.js';
 import { createAccessibilityPane } from './ui/accessibility-pane.js';
 import { createReadAloud, readAloudPlugin } from './features/review/read-aloud.js';
 import { applyRestriction, savedRestriction } from './features/review/extras.js';
@@ -135,7 +136,7 @@ function boot() {
     },
     openFiles(files) { if (files[0]) session.openFile(files[0]).then((ok) => { if (ok) store.set({ backstageOpen: false }); }); },
     priorityPlugins: () => [flushSelectionPlugin(), new Plugin({ props: { handleKeyDown: (_v, e) => !!ui.handleEditorKey?.(e) } }), ...(ui.objects ? [ui.objects.keyPlugin] : []), tableKeymap, ...editingPlugins(() => ({ ...AUTOCORRECT_DEFAULTS, ...(getSetting('autocorrect') || {}) }), makeList)],
-    extraPlugins: () => [...docArea.plugins(), mergePreviewPlugin({ on: () => store.get().mergePreview, merge: () => session?.state?.mailMerge, record: () => (store.get().mergeRecord || 1) - 1, highlight: () => store.get().mergeHighlight }), readAloudPlugin(), proofingPlugin({ enabled: () => getSetting('checkSpelling') !== false, fallback: () => 'en-GB', onProblems: () => { if (ui.editorPane?.isOpen) ui.editorPane.render(false); } }), trackChangesPlugin({ isOn: () => store.get().trackChanges, author: userName, display: () => store.get().reviewDisplay, hidden: () => store.get().reviewHide }), editablePlugin(() => store.get().editingMode !== 'viewing'), sequencePlugin(), notesNumberingPlugin(() => session?.state, () => (docArea.pages.length ? (pos) => docArea.pageAt(pos) : null)), ...tablePlugins(tableUI), linkFollowPlugin(() => store.get().editingMode === 'viewing'), searchPlugin(), listLabelsPlugin((name) => getListStyle(ctx(), name))],
+    extraPlugins: () => [...docArea.plugins(), controlsPlugin({ forms: () => store.get().restrict === 'forms', design: () => store.get().ccDesign, openMenu: (point, items) => openMenu({ point, items }), pickDate: pickDatePopup, pickPicture: (pos) => pickControlPicture(pos) }), mergePreviewPlugin({ on: () => store.get().mergePreview, merge: () => session?.state?.mailMerge, record: () => (store.get().mergeRecord || 1) - 1, highlight: () => store.get().mergeHighlight }), readAloudPlugin(), proofingPlugin({ enabled: () => getSetting('checkSpelling') !== false, fallback: () => 'en-GB', onProblems: () => { if (ui.editorPane?.isOpen) ui.editorPane.render(false); } }), trackChangesPlugin({ isOn: () => store.get().trackChanges, author: userName, display: () => store.get().reviewDisplay, hidden: () => store.get().reviewHide }), editablePlugin(() => store.get().editingMode !== 'viewing'), sequencePlugin(), notesNumberingPlugin(() => session?.state, () => (docArea.pages.length ? (pos) => docArea.pageAt(pos) : null)), ...tablePlugins(tableUI), linkFollowPlugin(() => store.get().editingMode === 'viewing'), searchPlugin(), listLabelsPlugin((name) => getListStyle(ctx(), name))],
     pasteMode(event) {
       const once = clipboard?.takeMode();
       if (once) return once;
@@ -368,6 +369,45 @@ function boot() {
   ui.accessibilityPane = createAccessibilityPane({ dock: rightDock, getEditor: () => editor, getSession: () => session, getPages: () => docArea.pages.length, runCommand: (id) => registry.run(id) });
   ui.readAloud = createReadAloud({ store, getView: () => editor.view, container: () => docArea.el });
   ui.io = { importOdt, exportOdt };
+  // Content controls: the date picker and the picture chooser.
+  function pickDatePopup(point, iso) {
+    return new Promise((resolve) => {
+      const input = h('input', { type: 'date', class: 'cc-date-input', value: (iso || '').slice(0, 10), 'aria-label': t('cc.pickDate') });
+      const pop = h('div', { class: 'cc-date-pop', style: { left: `${point.x}px`, top: `${point.y}px` } }, input);
+      document.body.append(pop);
+      let done = false;
+      const finish = (v) => { if (done) return; done = true; pop.remove(); document.removeEventListener('pointerdown', outside, true); resolve(v); };
+      const outside = (e) => { if (!pop.contains(e.target)) finish(null); };
+      input.addEventListener('change', () => finish(input.value || null));
+      input.addEventListener('keydown', (e) => { if (e.key === 'Escape') finish(null); if (e.key === 'Enter') finish(input.value || null); });
+      setTimeout(() => document.addEventListener('pointerdown', outside, true), 0);
+      input.focus();
+      try { input.showPicker?.(); } catch { /* not allowed here: the field is still there */ }
+    });
+  }
+  function pickControlPicture(pos) {
+    const input = h('input', { type: 'file', accept: 'image/*', style: 'display:none' });
+    input.addEventListener('change', async () => {
+      const f = input.files?.[0];
+      input.remove();
+      if (!f) return;
+      const ctl = controlAt(editor.view.state, pos + 1) || controlAt(editor.view.state, pos);
+      if (!ctl) return;
+      await ui.objects.insertPictures([f], ctl.from);
+      const v = editor.view;
+      const sel = v.state.selection;
+      if (!(sel instanceof NodeSelection)) return;
+      // The new picture replaces the control's old content and joins the control.
+      const tr = v.state.tr;
+      const start = sel.from + sel.node.nodeSize;
+      tr.delete(start, start + (ctl.to - ctl.from));
+      tr.addMark(sel.from, sel.from + sel.node.nodeSize, editor.view.state.schema.marks.contentControl.create({ attrs: withoutPlaceholder(ctl.mark.attrs.attrs), items: [] }));
+      v.dispatch(tr.setMeta('ccInternal', true));
+    });
+    document.body.append(input);
+    input.click();
+  }
+  void setControl;
   // Inking (Draw tab).
   ui.ink = createInk({ store, docArea, getView: () => editor.view, ctx, toast, t });
   // Editing ▾ Viewing (and Restrict Editing) switch the document to read-only and back.
