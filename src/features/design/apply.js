@@ -4,6 +4,7 @@
  * page background (watermark, page colour, page borders). Every change is
  * one undoable step.
  */
+import { fontworkGeometry } from '../../core/shapes.js';
 import { editState } from '../../core/state-step.js';
 import { ensureStyles, findStyle, ownFormatting, setStyleFormatting } from '../../core/style-edit.js';
 import { mergeAuto } from '../../core/odt/styles.js';
@@ -207,7 +208,7 @@ export function setWatermark(c, spec) {
       shape = {
         n: 'draw:custom-shape',
         a: { 'text:anchor-type': 'char', 'draw:z-index': '0', 'draw:name': 'PowerPlusWaterMarkObject1', 'draw:style-name': styleName, 'draw:text-style-name': textStyle, 'svg:width': diag ? '16cm' : '15cm', 'svg:height': diag ? '4cm' : '3cm', ...(diag ? { 'draw:transform': 'rotate (0.785398163397448)' } : {}) },
-        c: [{ n: 'text:p', a: {}, c: [spec.text] }, { n: 'draw:enhanced-geometry', a: { 'svg:viewBox': '0 0 21600 21600', 'draw:text-areas': '0 0 21600 21600', 'draw:text-path': 'true', 'draw:text-path-mode': 'shape', 'draw:text-path-scale': 'shape', 'draw:text-path-same-letter-heights': 'false', 'draw:type': 'fontwork-plain-text' } }],
+        c: [{ n: 'text:p', a: {}, c: [spec.text] }, fontworkGeometry('shape')],
       };
     } else if (spec?.kind === 'image') {
       autos = [...autos, { n: 'style:style', a: { 'style:name': styleName, 'style:family': 'graphic' }, c: [{ n: 'style:graphic-properties', a: { 'draw:stroke': 'none', 'draw:fill': 'none', 'draw:image-opacity': '30%', 'draw:luminance': '50%', 'draw:contrast': '-70%', 'style:run-through': 'background', 'style:wrap': 'run-through', 'style:vertical-pos': 'middle', 'style:vertical-rel': 'page-content', 'style:horizontal-pos': 'center', 'style:horizontal-rel': 'page-content' } }] }];

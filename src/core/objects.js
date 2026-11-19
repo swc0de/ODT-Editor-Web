@@ -14,7 +14,7 @@
  * Floating objects are anchored to their paragraph (text:anchor-type="paragraph"),
  * positioned with svg:x / svg:y from the paragraph's top-left ("move with text").
  */
-import { mergeAuto } from './odt/styles.js';
+import { mergeAuto, sortProps } from './odt/styles.js';
 import { toPx } from '../layout/units.js';
 
 export const GP = 'style:graphic-properties';
@@ -39,6 +39,11 @@ export function withGraphic(attrs, change) {
   for (const [k, v] of Object.entries(change)) { if (v == null) delete a[k]; else a[k] = v; }
   auto.props[GP] = p.c ? { a, c: p.c } : { a };
   if (!Object.keys(a).length && !p.c) delete auto.props[GP];
+  // Same property order as the importer gives (graphic, paragraph, text…).
+  const sorted = {};
+  for (const k of sortProps(Object.keys(auto.props).filter((k) => k !== '#other'))) sorted[k] = auto.props[k];
+  if (auto.props['#other']) sorted['#other'] = auto.props['#other'];
+  auto.props = sorted;
   const empty = !Object.keys(auto.props).length && !Object.keys(auto.styleAttrs || {}).length;
   return { ...attrs, auto: empty ? null : auto };
 }

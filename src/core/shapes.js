@@ -166,3 +166,22 @@ export function shapeTextInsets(attrs) {
   const id = BY_TYPE.get(geo?.a?.['draw:type']);
   return (id && SHAPES[id].text) || [0, 0, 0, 0];
 }
+
+/**
+ * The full geometry of a "plain text" fontwork shape, exactly as LibreOffice
+ * writes it (it draws nothing from the preset name alone).
+ */
+export function fontworkGeometry(scale = 'path') {
+  const eq = [['f0', '$0 -10800'], ['f1', '?f0 *2'], ['f2', 'abs(?f1 )'], ['f3', 'if(?f1 ,0,?f2 )'], ['f4', '21600-?f2 '], ['f5', 'if(?f1 ,?f4 ,21600)'], ['f6', 'if(?f1 ,?f2 ,0)'], ['f7', 'if(?f1 ,21600,?f4 )']];
+  return {
+    n: 'draw:enhanced-geometry',
+    a: {
+      'svg:viewBox': '0 0 21600 21600', 'draw:text-areas': '0 0 21600 21600', 'draw:text-path': 'true', 'draw:text-path-mode': 'shape', 'draw:text-path-scale': scale,
+      'draw:type': 'fontwork-plain-text', 'draw:modifiers': '10800', 'draw:enhanced-path': 'M ?f3 0 L ?f5 0 N M ?f6 21600 L ?f7 21600 N',
+    },
+    c: [
+      ...eq.map(([name, formula]) => ({ n: 'draw:equation', a: { 'draw:name': name, 'draw:formula': formula } })),
+      { n: 'draw:handle', a: { 'draw:handle-position': '$0 21600', 'draw:handle-range-x-minimum': '6629', 'draw:handle-range-x-maximum': '14971' } },
+    ],
+  };
+}

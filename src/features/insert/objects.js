@@ -4,7 +4,7 @@
  */
 import { NodeSelection } from 'prosemirror-state';
 import { schema } from '../../core/schema.js';
-import { SHAPES } from '../../core/shapes.js';
+import { SHAPES, fontworkGeometry } from '../../core/shapes.js';
 import { cm, withGraphic, withFrameAttrs, withWrap, uniqueName, maxZ, textBoxAttrs } from '../../core/objects.js';
 import { shapeStyleGraphic } from '../objects/format.js';
 import { selectedTextblocks } from '../../core/commands/paragraph.js';
@@ -86,7 +86,7 @@ export function wordArtAttrs(styleId, { x, y, name, z, text = 'Your text here' }
     element: 'draw:custom-shape', styleName: null, kind: 'wordart', href: '',
     auto: { styleAttrs: {}, props: { 'style:text-properties': { a: tp } } },
     frameAttrs: { 'draw:name': name, 'text:anchor-type': 'paragraph', 'svg:x': cm(x), 'svg:y': cm(y), 'svg:width': cm(w), 'svg:height': cm(h), 'draw:z-index': String(z) },
-    parts: [{ n: '#body' }, { n: 'draw:enhanced-geometry', a: { 'svg:viewBox': '0 0 21600 21600', 'draw:text-areas': '0 0 21600 21600', 'draw:text-path': 'true', 'draw:text-path-mode': 'shape', 'draw:text-path-scale': 'shape', 'draw:text-path-same-letter-heights': 'false', 'draw:type': 'fontwork-plain-text' } }],
+    parts: [{ n: '#body' }, fontworkGeometry('shape')],
     body: [{ type: 'paragraph', attrs: { styleName: 'Standard', auto: null, extra: null }, content: [A(text, tp)] }],
   };
   return withGraphic(withWrap(attrs, 'square', { x, y }), {
@@ -99,9 +99,12 @@ export function wordArtAttrs(styleId, { x, y, name, z, text = 'Your text here' }
 
 /** Inserts an object node at the start of the paragraph holding `at` (default: the selection) and selects it. */
 export function insertObject(c, attrs, at = null) {
-  const view = (c.ui.objects?.activeEditor() || c.editor).view;
+  // Floating objects always go in the body; while editing a text box or shape's
+  // text, the new object is anchored next to that object.
+  const view = c.mainEditor.view;
+  const inner = c.ui.objects?.activeEditor() ? c.ui.objects.selected(c.editor) : null;
   const tr = view.state.tr;
-  const $p = tr.doc.resolve(at ?? tr.selection.from);
+  const $p = tr.doc.resolve(at ?? inner?.pos ?? tr.selection.from);
   let pos;
   if ($p.parent.inlineContent) pos = attrs.frameAttrs['text:anchor-type'] === 'as-char' ? $p.pos : $p.start();
   else {
@@ -127,7 +130,7 @@ function defaultPlace(c, w, align = 'left') {
 
 export function insertTextBox(c, presetId = 'simple') {
   const p = TEXTBOX_PRESETS[presetId] || TEXTBOX_PRESETS.simple;
-  const doc = c.editor.view.state.doc;
+  const doc = c.mainEditor.view.state.doc;
   const w = p.w * CM;
   const { x, y } = defaultPlace(c, w, p.align);
   let attrs = textBoxAttrs({ w, h: p.h * CM, name: uniqueName(doc, c.t?.('obj.textBoxName') || 'Text Box'), z: maxZ(doc) + 1, body: p.body(), x, y });
@@ -138,9 +141,9 @@ export function insertTextBox(c, presetId = 'simple') {
 
 export function insertWordArt(c, styleId) {
   const view = c.editor.view;
-  const doc = view.state.doc;
+  const doc = c.mainEditor.view.state.doc;
   const { from, to, empty } = view.state.selection;
-  const text = empty ? 'Your text here' : doc.textBetween(from, to, ' ').slice(0, 200) || 'Your text here';
+  const text = empty ? 'Your text here' : view.state.doc.textBetween(from, to, ' ').slice(0, 200) || 'Your text here';
   const bodyW = c.ui.docArea.model?.first?.bodyWidth || 600;
   const w = Math.max(4, text.length * 0.75) * CM;
   const attrs = wordArtAttrs(styleId, { x: Math.max(0, (bodyW - Math.min(w, bodyW)) / 2), y: 0, name: uniqueName(doc, 'WordArt'), z: maxZ(doc) + 1, text });

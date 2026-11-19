@@ -14,7 +14,7 @@ const STYLE_IDENTITY = new Set(['style:name', 'style:family', 'style:parent-styl
 /** Canonical order of *-properties elements inside a style (as LibreOffice writes them). */
 const PROPS_ORDER = ['style:graphic-properties', 'loext:graphic-properties', 'style:paragraph-properties', 'style:text-properties', 'style:ruby-properties', 'style:section-properties', 'style:table-properties', 'style:table-column-properties', 'style:table-row-properties', 'style:table-cell-properties', 'style:chart-properties', 'style:drawing-page-properties'];
 const propsRank = (k) => { const i = PROPS_ORDER.indexOf(k); return i < 0 ? 100 : i; };
-const sortProps = (keys) => keys.sort((x, y) => propsRank(x) - propsRank(y) || (x < y ? -1 : x > y ? 1 : 0));
+export const sortProps = (keys) => keys.sort((x, y) => propsRank(x) - propsRank(y) || (x < y ? -1 : x > y ? 1 : 0));
 
 /** style:style tree → { parent, auto: {styleAttrs, props} | null } */
 export function autoFromTree(tree) {

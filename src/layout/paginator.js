@@ -247,7 +247,16 @@ export function createPaginator(o) {
       let top = (r.top - top0) / k - prefix(pos);
       let bottom = (r.bottom - top0) / k - prefix(pos + node.nodeSize, true);
       if (kind === 'row') { const s = rowShift(pos); top -= s; bottom -= s; }
-      return { top, bottom, dom };
+      // Floating objects anchored here extend the paragraph (they move with it).
+      let hasFloat = false;
+      if (kind === 'para' && dom.querySelector('.obj-float, .obj-row')) {
+        for (const f of dom.querySelectorAll(':scope > .odt-obj .obj-float, :scope > .odt-obj .obj-row')) {
+          const fb = (f.getBoundingClientRect().bottom - top0) / k - prefix(pos + node.nodeSize, true);
+          if (fb > bottom) bottom = fb;
+          hasFloat = true;
+        }
+      }
+      return { top, bottom, dom, hasFloat };
     };
     const margins = (dom) => { const cs = getComputedStyle(dom); return { mt: parseFloat(cs.marginTop) || 0, mb: parseFloat(cs.marginBottom) || 0 }; };
     /**
@@ -584,7 +593,7 @@ export function createPaginator(o) {
       const fits = m.bottom + page.D <= bodyBottom(page) + 0.5;
       if (!fits) {
         let handled = false;
-        if (u.kind === 'para' && (!u.props.keepTogether || first)) {
+        if (u.kind === 'para' && ((!u.props.keepTogether && !m.hasFloat) || first)) {
           const ls = lines(u, m.dom);
           const n = ls.length;
           const limit = bodyBottom(page) - page.D;

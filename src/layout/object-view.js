@@ -134,7 +134,9 @@ export class ObjectView {
     let side = 'left';
     if (pos.hpos === 'right' || pos.hpos === 'outside') side = 'right';
     else if (pos.hpos === 'from-left' && container && x + w / 2 > container / 2 + 1) side = 'right';
-    if (wrap === 'topBottom') {
+    // Too little room beside it for text (under 1.5 cm): text goes above and below, as in Writer and Word.
+    const narrow = container && wrap !== 'topBottom' && (side === 'left' ? container - Math.max(0, x) - w : Math.max(0, x)) < 57;
+    if (wrap === 'topBottom' || narrow) {
       const row = el('span', 'obj-row');
       row.style.marginTop = `${Math.max(0, y)}px`;
       row.style.paddingTop = `${margins.t}px`;
@@ -146,7 +148,15 @@ export class ObjectView {
       dom.append(row);
       return;
     }
-    // Square / tight.
+    // Square / tight. A rotated object takes the space of its rotated bounding box.
+    const rot = rotationOf(a) * Math.PI / 180;
+    if (rot) {
+      const bw = Math.abs(w * Math.cos(rot)) + Math.abs(h * Math.sin(rot));
+      const bh = Math.abs(w * Math.sin(rot)) + Math.abs(h * Math.cos(rot));
+      x += (w - bw) / 2; y += (h - bh) / 2;
+      Object.assign(this.box.style, { marginLeft: `${(bw - w) / 2}px`, marginRight: `${(bw - w) / 2}px`, marginTop: `${(bh - h) / 2}px`, marginBottom: `${(bh - h) / 2}px` });
+      w = bw;
+    }
     if (y > 0) dom.append(el('span', `obj-spacer ${side}`, { height: `${y}px` }));
     const fl = el('span', `obj-float ${side}`);
     fl.style.paddingTop = `${margins.t}px`;

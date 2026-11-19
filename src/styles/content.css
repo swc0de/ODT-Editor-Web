@@ -120,3 +120,5 @@
 .odt-doc .odt-obj.obj-dragging .obj-box { opacity: 0.75; }
 /* Drop caps (style:drop-cap): the first letter spans --dc-lines lines. */
 .odt-doc :is(.ProseMirror, .odt-mirror) .has-dropcap::first-letter { initial-letter: var(--dc-lines) var(--dc-lines); margin-right: var(--dc-gap); }
+/* A selected object's text isn't shown as selected text (unless its own editor has focus). */
+.odt-doc .odt-obj .obj-text .ProseMirror:not(.ProseMirror-focused) ::selection { background: transparent; }
