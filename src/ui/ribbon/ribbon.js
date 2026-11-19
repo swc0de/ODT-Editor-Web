@@ -187,6 +187,13 @@ export function createRibbon({ registry, store, tabs, toast }) {
   registry.onChange(refresh);
 
   function applyState(state, changed) {
+    // Editing ▾ shows the current mode.
+    if (!changed || changed.includes('editingMode')) {
+      const mode = state.editingMode || 'editing';
+      editingBtn.querySelector('.top-text').textContent = t(`top.${mode}`);
+      editingBtn.querySelector('.top-icon').innerHTML = iconSvg({ editing: 'editing-mode', reviewing: 'track-changes', viewing: 'eye' }[mode] || 'editing-mode', { size: 14 });
+      editingBtn.dataset.mode = mode;
+    }
     // Contextual tabs (Header & Footer, Table Design…) show while their object is active.
     if (!changed || changed.includes('contextual')) {
       const shown = String(state.contextual || '').split(' ');

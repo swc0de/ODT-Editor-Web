@@ -117,3 +117,25 @@
 .odt-doc .ProseMirror.show-marks .odt-nbsp { background: radial-gradient(circle, transparent 1.2px, #6c86d6 1.3px, #6c86d6 1.8px, transparent 2px) center 40% / 100% 100% no-repeat; }
 .odt-doc .ProseMirror.show-marks br::before { content: "↵"; }
 .odt-doc .ProseMirror.show-marks { --odt-hidden: inline; }
+/* Reviewing pane */
+.rvp-body { display: flex; flex-direction: column; gap: 8px; padding: 8px 10px; min-height: 0; overflow: auto; flex: 1; }
+.rvp-summary { border-bottom: 1px solid var(--control-border-soft, var(--border)); padding-bottom: 6px; }
+.rvp-total { font-weight: 600; }
+.rvp-counts { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
+.rvp-list { display: flex; flex-direction: column; gap: 4px; }
+.rvp-item { display: flex; flex-direction: column; gap: 2px; text-align: left; background: transparent; border: 1px solid transparent; border-left: 3px solid var(--tc, var(--accent)); border-radius: 3px; padding: 5px 8px; color: var(--text); font: 12px var(--font-ui); cursor: pointer; }
+.rvp-item:hover, .rvp-item:focus-visible { background: var(--hover-bg); }
+.rvp-head { display: flex; gap: 4px; align-items: baseline; flex-wrap: wrap; }
+.rvp-date { margin-left: auto; font-size: 11px; color: var(--text-muted); }
+.rvp-text { color: var(--text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rvp-item.k-deletion .rvp-text { text-decoration: line-through; }
+.rvp-empty { color: var(--text-muted); padding: 8px 0; }
+.rvp-item[data-author="0"] { --tc: #e0566f; } .rvp-item[data-author="1"] { --tc: #6f8ff0; } .rvp-item[data-author="2"] { --tc: #3fae69; } .rvp-item[data-author="3"] { --tc: #b77ee0; }
+.rvp-item[data-author="4"] { --tc: #e8913f; } .rvp-item[data-author="5"] { --tc: #3fb6bf; } .rvp-item[data-author="6"] { --tc: #e06aa1; } .rvp-item[data-author="7"] { --tc: #a3b33a; }
+.rv-bottom { position: absolute; left: 0; right: 0; bottom: 0; height: 190px; background: var(--panel-bg); border-top: 1px solid var(--border); display: flex; flex-direction: column; z-index: 4; }
+.doc-area.has-bottom > .canvas { bottom: 190px; }
+.rv-bottom .rvp-list { flex-direction: row; flex-wrap: wrap; }
+.rv-bottom .rvp-item { width: 260px; }
+.wc-table { border-collapse: collapse; min-width: 320px; }
+.wc-table td { padding: 3px 4px; }
+.wc-num { text-align: right; }

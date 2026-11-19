@@ -33,6 +33,12 @@ export const INITIAL_APP_STATE = Object.freeze({
   pageCount: 1,
   zoom: 100,
   editingMode: 'editing', // 'editing' | 'reviewing' | 'viewing'
+  // Review tab (M9)
+  trackChanges: false,
+  trackLock: false,
+  reviewDisplay: 'all', // 'simple' | 'all' | 'none' | 'original'
+  reviewHide: { insdel: false, fmt: false, comments: false, authors: [] },
+  reviewingPane: null, // null | 'vertical' | 'horizontal'
   drawTool: 'select',
   fontName: 'Aptos',
   fontSize: 12,

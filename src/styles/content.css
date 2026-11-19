@@ -136,3 +136,25 @@
 .odt-doc .ProseMirror .odt-index a.odt-link { color: inherit; text-decoration: none; }
 /* Index marks show as {XE} with formatting marks on. */
 .show-marks .odt-field.f-text-alphabetical-index-mark::after, .show-marks .odt-field.f-text-alphabetical-index-mark-start::after { content: '{XE}'; font: 9px var(--font-ui, sans-serif); color: #6b7cb8; }
+/* ---------------------------------------------------------------- tracked changes
+ * Each author has a colour (data-author 0–7). All Markup: insertions
+ * underlined, deletions struck through, a bar beside changed lines. Simple
+ * Markup: the final text with a bar. No Markup: the final text. Original:
+ * the text before the changes. */
+.odt-doc { --tc-0: #b5082e; --tc-1: #2b57d9; --tc-2: #127a3a; --tc-3: #8a3fb5; --tc-4: #c25e00; --tc-5: #00808a; --tc-6: #b0306a; --tc-7: #5c6b00; }
+.odt-doc [data-author="0"] { --tc: var(--tc-0); } .odt-doc [data-author="1"] { --tc: var(--tc-1); } .odt-doc [data-author="2"] { --tc: var(--tc-2); } .odt-doc [data-author="3"] { --tc: var(--tc-3); }
+.odt-doc [data-author="4"] { --tc: var(--tc-4); } .odt-doc [data-author="5"] { --tc: var(--tc-5); } .odt-doc [data-author="6"] { --tc: var(--tc-6); } .odt-doc [data-author="7"] { --tc: var(--tc-7); }
+.tc-show-all .tc-ins { color: var(--tc); text-decoration: underline; text-decoration-color: var(--tc); }
+.tc-show-all .tc-del { color: var(--tc); text-decoration: line-through; text-decoration-color: var(--tc); }
+.tc-show-all .tc-fmt { box-shadow: inset 0 -2px 0 color-mix(in srgb, var(--tc) 45%, transparent); }
+.tc-show-all .tc-break::after { content: '¶'; color: var(--tc); font-size: 0.85em; margin-left: 1px; }
+.tc-show-all .tc-break-del::after { text-decoration: line-through; }
+.tc-show-simple .tc-del, .tc-show-none .tc-del { display: none; }
+.tc-show-original .tc-ins { display: none; }
+.tc-show-original .tc-del { text-decoration: none; color: inherit; }
+/* Show Markup filters. */
+.tc-hide-insdel .tc-ins, .tc-hide-insdel .tc-del { color: inherit; text-decoration: none; }
+.tc-hide-insdel .tc-break::after { content: none; }
+.tc-hide-fmt .tc-fmt { box-shadow: none; }
+.tc-hide-a0 [data-author="0"], .tc-hide-a1 [data-author="1"], .tc-hide-a2 [data-author="2"], .tc-hide-a3 [data-author="3"],
+.tc-hide-a4 [data-author="4"], .tc-hide-a5 [data-author="5"], .tc-hide-a6 [data-author="6"], .tc-hide-a7 [data-author="7"] { color: inherit !important; text-decoration: none !important; box-shadow: none !important; }

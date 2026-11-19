@@ -9,5 +9,6 @@ import layout from './en-GB/layout.js';
 import tables from './en-GB/tables.js';
 import objects from './en-GB/objects.js';
 import references from './en-GB/references.js';
+import review from './en-GB/review.js';
 
-export default { ...app, ...commands, ...ribbon, ...ui, ...file, ...home, ...layout, ...tables, ...objects, ...references };
+export default { ...app, ...commands, ...ribbon, ...ui, ...file, ...home, ...layout, ...tables, ...objects, ...references, ...review };

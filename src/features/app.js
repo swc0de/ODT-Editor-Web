@@ -1,5 +1,6 @@
 /** App-level commands that don't belong to one ribbon tab (ribbon, search, top-right buttons). */
 import { defineCommands } from './define.js';
+import { setTracking, refreshView } from './review/track.js';
 
 export const commands = defineCommands('app', {
   toggleRibbon: {
@@ -13,9 +14,10 @@ export const commands = defineCommands('app', {
   previousRegion: { shortcut: 'Shift-F6', run: (ctx) => ctx.ui.cycleRegion(-1), hidden: true },
   commentsPane: { icon: 'comments' },
   editingMode: { icon: 'editing-mode', menuOnly: true },
-  modeEditing: { icon: 'editing-mode', run: (ctx) => ctx.store.set({ editingMode: 'editing' }), isChecked: (ctx) => ctx.state.editingMode === 'editing' },
-  modeReviewing: { icon: 'track-changes' },
-  modeViewing: { icon: 'eye' },
+  // Editing: change the document directly; Reviewing: Track Changes on; Viewing: read-only.
+  modeEditing: { icon: 'editing-mode', isEnabled: (ctx) => !ctx.state.trackLock, run: (ctx) => { setTracking(ctx, false); ctx.store.set({ editingMode: 'editing' }); refreshView(ctx); }, isChecked: (ctx) => ctx.state.editingMode === 'editing' },
+  modeReviewing: { icon: 'track-changes', run: (ctx) => setTracking(ctx, true), isChecked: (ctx) => ctx.state.editingMode === 'reviewing' },
+  modeViewing: { icon: 'eye', run: (ctx) => { ctx.store.set({ editingMode: 'viewing' }); refreshView(ctx); }, isChecked: (ctx) => ctx.state.editingMode === 'viewing' },
   goBack: { shortcut: 'Shift-F5', run: (ctx) => ctx.ui.goBack() },
   extendSelection: { shortcut: 'F8', run: (ctx) => ctx.ui.extendSelection() },
   statusWordCount: { label: 'cmd.review.wordCount', hidden: true },

@@ -498,6 +498,9 @@ export function createConverter({ ns, autoIndex, styleIndex, objectKind = null, 
     return out;
   }
 
+  /** Block JSON as the editor writes it (all attributes, in schema order). */
+  const normalBody = (list) => { try { return list.length ? Fragment.fromJSON(schema, list).toJSON() : []; } catch { return list; } };
+
   function note(el, a) {
     let citation = '';
     let label = null;
@@ -505,7 +508,7 @@ export function createConverter({ ns, autoIndex, styleIndex, objectKind = null, 
     for (const c of el.children) {
       const n = q(c);
       if (n === 'text:note-citation') { citation = c.textContent; label = c.getAttribute('text:label') ?? attrsOf(c, ns)['text:label'] ?? null; }
-      if (n === 'text:note-body') body = blocks(c);
+      if (n === 'text:note-body') body = normalBody(blocks(c));
     }
     return { noteClass: a['text:note-class'] || 'footnote', citation, label, body, extra: without(a, 'text:note-class') };
   }
@@ -523,7 +526,7 @@ export function createConverter({ ns, autoIndex, styleIndex, objectKind = null, 
       else if (n === 'meta:creator-initials' || n === 'loext:sender-initials') { initials = c.textContent; extra['#initialsEl'] = n; }
       else body.push(...block(c));
     }
-    return { name: a['office:name'] || null, creator, date, initials, body, extra: Object.keys(extra).length ? extra : null };
+    return { name: a['office:name'] || null, creator, date, initials, body: normalBody(body), extra: Object.keys(extra).length ? extra : null };
   }
 
   /**

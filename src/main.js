@@ -42,6 +42,9 @@ import { createObjectServices } from './ui/objects.js';
 import { notesNumberingPlugin } from './core/notes.js';
 import { findStyle } from './core/style-edit.js';
 import { sequencePlugin } from './core/captions.js';
+import { trackChangesPlugin, editablePlugin, flushSelectionPlugin } from './core/track-recording.js';
+import { userName } from './features/review/track.js';
+import { createReviewingPane } from './ui/reviewing-pane.js';
 import { refreshCitations } from './features/references/citations.js';
 import { renderEquation } from './ui/equation-editor.js';
 import { renderChartFrame } from './ui/chart-dialog.js';
@@ -123,8 +126,8 @@ function boot() {
       return path;
     },
     openFiles(files) { if (files[0]) session.openFile(files[0]).then((ok) => { if (ok) store.set({ backstageOpen: false }); }); },
-    priorityPlugins: () => [new Plugin({ props: { handleKeyDown: (_v, e) => !!ui.handleEditorKey?.(e) } }), ...(ui.objects ? [ui.objects.keyPlugin] : []), tableKeymap, ...editingPlugins(() => ({ ...AUTOCORRECT_DEFAULTS, ...(getSetting('autocorrect') || {}) }), makeList)],
-    extraPlugins: () => [...docArea.plugins(), sequencePlugin(), notesNumberingPlugin(() => session?.state, () => (docArea.pages.length ? (pos) => docArea.pageAt(pos) : null)), ...tablePlugins(tableUI), linkFollowPlugin(() => store.get().editingMode === 'viewing'), searchPlugin(), listLabelsPlugin((name) => getListStyle(ctx(), name))],
+    priorityPlugins: () => [flushSelectionPlugin(), new Plugin({ props: { handleKeyDown: (_v, e) => !!ui.handleEditorKey?.(e) } }), ...(ui.objects ? [ui.objects.keyPlugin] : []), tableKeymap, ...editingPlugins(() => ({ ...AUTOCORRECT_DEFAULTS, ...(getSetting('autocorrect') || {}) }), makeList)],
+    extraPlugins: () => [...docArea.plugins(), trackChangesPlugin({ isOn: () => store.get().trackChanges, author: userName, display: () => store.get().reviewDisplay, hidden: () => store.get().reviewHide }), editablePlugin(() => store.get().editingMode !== 'viewing'), sequencePlugin(), notesNumberingPlugin(() => session?.state, () => (docArea.pages.length ? (pos) => docArea.pageAt(pos) : null)), ...tablePlugins(tableUI), linkFollowPlugin(() => store.get().editingMode === 'viewing'), searchPlugin(), listLabelsPlugin((name) => getListStyle(ctx(), name))],
     pasteMode(event) {
       const once = clipboard?.takeMode();
       if (once) return once;
@@ -176,7 +179,9 @@ function boot() {
     if (hasSelection !== store.get().hasSelection) store.set({ hasSelection });
     ui.trackEdit?.(tr, view.state);
     scheduleSync(tr.docChanged && !tr.getMeta('load'));
+    if (tr.docChanged && ui.reviewingPane?.isOpen) { clearTimeout(rvTimer); rvTimer = setTimeout(() => ui.reviewingPane.render(), 300); }
   };
+  let rvTimer = 0;
 
   // Ribbon state (font, size, style, toggles) follows the selection, once per frame.
   // While typing, wait for a pause so keystrokes stay within a frame.
@@ -304,6 +309,10 @@ function boot() {
   ui.stylesPane = stylesPane;
   const selectionPane = createSelectionPane({ dock: rightDock, store, getEditor: () => editor, registry });
   ui.selectionPane = selectionPane;
+  const rvBottom = h('div', { class: 'rv-bottom', hidden: true });
+  docArea.el.append(rvBottom);
+  new MutationObserver(() => { docArea.el.classList.toggle('has-bottom', !rvBottom.hidden); }).observe(rvBottom, { attributes: true, attributeFilter: ['hidden'] });
+  ui.reviewingPane = createReviewingPane({ dock: leftDock, bottom: rvBottom, store, getEditor: () => editor });
 
   // Header / footer editing: a second editor with the same editing behaviour.
   ui.hf = createHeaderFooter({
@@ -382,6 +391,8 @@ function boot() {
     editor,
     toast,
     onLoad(state) {
+      // A document saved with Track Changes on opens with it on.
+      store.set((st) => ({ trackChanges: !!state.trackChanges, editingMode: state.trackChanges ? 'reviewing' : (st.editingMode === 'reviewing' ? 'editing' : st.editingMode) }));
       for (const url of pictureUrls.values()) URL.revokeObjectURL(url);
       pictureUrls = new Map();
       docArea.applyDocument(state);
