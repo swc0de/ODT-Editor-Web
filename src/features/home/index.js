@@ -543,7 +543,7 @@ export const commands = defineCommands('home', {
   selectSimilar: { run: selectSimilar },
   // Voice & Editor
   dictate: { icon: 'dictate', isEnabled: (c) => dictationSupported() && canEdit(c), isChecked: (c) => !!c.state.dictating, run: (c) => c.ui.dictation.toggle() },
-  editor: { icon: 'editor' },
+  editor: { icon: 'editor', isEnabled: (c) => !!c.mainEditor, run: (c) => c.ui.editorPane.open() },
 });
 
 const colour = (cmd) => ({ custom: 'colourPalette', cmd });

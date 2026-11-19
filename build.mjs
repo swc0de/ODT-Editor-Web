@@ -128,6 +128,18 @@ async function buildCiteproc() {
 }
 let citeprocChunk = null;
 
+/** The spelling worker chunk (nspell with the en-GB / en-US dictionaries), an IIFE run as a Worker. */
+async function buildSpell() {
+  const r = await esbuild.build({
+    entryPoints: [path.join(root, 'src', 'vendor', 'spell-worker.js')],
+    bundle: true, format: 'iife', platform: 'browser', target: ['chrome110', 'firefox115', 'safari16'],
+    minify: true, legalComments: 'none', write: false, logLevel: 'warning',
+    loader: { '.aff': 'text', '.dic': 'text' },
+  });
+  return Buffer.from(r.outputFiles[0].text, 'utf8').toString('base64');
+}
+let spellChunk = null;
+
 async function writeHtml(jsText, cssText) {
   const appName = await readAppName();
   const template = await readFile(path.join(root, 'src', 'index.html'), 'utf8');
@@ -141,6 +153,7 @@ async function writeHtml(jsText, cssText) {
     APP_CSS: cssText.replace(/<\/style/gi, '<\\/style'),
     MATHLIVE: mathLiveChunk ??= await buildMathLive(),
     CITEPROC: citeprocChunk ??= await buildCiteproc(),
+    SPELL: spellChunk ??= await buildSpell(),
     // A literal "</script" inside the bundle would end the inline script early.
     APP_JS: jsText.replace(/<\/script/gi, '<\\/script').replace(/<!--/g, '<\\!--'),
   });

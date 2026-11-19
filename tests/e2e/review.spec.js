@@ -226,4 +226,44 @@ test.describe('review', () => {
     await expect(page.locator('.cmt-card')).toHaveCount(0);
     expect(await page.evaluate(() => window.odtEditor.editor.view.state.doc.textContent)).toBe('The harbour opened at dawn. Boats came in.');
   });
+
+  test('proofing: squiggles, right-click suggestions, Editor pane, Add to Dictionary, Language, Word Count', async ({ page }) => {
+    await typeText(page, 'The colour of teh harbour is is blue. Zorbleflux sailed in yesterday.');
+    await expect(page.locator('.page-flow .sp-err')).toHaveCount(2, { timeout: 8000 });
+    await expect(page.locator('.page-flow .sp-err').first()).toHaveText('teh');
+    await expect(page.locator('.page-flow .gr-err')).toHaveText([' is']);
+    // Right-click a misspelling: suggestions first.
+    await page.locator('.page-flow .sp-err').first().click({ button: 'right' });
+    await expect(page.locator('.menu .menu-item').first()).toHaveText(/the/i);
+    await page.locator('.menu .menu-item').first().click();
+    await expect.poll(() => page.evaluate(() => window.odtEditor.editor.view.state.doc.textContent)).toContain('colour of the harbour');
+    // F7: the Editor pane with the rest.
+    await page.evaluate(() => window.odtEditor.editor.focus());
+    await page.keyboard.press('F7');
+    await expect(page.locator('.ed-card')).toBeVisible();
+    await expect(page.locator('.ed-card .ed-kind')).toHaveText('Repeated word');
+    await page.locator('.ed-sugg').first().click();
+    await expect.poll(() => page.evaluate(() => window.odtEditor.editor.view.state.doc.textContent), { timeout: 8000 }).toContain('harbour is blue');
+    await expect(page.locator('.ed-card .ed-context mark')).toHaveText('Zorbleflux', { timeout: 8000 });
+    await page.locator('.ed-card button', { hasText: 'Add to Dictionary' }).click();
+    await expect(page.locator('.ed-done-title')).toHaveText('Your document looks good', { timeout: 8000 });
+    await expect(page.locator('.page-flow .sp-err')).toHaveCount(0);
+    // Language: mark a paragraph as not to be checked.
+    await page.evaluate(() => window.odtEditor.editor.focus());
+    await page.keyboard.press('Control+End');
+    await page.keyboard.press('Enter');
+    await page.keyboard.type('Ceci est un textte français.');
+    await expect(page.locator('.page-flow .sp-err')).not.toHaveCount(0, { timeout: 8000 });
+    await run(page, 'review.setProofingLanguage');
+    await page.locator('.lang-dlg select').selectOption('fr-FR');
+    await page.locator('.dlg button.primary').click();
+    await expect(page.locator('.page-flow .sp-err')).toHaveCount(0, { timeout: 8000 });
+    // Word Count.
+    await run(page, 'review.wordCount');
+    await expect(page.locator('.wc-table tr').nth(1)).toContainText('16');
+    await page.locator('.dlg button.primary').click();
+    const rt = await roundTrip(page, 'proofing.odt');
+    expect(rt.diff).toBe(null);
+    expect(rt.content).toMatch(/fo:language="fr" fo:country="FR"/);
+  });
 });

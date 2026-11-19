@@ -45,6 +45,8 @@ import { sequencePlugin } from './core/captions.js';
 import { trackChangesPlugin, editablePlugin, flushSelectionPlugin } from './core/track-recording.js';
 import { userName, userInitials } from './features/review/track.js';
 import { createReviewingPane } from './ui/reviewing-pane.js';
+import { proofingPlugin, problemAt, suggestions, addToDictionary, ignoreAll, recheckAll } from './core/proofing.js';
+import { createEditorPane } from './ui/editor-pane.js';
 import { refreshCitations } from './features/references/citations.js';
 import { renderEquation } from './ui/equation-editor.js';
 import { renderChartFrame } from './ui/chart-dialog.js';
@@ -128,7 +130,7 @@ function boot() {
     },
     openFiles(files) { if (files[0]) session.openFile(files[0]).then((ok) => { if (ok) store.set({ backstageOpen: false }); }); },
     priorityPlugins: () => [flushSelectionPlugin(), new Plugin({ props: { handleKeyDown: (_v, e) => !!ui.handleEditorKey?.(e) } }), ...(ui.objects ? [ui.objects.keyPlugin] : []), tableKeymap, ...editingPlugins(() => ({ ...AUTOCORRECT_DEFAULTS, ...(getSetting('autocorrect') || {}) }), makeList)],
-    extraPlugins: () => [...docArea.plugins(), trackChangesPlugin({ isOn: () => store.get().trackChanges, author: userName, display: () => store.get().reviewDisplay, hidden: () => store.get().reviewHide }), editablePlugin(() => store.get().editingMode !== 'viewing'), sequencePlugin(), notesNumberingPlugin(() => session?.state, () => (docArea.pages.length ? (pos) => docArea.pageAt(pos) : null)), ...tablePlugins(tableUI), linkFollowPlugin(() => store.get().editingMode === 'viewing'), searchPlugin(), listLabelsPlugin((name) => getListStyle(ctx(), name))],
+    extraPlugins: () => [...docArea.plugins(), proofingPlugin({ enabled: () => getSetting('checkSpelling') !== false, fallback: () => 'en-GB', onProblems: () => { if (ui.editorPane?.isOpen) ui.editorPane.render(false); } }), trackChangesPlugin({ isOn: () => store.get().trackChanges, author: userName, display: () => store.get().reviewDisplay, hidden: () => store.get().reviewHide }), editablePlugin(() => store.get().editingMode !== 'viewing'), sequencePlugin(), notesNumberingPlugin(() => session?.state, () => (docArea.pages.length ? (pos) => docArea.pageAt(pos) : null)), ...tablePlugins(tableUI), linkFollowPlugin(() => store.get().editingMode === 'viewing'), searchPlugin(), listLabelsPlugin((name) => getListStyle(ctx(), name))],
     pasteMode(event) {
       const once = clipboard?.takeMode();
       if (once) return once;
@@ -356,7 +358,28 @@ function boot() {
   ui.docArea = docArea;
 
   const mini = createMiniToolbar({ registry, store, editor });
-  attachContextMenu({ registry, editor, mini });
+  ui.editorPane = createEditorPane({ dock: rightDock, getEditor: () => editor });
+  attachContextMenu({
+    registry, editor, mini,
+    // A misspelled word: its suggestions, Ignore All and Add to Dictionary first.
+    extraItems: async (pos) => {
+      const p = problemAt(editor.view.state, pos);
+      if (!p) return [];
+      const view = editor.view;
+      const fix = (text) => { const tr = view.state.tr; if (text) tr.insertText(text, p.from, p.to); else tr.delete(p.from, p.to); view.dispatch(tr); view.focus(); };
+      if (p.kind === 'grammar') return [{ label: p.fix ? `“${p.fix.trim() || t('ed.delete')}”` : t('ed.delete'), run: () => fix(p.fix ?? '') }, { label: t(`ed.rule.${p.rule}`), run: () => ui.editorPane.open() }, '-'];
+      const list = await suggestions(p.lang, p.word);
+      return [
+        ...(list.length ? list.slice(0, 5).map((s) => ({ label: s, run: () => fix(s) })) : [{ label: t('ed.noSuggestions'), run: () => {} }]),
+        '-',
+        { label: t('ed.ignoreAll'), run: () => { ignoreAll(p.word); recheckAll(view); } },
+        { label: t('ed.add'), run: () => { addToDictionary([p.word]); setSetting('customDictionary', [...(getSetting('customDictionary') || []), p.word]); recheckAll(view); } },
+        '-',
+      ];
+    },
+  });
+  // Your dictionary words, kept in the app settings.
+  if (getSetting('customDictionary')?.length) addToDictionary(getSetting('customDictionary'));
 
   // Paste Options button after a paste: re-paste the same content in another mode.
   let pasteBtn = null;

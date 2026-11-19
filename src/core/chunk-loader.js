@@ -21,3 +21,13 @@ export function loadChunk(id, missing = 'This feature is not included in this bu
   }
   return loading.get(id);
 }
+
+/** The text of an embedded chunk (for a Worker), or null if this build has none. */
+export function loadChunkText(id) {
+  const b64 = document.getElementById(id)?.textContent.trim();
+  if (!b64 || b64.startsWith('%%')) return null;
+  const bin = atob(b64);
+  const bytes = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  return new TextDecoder().decode(bytes);
+}

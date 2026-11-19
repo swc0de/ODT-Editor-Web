@@ -89,8 +89,8 @@ export function createMiniToolbar({ registry, store, editor }) {
 }
 
 /** Right-click menu in the document. */
-export function attachContextMenu({ registry, editor, mini }) {
-  editor.view.dom.addEventListener('contextmenu', (e) => {
+export function attachContextMenu({ registry, editor, mini, extraItems = null }) {
+  editor.view.dom.addEventListener('contextmenu', async (e) => {
     if (e.shiftKey) return; // Shift+right-click: the browser's own menu (spelling suggestions)
     e.preventDefault();
     const view = editor.view;
@@ -99,7 +99,9 @@ export function attachContextMenu({ registry, editor, mini }) {
     const sel = view.state.selection;
     if (hit && (hit.pos < sel.from || hit.pos > sel.to)) editor.focusAt(hit.pos);
     const inList = !!listAt(view.state);
+    const extra = hit && extraItems ? await extraItems(hit.pos) : [];
     const items = [
+      ...extra,
       'home.cut', 'home.copy',
       { header: 'menu.pasteOptions' }, 'home.pasteKeepSource', 'home.pasteMerge', 'home.pasteTextOnly',
       '-',

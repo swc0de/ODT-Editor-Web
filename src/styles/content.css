@@ -158,3 +158,7 @@
 .tc-hide-fmt .tc-fmt { box-shadow: none; }
 .tc-hide-a0 [data-author="0"], .tc-hide-a1 [data-author="1"], .tc-hide-a2 [data-author="2"], .tc-hide-a3 [data-author="3"],
 .tc-hide-a4 [data-author="4"], .tc-hide-a5 [data-author="5"], .tc-hide-a6 [data-author="6"], .tc-hide-a7 [data-author="7"] { color: inherit !important; text-decoration: none !important; box-shadow: none !important; }
+/* Proofing: spelling (red wavy) and grammar (blue double) underlines. */
+.odt-doc .sp-err { text-decoration: underline wavy #e3342f; text-decoration-skip-ink: none; text-underline-offset: 2px; }
+.odt-doc .gr-err { text-decoration: underline double #2f6fe3; text-decoration-skip-ink: none; text-underline-offset: 2px; }
+.odt-doc .tc-del .sp-err, .odt-doc .sp-err .tc-del { text-decoration: line-through; }

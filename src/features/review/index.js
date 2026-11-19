@@ -2,6 +2,7 @@
 import { defineCommands } from '../define.js';
 import { setTracking, refreshView, resolveHere, resolveAll, gotoChange, reviewers, hasChanges, changesHere, userName, userInitials, setUser } from './track.js';
 import { trackingOptionsDialog, reviewersDialog } from '../../ui/review-dialogs.js';
+import { wordCount, setLanguage } from './proofing.js';
 import { hasComments, deleteCurrent, deleteAll, gotoComment, openCommentsPane, closeCommentsPane, currentThread } from './comments.js';
 import { authorKey } from '../../core/schema.js';
 
@@ -14,14 +15,14 @@ const hideToggle = (key) => ({
 const accept = (on, o = {}) => ({ isEnabled: (c) => canEdit(c) && (o.here ? changesHere(c) : hasChanges(c)), run: (c) => (o.all ? resolveAll(c, on, o) : resolveHere(c, on, o)) });
 
 export const commands = defineCommands('review', {
-  spelling: { icon: 'spelling', shortcut: 'F7' },
+  spelling: { icon: 'spelling', shortcut: 'F7', isEnabled: (c) => !!c.mainEditor, run: (c) => c.ui.editorPane.open() },
   thesaurus: { icon: 'thesaurus', shortcut: 'Shift-F7' },
-  wordCount: { icon: 'word-count', shortcut: 'Mod-Shift-g' },
+  wordCount: { icon: 'word-count', shortcut: 'Mod-Shift-g', isEnabled: (c) => !!c.mainEditor, run: wordCount },
   readAloud: { icon: 'read-aloud' },
   checkAccessibility: { icon: 'accessibility' },
   translate: { icon: 'translate' },
-  language: { icon: 'language' },
-  setProofingLanguage: {},
+  language: { icon: 'language', isEnabled: (c) => !!c.editor && canEdit(c), run: setLanguage },
+  setProofingLanguage: { isEnabled: (c) => !!c.editor && canEdit(c), run: setLanguage },
   languagePreferences: {},
   deleteComment: { icon: 'delete-comment', isEnabled: (c) => canEdit(c) && hasComments(c) && !!currentThread(c), run: deleteCurrent },
   deleteAllShown: { isEnabled: (c) => canEdit(c) && hasComments(c), run: (c) => deleteAll(c, { shownOnly: true }) },
