@@ -14,8 +14,8 @@ The memory between sessions. Statuses: `todo`, `in progress`, `awaiting approval
 | M7 — Insert tab: pictures, shapes, text boxes, links, symbols | approved |
 | M8 — References | approved |
 | M9 — Review: comments, track changes, proofing | approved |
-| M10 — Draw tab | awaiting approval |
-| M11 — Mailings and Developer | todo |
+| M10 — Draw tab | approved |
+| M11 — Mailings and Developer | in progress |
 | M12 — View tab and windows | todo |
 | M13 — Import/export, Options, polish and final audit | todo |
 
@@ -311,7 +311,7 @@ Known limitations:
 - Grammar checks are simple rules (no full grammar engine).
 - Read Aloud depends on the voices the system provides (none in some Linux browsers).
 
-## M10 — Draw tab (awaiting approval)
+## M10 — Draw tab (approved)
 
 Built:
 - **Ink layer**: with Pen, Pencil, Highlighter, Eraser or Lasso chosen, a layer over the pages takes the pointer (mouse, touch or pen; Esc goes back to Select). Each stroke becomes a real drawing object (`draw:path`) anchored to the paragraph beside it, floating in front of the text, so it moves with its paragraph, undoes, shows in the Selection Pane, and can be selected, resized and moved like any shape.
