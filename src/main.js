@@ -378,7 +378,7 @@ function boot() {
       if (!p) return [];
       const view = editor.view;
       const fix = (text) => { const tr = view.state.tr; if (text) tr.insertText(text, p.from, p.to); else tr.delete(p.from, p.to); view.dispatch(tr); view.focus(); };
-      if (p.kind === 'grammar') return [{ label: p.fix ? `“${p.fix.trim() || t('ed.delete')}”` : t('ed.delete'), run: () => fix(p.fix ?? '') }, { label: t(`ed.rule.${p.rule}`), run: () => ui.editorPane.open() }, '-'];
+      if (p.kind === 'grammar') return [{ label: p.fix?.trim() ? `“${p.fix}”` : (p.fix ? t('ed.singleSpace') : t('ed.delete')), run: () => fix(p.fix ?? '') }, { label: t(`ed.rule.${p.rule}`), run: () => ui.editorPane.open() }, '-'];
       const list = await suggestions(p.lang, p.word);
       return [
         ...(list.length ? list.slice(0, 5).map((s) => ({ label: s, run: () => fix(s) })) : [{ label: t('ed.noSuggestions'), run: () => {} }]),

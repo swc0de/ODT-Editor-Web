@@ -173,9 +173,10 @@ export function proofingPlugin(o) {
           const all = st.dirty === 'all' || st.dirty == null;
           const ranges = all ? [[0, doc.content.size]] : st.dirty;
           const blocks = [];
+          const seen = new Set();
           for (const [a, b] of ranges) {
             doc.nodesBetween(Math.max(0, a), Math.min(doc.content.size, b), (n, pos) => {
-              if (n.isTextblock) { blocks.push([n, pos]); return false; }
+              if (n.isTextblock) { if (!seen.has(pos)) { seen.add(pos); blocks.push([n, pos]); } return false; }
               return true;
             });
           }

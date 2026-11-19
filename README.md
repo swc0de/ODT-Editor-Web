@@ -105,6 +105,8 @@ reference/             UI reference screenshots; compare/ holds generated compar
   License 1.1 (see `assets/fonts/LICENSE.md`).
 - Libraries bundled into the HTML file: ProseMirror incl. prosemirror-tables (MIT), fflate (MIT),
   MathLive (MIT; the equation editor, with the KaTeX maths fonts, MIT),
+  nspell (MIT) with the en-GB and en-US Hunspell dictionaries from
+  wooorm/dictionaries (MIT AND BSD, from SCOWL),
   citeproc-js (CPAL-1.0 / AGPL-1.0; the citation engine) with Citation Style
   Language styles and locales (CC BY-SA 3.0: APA, MLA, Chicago author-date,
   IEEE, Cite Them Right Harvard),
@@ -216,7 +218,30 @@ UI inspired by the open-source WordCraft project (MIT/Apache-2.0).
   and captions. F9 updates fields.
 - Mark Entry (Alt+Shift+X) marks index entries; Insert Index builds the index.
 
-## Known limitations (M8)
+## Review
+
+- Track Changes (Ctrl+Shift+E, or Editing ▾ Reviewing) records insertions,
+  deletions, paragraph breaks and character formatting under your name (set
+  it in Review ▸ Tracking ▸ launcher). Display for Review switches between
+  Simple Markup, All Markup, No Markup and Original; Accept / Reject work on
+  one change or all of them. Changes are saved as ODF tracked changes that
+  LibreOffice shows too.
+- New Comment (Ctrl+Alt+M) adds a balloon beside the text; reply, resolve or
+  delete it there, or list all comments with the Comments button.
+- Spelling and simple grammar are checked as you type (English, UK and US):
+  right-click a red word for suggestions, or press F7 for the Editor pane.
+  Language marks text as another language or as not to be checked.
+- Read Aloud, Check Accessibility, Compare (into a new document with the
+  differences as tracked changes) and Restrict Editing are on the Review tab.
+
+## Known limitations (M9)
+
+- Review: paragraph formatting, table structure and edits inside text boxes,
+  notes and comments aren't tracked; grammar checks are simple rules; only
+  English is spell-checked. Coming soon: Thesaurus (open thesauri are too big
+  to bundle), Translate (needs an online service), Combine Documents.
+
+## Earlier limitations (M8)
 
 - References: a footnote too long for its page isn't continued on the next
   page; one source per citation (no page locators or multi-source citations
@@ -240,7 +265,6 @@ UI inspired by the open-source WordCraft project (MIT/Apache-2.0).
   Margins (they need text frames, M7).
 - Coming soon on the Home tab: the Clipboard pane, Phonetic Guide, Enclose
   Characters, Glow, the Editor (spelling) pane.
-- Comments and tracked changes are kept and displayed but not editable yet.
 - Content inside merged-away table cells (rare) is not kept.
 - Password-protected ODT files can't be opened.
 - Backstage Info, Print, Export and Options are placeholders.

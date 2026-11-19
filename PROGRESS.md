@@ -13,7 +13,7 @@ The memory between sessions. Statuses: `todo`, `in progress`, `awaiting approval
 | M6 — Tables | approved |
 | M7 — Insert tab: pictures, shapes, text boxes, links, symbols | approved |
 | M8 — References | approved |
-| M9 — Review: comments, track changes, proofing | in progress |
+| M9 — Review: comments, track changes, proofing | awaiting approval |
 | M10 — Draw tab | todo |
 | M11 — Mailings and Developer | todo |
 | M12 — View tab and windows | todo |
@@ -281,4 +281,33 @@ Known limitations:
 - One source per citation (no multi-source clusters, page locators or suppressed author/year yet).
 - Restart-each-chapter counts from each Heading 1; caption numbers don't include chapter numbers.
 - Coming soon: Zotero ▸ Add Note; index cross-references ("See …") and page-range entries; editing a citation in place (delete and re-insert it).
+
+## M9 — Review: comments, track changes, proofing (awaiting approval)
+
+Built:
+- **Track Changes** (Ctrl+Shift+E, or Editing ▾ Reviewing): typing is recorded as insertions, Backspace / Delete / typing over a selection keep the old text as deletions (your own new text is really removed), Enter and joining paragraphs are recorded as inserted / deleted paragraph breaks, character formatting as formatting changes that remember the old formatting. Author and time from your user name (Track Changes Options); a colour per author. Display for Review: Simple Markup (final text, red change bars), All Markup (underline / strike-through in the author's colour, grey bars, ¶ marks for breaks), No Markup, Original. Show Markup: Comments, Insertions and Deletions, Formatting, Reviewers (per author). Accept / Reject: this change (and move to next), all shown, all, all and stop tracking; Previous / Next. Lock Tracking. Reviewing Pane (vertical, docked left, or horizontal under the page) with a summary and every revision.
+- **ODF**: changes are marks in the editor and `text:tracked-changes` regions in the file — insertions as change-start/end (spanning paragraphs when breaks were inserted), deletions as a `text:change` point with the deleted paragraphs in the region (paragraphs joined by a deleted break are merged in ODF and split again on import), format changes. LibreOffice's own tracked changes open as marks; `text:track-changes="true"` reopens with tracking on. Regions we can't express (deleted tables, changes in text boxes) stay as they are.
+- **Comments**: New Comment (Ctrl+Alt+M) on the selection (a range, highlighted) or at the caret; balloons in the margin beside their line (no overlaps, a line to the active one's anchor), avatar with initials, time; replies (threads, saved as LibreOffice's `loext:parent-name`), Resolve / Reopen (`loext:resolved`), ⋯ Delete thread; Delete / Delete All Shown / Delete All; Previous / Next; Show Comments ▸ Contextual (balloons) or List (the Comments pane, also the top-right Comments button). The comment text is edited in place.
+- **Proofing**: spelling as you type with nspell (MIT) and the en-GB and en-US Hunspell dictionaries, in a Web Worker built as an embedded chunk; red wavy underlines; right-click for suggestions (closest first), Ignore All, Add to Dictionary (kept in the settings). Grammar (blue double underline): repeated words, sentence starting in lower case, lower-case "i", extra spaces, space before punctuation. Editor pane (F7, Spelling & Grammar, Home ▸ Editor): counts, one problem at a time with its sentence, suggestions, Ignore Once / Ignore All / Add to Dictionary / Change All, previous / next. Language dialog: mark text as a language (only English is checked) or "Do not check spelling" (`fo:language="zxx"`). Word Count dialog (pages, words, characters with / without spaces, paragraphs, lines; optionally text boxes, footnotes and endnotes).
+- **Read Aloud**: the browser's speech synthesis from the caret (or the selection), word highlighting, a floating player (previous / pause / next paragraph, speed, voice, stop).
+- **Check Accessibility**: pane with errors (missing alt text, table without a header row), warnings (skipped heading level, empty heading, text contrast below 4.5:1, no document title) and tips (use headings); go to each, with fixes for alt text and header rows; re-checks as you edit.
+- **Compare**: original (this document or a file) against a revised file → a new "Compare Result" document with the differences as tracked changes (paragraphs matched, changed ones compared word by word); accept all gives the revised text, reject all the original.
+- **Restrict Editing** pane: read only / comments only / tracked changes only, enforced and saved in settings.xml (`ODTEditorRestrictEditing`, plus `LoadReadonly` so LibreOffice opens a read-only document read-only); re-applied on open. **Editing ▾** modes work: Editing, Reviewing (= Track Changes), Viewing (read-only).
+- Fixes: keys pressed quickly after an arrow key used the old caret (selection now flushed on every keydown); the Footnote/comment nested editors' JSON normalised on import; `--panel-bg`/`--border` style tokens that never existed replaced (M8 dialogs looked off in the light theme).
+- Tests: 70 unit (3 new files: tracked-changes ODF mapping, recording/accept/reject, compare) + 128 e2e (5 new in `tests/e2e/review.spec.js`), all saving and re-opening with an identical model; **LibreOffice re-saves** our tracked changes (regions, authors, deleted text), comments (replies with `loext:parent-name`, resolved state, ranges). Performance: 50 pages 3 ms median per keystroke with spelling on; 100 pages 4 ms.
+- Screenshots: `reference/compare/m9-*.png` (All Markup with comment threads, Simple Markup with the Reviewing Pane, Editor pane, spelling menu, Accessibility pane, Comments pane) in dark and light.
+
+Decisions:
+- Changes are marks (not separate nodes), so editing, undo and copy/paste just work; export rebuilds ODF regions from contiguous runs.
+- Spelling runs in a worker (the dictionaries are ~1 MB each); only en-GB and en-US are bundled.
+- **Thesaurus: Coming soon** — the open English thesauri (LibreOffice's MyThes, WordNet-based) are 10+ MB, too big for the single file.
+- Translate stays Coming soon (needs an online service). Combine Documents is Coming soon.
+- The compare result opens as a new document (this app has one document per window until M12).
+
+Known limitations:
+- Not tracked: paragraph formatting / style changes, table structure changes, edits inside text boxes, notes and comments.
+- A deletion across a table boundary can't be put back; it then simply happens.
+- Comments in a header or footer aren't shown as balloons.
+- Grammar checks are simple rules (no full grammar engine).
+- Read Aloud depends on the voices the system provides (none in some Linux browsers).
 

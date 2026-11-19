@@ -162,3 +162,7 @@
 .odt-doc .sp-err { text-decoration: underline wavy #e3342f; text-decoration-skip-ink: none; text-underline-offset: 2px; }
 .odt-doc .gr-err { text-decoration: underline double #2f6fe3; text-decoration-skip-ink: none; text-underline-offset: 2px; }
 .odt-doc .tc-del .sp-err, .odt-doc .sp-err .tc-del { text-decoration: line-through; }
+/* Change bars beside lines with changes. */
+.tc-show-all :is(p, h1, h2, h3, h4, h5, h6):is(:has(.tc-ins, .tc-del, .tc-fmt), .tc-break) { box-shadow: -14px 0 0 -12px #8c8c8c; }
+.tc-show-simple :is(p, h1, h2, h3, h4, h5, h6):is(:has(.tc-ins, .tc-del, .tc-fmt), .tc-break) { box-shadow: -14px 0 0 -12px #e3342f; }
+.tc-hide-insdel :is(p, h1, h2, h3, h4, h5, h6) { box-shadow: none !important; }

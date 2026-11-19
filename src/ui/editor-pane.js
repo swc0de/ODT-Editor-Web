@@ -58,7 +58,7 @@ export function createEditorPane({ dock, getEditor }) {
     const n = ++seq;
     const fill = (items) => {
       if (n !== seq) return;
-      sugg.replaceChildren(...(items.length ? items.map((s) => h('button', { type: 'button', class: 'ed-sugg', onclick: () => { replace(p, s); later(); } }, s || t('ed.delete'))) : [h('div', { class: 'ed-none' }, t('ed.noSuggestions'))]));
+      sugg.replaceChildren(...(items.length ? items.map((s) => h('button', { type: 'button', class: 'ed-sugg', onclick: () => { replace(p, s); later(); } }, s.trim() ? s : (s ? t('ed.singleSpace') : t('ed.delete')))) : [h('div', { class: 'ed-none' }, t('ed.noSuggestions'))]));
     };
     if (p.kind === 'spell') suggestions(p.lang, p.word).then(fill); else fill([p.fix ?? '']);
     const actions = p.kind === 'spell'

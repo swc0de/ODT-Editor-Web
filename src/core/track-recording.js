@@ -145,8 +145,9 @@ export function trackChangesPlugin(o) {
                 return true;
               });
               // Backspace leaves the caret before the deleted text, Delete after it.
+              // (When text replaced the deletion, the caret stays after the new text.)
               const sel = oldState.selection;
-              caret = sel.empty && sel.from === step.to ? at : end;
+              if (!step.slice.size) caret = sel.empty && sel.from === step.to ? at : end;
             } catch { /* structure can't be restored: let the deletion stand */ }
           }
         }

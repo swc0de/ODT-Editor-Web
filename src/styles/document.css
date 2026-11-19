@@ -125,11 +125,11 @@
 .page-stack.with-comments { margin-right: 300px; }
 .odt-doc.comments-layer { position: absolute; left: 0; top: 0; width: 100%; height: 0; min-height: 0; z-index: 3; }
 .comments-layer .cmt-card { position: absolute; width: 264px; }
-.cmt-card { box-sizing: border-box; background: var(--panel-bg, #2b2b2b); color: var(--text); border: 1px solid var(--control-border-soft, #444); border-radius: 6px; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25); padding: 8px 10px 6px; font: 12.5px var(--font-ui); transition: box-shadow 0.12s; }
+.cmt-card { box-sizing: border-box; background: var(--ribbon-bg); color: var(--text); border: 1px solid var(--control-border-soft); border-radius: 6px; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25); padding: 8px 10px 6px; font: 12.5px var(--font-ui); transition: box-shadow 0.12s; }
 .cmt-card.is-active { border-color: var(--accent); box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35); }
 .cmt-card.is-resolved { opacity: 0.6; }
 .cmt-card.is-resolved .cmt-text { text-decoration: none; }
-.cmt-entry + .cmt-entry { margin-top: 8px; padding-top: 6px; border-top: 1px solid var(--control-border-soft, #444); padding-left: 10px; }
+.cmt-entry + .cmt-entry { margin-top: 8px; padding-top: 6px; border-top: 1px solid var(--control-border-soft); padding-left: 10px; }
 .cmt-head { display: flex; align-items: center; gap: 6px; margin-bottom: 3px; }
 .cmt-avatar { flex: none; width: 22px; height: 22px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 600; color: #fff; background: #5b6ee1; }
 .cmt-avatar[data-author="0"] { background: #b5082e; } .cmt-avatar[data-author="1"] { background: #2b57d9; } .cmt-avatar[data-author="2"] { background: #127a3a; } .cmt-avatar[data-author="3"] { background: #8a3fb5; }
@@ -141,7 +141,7 @@
 .cmt-text .ProseMirror:focus { box-shadow: 0 1px 0 var(--accent); }
 .cmt-actions { display: flex; gap: 4px; margin-top: 6px; }
 .cmt-actions button { background: transparent; border: 1px solid transparent; border-radius: 3px; color: var(--text); font: 12px var(--font-ui); padding: 2px 6px; cursor: pointer; }
-.cmt-actions button:hover, .cmt-actions button:focus-visible { background: var(--hover-bg); border-color: var(--control-border-soft, #555); }
+.cmt-actions button:hover, .cmt-actions button:focus-visible { background: var(--hover-bg); border-color: var(--control-border-soft); }
 .cmt-actions .cmt-more { margin-left: auto; }
 .cmt-lines { position: absolute; left: 0; top: 0; width: 1px; height: 1px; overflow: visible; pointer-events: none; }
 .cmt-line { fill: none; stroke: var(--accent); stroke-width: 1; stroke-dasharray: 3 2; }

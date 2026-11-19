@@ -9,6 +9,7 @@ import { h } from './dom.js';
 import { t } from '../i18n/index.js';
 import { changesOf } from '../core/track-recording.js';
 import { authorKey } from '../core/schema.js';
+import { parentOf } from '../core/comments.js';
 
 const when = (d) => {
   if (!d) return '';
@@ -27,7 +28,7 @@ export function createReviewingPane({ dock, bottom, store, getEditor }) {
     const doc = getEditor().view.state.doc;
     const out = changesOf(doc).map((c) => ({ kind: c.type, author: c.author, date: c.date, from: c.from, to: c.to, text: c.text }));
     doc.descendants((n, pos) => {
-      if (n.type.name === 'annotation' && !n.attrs.parent) out.push({ kind: 'comment', author: n.attrs.creator, date: n.attrs.date, from: pos, to: pos + 1, text: (n.attrs.body || []).map((b) => (b.content || []).map((x) => x.text || '').join('')).join(' ') });
+      if (n.type.name === 'annotation') out.push({ kind: parentOf(n) ? 'reply' : 'comment', author: n.attrs.creator, date: n.attrs.date, from: pos, to: pos + 1, text: (n.attrs.body || []).map((b) => (b.content || []).map((x) => x.text || '').join('')).join(' ') });
       return true;
     });
     return out.sort((a, b) => a.from - b.from);
@@ -40,7 +41,7 @@ export function createReviewingPane({ dock, bottom, store, getEditor }) {
     if (!force && k === key) return;
     key = k;
     const count = (kind) => all.filter((x) => x.kind === kind).length;
-    const revisions = all.filter((x) => x.kind !== 'comment').length;
+    const revisions = all.filter((x) => x.kind !== 'comment' && x.kind !== 'reply').length;
     summary.replaceChildren(
       h('div', { class: 'rvp-total' }, t('rvp.revisions', { n: revisions })),
       h('div', { class: 'rvp-counts' }, `${t('rvp.insertions')}: ${count('insertion')} · ${t('rvp.deletions')}: ${count('deletion')} · ${t('rvp.formatting')}: ${count('formatChange')} · ${t('rvp.comments')}: ${count('comment')}`));

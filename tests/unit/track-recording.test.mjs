@@ -47,6 +47,9 @@ test('Delete key moves the caret after the deleted text; selection replaced by t
   st = at(st, 5, 7);
   st = st.apply(st.tr.insertText('X'));
   assert.equal(view(st), 'ab[-c-]d[-ef-][+X+]');
+  // Typing on: the caret stays after the new text.
+  st = st.apply(st.tr.insertText('Y'));
+  assert.equal(view(st), 'ab[-c-]d[-ef-][+XY+]');
 });
 
 test('Enter is an inserted paragraph break; joining paragraphs is a deleted break', () => {
