@@ -122,3 +122,4 @@
 .odt-doc :is(.ProseMirror, .odt-mirror) .has-dropcap::first-letter { initial-letter: var(--dc-lines) var(--dc-lines); margin-right: var(--dc-gap); }
 /* A selected object's text isn't shown as selected text (unless its own editor has focus). */
 .odt-doc .odt-obj .obj-text .ProseMirror:not(.ProseMirror-focused) ::selection { background: transparent; }
+.odt-doc .obj-handles, .odt-doc .obj-handle { user-select: none; -webkit-user-select: none; }

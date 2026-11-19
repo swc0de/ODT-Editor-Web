@@ -20,6 +20,9 @@ export function attachHandles(ov) {
   const floating = ov.wrap !== 'inline';
   ov.box.append(layer);
   if (cropping) layer.classList.add('cropping');
+  // Mouse events that follow a handle drag mustn't move the text selection.
+  layer.addEventListener('mousedown', (e) => { e.preventDefault(); e.stopPropagation(); });
+  layer.addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); });
 
   const zoom = () => env.zoom?.() || 1;
   const start = (e, onMove, onEnd) => {
@@ -81,7 +84,8 @@ export function attachHandles(ov) {
       nw = w + (d.includes('e') ? dx : d.includes('w') ? -dx : 0);
       nh = h + (d.includes('s') ? dy : d.includes('n') ? -dy : 0);
       if (keep && d.length === 2) {
-        const k = Math.max(nw / w, nh / h);
+        // The dimension dragged furthest decides the scale.
+        const k = Math.abs(nw / w - 1) >= Math.abs(nh / h - 1) ? nw / w : nh / h;
         nw = w * k; nh = h * k;
       }
       nw = Math.max(4, nw); nh = Math.max(4, nh);

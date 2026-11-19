@@ -1,0 +1,14 @@
+/* Selection Pane */
+.selp { display: flex; flex-direction: column; gap: 6px; }
+.selp-bar { display: flex; gap: 4px; flex-wrap: wrap; padding: 4px 8px; }
+.selp-btn { padding: 2px 8px; min-width: 0; }
+.selp-list { display: flex; flex-direction: column; overflow: auto; }
+.selp-row { display: flex; align-items: center; gap: 6px; padding: 4px 6px 4px 10px; border: 1px solid transparent; cursor: default; }
+.selp-row:hover { background: var(--hover-bg); }
+.selp-row.is-active { border-color: var(--checked-border); background: var(--checked-bg); }
+.selp-row.is-hidden .selp-name { opacity: 0.55; }
+.selp-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.selp-eye { border: 0; background: transparent; color: var(--text); padding: 2px; border-radius: 3px; }
+.selp-eye:hover { background: var(--hover-bg); }
+.selp-input { flex: 1; min-width: 0; }
+.selp-empty { padding: 8px 10px; color: var(--muted); }

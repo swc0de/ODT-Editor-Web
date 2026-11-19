@@ -12,6 +12,7 @@
  * (env.createNested) whose changes are written back to the node's body.
  * Selection handles (resize, rotate, crop) are drawn by object-handles.js.
  */
+import { NodeSelection } from 'prosemirror-state';
 import { toPx } from './units.js';
 import { graphicProps, sizeOf, wrapOf, positionOf, rotationOf, originOf } from '../core/objects.js';
 import { shapePath, shapeTextInsets } from '../core/shapes.js';
@@ -380,6 +381,8 @@ export class ObjectView {
     const pos = this.getPos();
     if (pos == null) return;
     const tr = this.view.state.tr.setNodeMarkup(pos, null, attrs);
+    // Keep the object selected (unless its text is being edited).
+    if (this.selected && !this.inner?.view.hasFocus()) tr.setSelection(NodeSelection.create(tr.doc, pos));
     if (!addToHistory) tr.setMeta('addToHistory', false);
     this.view.dispatch(tr);
   }

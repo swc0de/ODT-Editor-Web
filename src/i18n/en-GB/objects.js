@@ -232,4 +232,13 @@ export default {
   'wordart.lightBlueOutline': 'Fill: Light Blue, Accent 4; Outline: Dark Blue; Shadow',
   'accent.0': 'Black', 'accent.1': 'Blue, Accent 1', 'accent.2': 'Orange, Accent 2', 'accent.3': 'Green, Accent 3',
   'accent.4': 'Light Blue, Accent 4', 'accent.5': 'Purple, Accent 5', 'accent.6': 'Lime, Accent 6',
+  'selp.title': 'Selection',
+  'selp.empty': 'There are no shapes or pictures in this document.',
+  'selp.showAll': 'Show All',
+  'selp.hideAll': 'Hide All',
+  'selp.show': 'Show {name}',
+  'selp.hide': 'Hide {name}',
+  'selp.rename': 'Name',
+  'selp.kind.image': 'Picture', 'selp.kind.textbox': 'Text Box', 'selp.kind.shape': 'Shape', 'selp.kind.wordart': 'WordArt',
+  'selp.kind.line': 'Line', 'selp.kind.object': 'Object', 'selp.kind.equation': 'Equation', 'selp.kind.chart': 'Chart',
 };

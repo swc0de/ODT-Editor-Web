@@ -39,6 +39,7 @@ import { createFindDialog } from './ui/find-dialog.js';
 import { createMiniToolbar, attachContextMenu } from './ui/mini-toolbar.js';
 import { createHeaderFooter } from './ui/header-footer.js';
 import { createObjectServices } from './ui/objects.js';
+import { createSelectionPane } from './ui/selection-pane.js';
 import { formatAt, GALLERY_STYLES, styleActions, useStyle, getListStyle } from './features/home/index.js';
 import { spinValues } from './features/layout/index.js';
 import { tableSpinValues } from './features/table/layout.js';
@@ -113,7 +114,7 @@ function boot() {
       return path;
     },
     openFiles(files) { if (files[0]) session.openFile(files[0]).then((ok) => { if (ok) store.set({ backstageOpen: false }); }); },
-    priorityPlugins: () => [new Plugin({ props: { handleKeyDown: (_v, e) => !!ui.handleEditorKey?.(e) } }), tableKeymap, ...editingPlugins(() => ({ ...AUTOCORRECT_DEFAULTS, ...(getSetting('autocorrect') || {}) }), makeList)],
+    priorityPlugins: () => [new Plugin({ props: { handleKeyDown: (_v, e) => !!ui.handleEditorKey?.(e) } }), ...(ui.objects ? [ui.objects.keyPlugin] : []), tableKeymap, ...editingPlugins(() => ({ ...AUTOCORRECT_DEFAULTS, ...(getSetting('autocorrect') || {}) }), makeList)],
     extraPlugins: () => [...docArea.plugins(), ...tablePlugins(tableUI), searchPlugin(), listLabelsPlugin((name) => getListStyle(ctx(), name))],
     pasteMode(event) {
       const once = clipboard?.takeMode();
@@ -202,6 +203,7 @@ function boot() {
       registry.notify();
       nav?.refresh();
       stylesPane?.refresh();
+      ui.selectionPane?.refresh();
     });
   }
 
@@ -284,6 +286,8 @@ function boot() {
     },
   });
   ui.stylesPane = stylesPane;
+  const selectionPane = createSelectionPane({ dock: rightDock, store, getEditor: () => editor, registry });
+  ui.selectionPane = selectionPane;
 
   // Header / footer editing: a second editor with the same editing behaviour.
   ui.hf = createHeaderFooter({

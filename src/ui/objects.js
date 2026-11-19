@@ -4,10 +4,10 @@
  * paragraphs, inserting picture files) and which object is selected, for the
  * Picture Format / Shape Format tabs and the Arrange commands.
  */
-import { NodeSelection, TextSelection } from 'prosemirror-state';
+import { NodeSelection, TextSelection, Plugin } from 'prosemirror-state';
 import { Fragment } from 'prosemirror-model';
 import { schema } from '../core/schema.js';
-import { imageAttrs, uniqueName, maxZ, withPosition, withRotation, withFrameAttrs, cm, sizeOf } from '../core/objects.js';
+import { imageAttrs, uniqueName, maxZ, withPosition, withRotation, withFrameAttrs, cm, sizeOf, wrapOf, originOf, rotationOf } from '../core/objects.js';
 import { toPx } from '../layout/units.js';
 import { findChildren } from '../core/odt/xml.js';
 
@@ -204,6 +204,8 @@ export function createObjectServices({ store, docArea, getSession, getMainEditor
     cropMode: () => !!store.get().cropMode,
     moveObject,
     onObjectSelected: (ov) => { selectedView = ov; if (!ov && store.get().cropMode) store.set({ cropMode: false }); },
+    /** Esc ends crop mode. */
+    endCrop: () => { if (!store.get().cropMode) return false; store.set({ cropMode: false }); if (selectedView?.selected) selectedView.render(selectedView.node); return true; },
     createNested,
     insertPictures,
     renderObject: (attrs, w, h) => renderers[attrs.kind]?.(attrs, w, h) || null,
@@ -211,8 +213,39 @@ export function createObjectServices({ store, docArea, getSession, getMainEditor
     wordArtFont,
   };
 
+  /** Arrow keys nudge a selected floating object (0.1 cm; Ctrl: 1 px). */
+  const keyPlugin = new Plugin({
+    props: {
+      handleKeyDown(view, e) {
+        const sel = view.state.selection;
+        if (e.key === 'Escape' && env.endCrop()) return true;
+        if (!(sel instanceof NodeSelection) || sel.node.type.name !== 'frame') return false;
+        const d = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] }[e.key];
+        if (!d || e.altKey || e.shiftKey) return false;
+        const a = sel.node.attrs;
+        if (wrapOf(a, docArea.styleIndex) === 'inline') return false;
+        const step = e.ctrlKey || e.metaKey ? 1 : 96 / 25.4;
+        let next;
+        if (a.element === 'draw:line') {
+          const fa = a.frameAttrs;
+          const sh = (k, v) => cm(toPx(fa[k] || '0') + v);
+          next = withFrameAttrs(a, { 'svg:x1': sh('svg:x1', d[0] * step), 'svg:x2': sh('svg:x2', d[0] * step), 'svg:y1': sh('svg:y1', d[1] * step), 'svg:y2': sh('svg:y2', d[1] * step) });
+        } else {
+          const o = originOf(a);
+          const p = { x: Math.max(0, o.x + d[0] * step), y: Math.max(0, o.y + d[1] * step) };
+          next = a.frameAttrs['draw:transform'] ? withRotation(a, rotationOf(a), p) : withPosition(a, { ...p, hpos: 'from-left' });
+        }
+        const tr = view.state.tr.setNodeMarkup(sel.from, null, next);
+        tr.setSelection(NodeSelection.create(tr.doc, sel.from));
+        view.dispatch(tr);
+        return true;
+      },
+    },
+  });
+
   return {
     env,
+    keyPlugin,
     renderers,
     activeEditor: () => (activeInner ? { view: activeInner.editor.view, focus: () => activeInner?.editor.focus(), getDoc: () => activeInner.editor.view.state.doc } : null),
     leaveInner,
