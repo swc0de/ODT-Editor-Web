@@ -5,6 +5,7 @@
  * style + `auto` formatting); every other automatic style is kept verbatim.
  * Elements the editor doesn't model become opaque nodes holding their XML.
  */
+import { Fragment } from 'prosemirror-model';
 import { schema } from '../schema.js';
 import { readPackage, strFromU8, PackageError } from './package.js';
 import { parseXml, toTree, qname, attrsOf, createNsContext, elementToXml, treeText } from './xml.js';
@@ -498,7 +499,9 @@ export function createConverter({ ns, autoIndex, styleIndex, objectKind = null, 
       }
     }
     if (!kind) kind = name === 'draw:frame' ? 'object' : (name === 'draw:line' ? 'line' : 'shape');
-    return { element: name, styleName, auto, frameAttrs: without(a, 'draw:style-name') || {}, parts, body, kind, href };
+    // Text bodies are kept exactly as ProseMirror serialises them (the nested editors write that form).
+    const normal = body.length ? Fragment.fromJSON(schema, body).toJSON() : [];
+    return { element: name, styleName, auto, frameAttrs: without(a, 'draw:style-name') || {}, parts, body: normal, kind, href };
   }
 
   return { block, blocks, inlines };

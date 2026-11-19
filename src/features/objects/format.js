@@ -8,7 +8,7 @@
  *     (align text, add / edit text), Alt Text, Arrange, Size.
  */
 import { defineCommands } from '../define.js';
-import { withGraphic, withRotation, withSize, sizeOf, altTextOf, withAltText, graphicProps, cm, imageAttrs, originOf, wrapOf } from '../../core/objects.js';
+import { normalizeBody, withGraphic, withRotation, withSize, sizeOf, altTextOf, withAltText, graphicProps, cm, imageAttrs, originOf, wrapOf } from '../../core/objects.js';
 import { sel, hasObj, hasKind, update, gpOf, styleIndex } from './shared.js';
 import { arrangeCommands, arrangeGroup, moreLayoutOptions } from './arrange.js';
 import { altTextDialog, wordArtTextDialog } from '../../ui/object-dialogs.js';
@@ -68,7 +68,7 @@ export function bodyWithColour(body, colour) {
     }
     return n.content ? { ...n, content: n.content.map(set) } : n;
   };
-  return (body || []).map(set);
+  return normalizeBody((body || []).map(set));
 }
 
 const WEIGHTS = ['0.25pt', '0.5pt', '0.75pt', '1pt', '1.5pt', '2.25pt', '3pt', '4.5pt', '6pt'];
@@ -209,7 +209,7 @@ async function editShapeText(c) {
     const next = await wordArtTextDialog(cur);
     if (next == null) return;
     const marks = a.body?.[0]?.content?.[0]?.marks;
-    const body = next.split('\n').map((line) => ({ type: 'paragraph', attrs: a.body?.[0]?.attrs || { styleName: 'Standard' }, ...(line ? { content: [{ type: 'text', text: line, ...(marks ? { marks } : {}) }] } : {}) }));
+    const body = normalizeBody(next.split('\n').map((line) => ({ type: 'paragraph', attrs: a.body?.[0]?.attrs || { styleName: 'Standard' }, ...(line ? { content: [{ type: 'text', text: line, ...(marks ? { marks } : {}) }] } : {}) })));
     update(c, (x) => ({ ...x, body }));
     return;
   }
@@ -217,7 +217,7 @@ async function editShapeText(c) {
   // Give the shape a text body (if it has none) and put the caret in it.
   if (!a.body?.length || !a.parts.some((p) => p.n === '#body' || p['#body'])) {
     const parts = a.parts.some((p) => p.n === '#body' || p['#body']) ? a.parts : [{ n: '#body' }, ...a.parts];
-    update(c, (x) => ({ ...x, parts, body: x.body?.length ? x.body : [{ type: 'paragraph', attrs: { styleName: 'Standard', auto: { styleAttrs: {}, props: { 'style:paragraph-properties': { a: { 'fo:text-align': 'center' } } } } } }] }));
+    update(c, (x) => ({ ...x, parts, body: x.body?.length ? x.body : normalizeBody([{ type: 'paragraph', attrs: { styleName: 'Standard', auto: { styleAttrs: {}, props: { 'style:paragraph-properties': { a: { 'fo:text-align': 'center' } } } } } }]) }));
   }
   requestAnimationFrame(() => {
     const s2 = sel(c);

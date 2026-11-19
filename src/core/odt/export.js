@@ -265,7 +265,7 @@ export function createBodyWriter(registry) {
 
 // --------------------------------------------------------------- references
 
-const REF_ATTR = /(?:style-name|list-style-name|data-style-name|master-page-name|default-cell-style-name|next-style-name|parent-style-name|percentage-data-style-name|class-names|cond-style-name|apply-style-name|citation-style-name|citation-body-style-name|visited-style-name|paragraph-style-name|text-style-name|default-style-name|base-cell-address)="([^"]*)"/g;
+const REF_ATTR = /(?:marker-start|marker-end|stroke-dash|style-name|list-style-name|data-style-name|master-page-name|default-cell-style-name|next-style-name|parent-style-name|percentage-data-style-name|class-names|cond-style-name|apply-style-name|citation-style-name|citation-body-style-name|visited-style-name|paragraph-style-name|text-style-name|default-style-name|base-cell-address)="([^"]*)"/g;
 
 function referencedNames(xml) {
   const set = new Set();
@@ -297,11 +297,13 @@ function keptAutoStyles(state, bodyXml) {
  * that the opened document doesn't define: add them (with their parents).
  */
 function withMissingStyles(commonStyles, xml, autoNames) {
-  const defined = new Set((commonStyles?.c || []).map((t) => t.a?.['style:name']).filter(Boolean));
+  // Styles are named by style:name; markers, dashes and gradients by draw:name.
+  const nameOf = (t) => t.a?.['style:name'] || t.a?.['draw:name'];
+  const defined = new Set((commonStyles?.c || []).map(nameOf).filter(Boolean));
   const missing = [...referencedNames(xml)].filter((n) => !defined.has(n) && !autoNames.has(n));
   if (!missing.length) return commonStyles;
   const defaults = new Map();
-  for (const t of createBlankState().commonStyles.c || []) if (t.a?.['style:name']) defaults.set(t.a['style:name'], t);
+  for (const t of createBlankState().commonStyles.c || []) if (nameOf(t)) defaults.set(nameOf(t), t);
   const add = [];
   const queue = [...missing];
   while (queue.length) {

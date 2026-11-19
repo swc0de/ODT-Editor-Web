@@ -137,7 +137,9 @@ export class ObjectView {
     if (pos.hpos === 'right' || pos.hpos === 'outside') side = 'right';
     else if (pos.hpos === 'from-left' && container && x + w / 2 > container / 2 + 1) side = 'right';
     // Too little room beside it for text (under 1.5 cm): text goes above and below, as in Writer and Word.
-    const narrow = container && wrap !== 'topBottom' && (side === 'left' ? container - Math.max(0, x) - w : Math.max(0, x)) < 57;
+    const leftEdge = pos.hpos === 'center' ? (container - w) / 2 : (side === 'right' && pos.hpos !== 'from-left' ? container - w : Math.max(0, x));
+    const room = side === 'left' ? container - leftEdge - w : leftEdge;
+    const narrow = container && wrap !== 'topBottom' && pos.hpos !== 'center' && room < 57;
     if (wrap === 'topBottom' || narrow) {
       const row = el('span', 'obj-row');
       row.style.marginTop = `${Math.max(0, y)}px`;

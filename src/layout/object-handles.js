@@ -173,7 +173,8 @@ export function attachHandles(ov) {
   function moveHandler() {
     if (!floating || cropping) return;
     ov.box.onpointerdown = (e) => {
-      if (e.button !== 0 || e.target.closest('.obj-handle') || e.target.closest('.obj-text .ProseMirror-focused')) return;
+      // Clicks on the text of a text box / shape edit the text; drag the border to move.
+      if (e.button !== 0 || e.target.closest('.obj-handle') || e.target.closest('.obj-text .ProseMirror')) return;
       if (!ov.selected) return;
       const o = isLine ? null : originOf(a);
       let moved = false;

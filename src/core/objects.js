@@ -15,6 +15,8 @@
  * positioned with svg:x / svg:y from the paragraph's top-left ("move with text").
  */
 import { mergeAuto, sortProps } from './odt/styles.js';
+import { Fragment } from 'prosemirror-model';
+import { schema } from './schema.js';
 import { toPx } from '../layout/units.js';
 
 export const GP = 'style:graphic-properties';
@@ -275,13 +277,16 @@ export function imageAttrs({ path, mime, w, h, name, title = '', z = 0 }) {
   return attrs;
 }
 
+/** Block JSON in the exact form ProseMirror serialises it (so models compare equal after a round-trip). */
+export const normalizeBody = (body) => Fragment.fromJSON(schema, body || []).toJSON() || [];
+
 /** A text box (draw:frame + draw:text-box) floating with square wrapping. */
 export function textBoxAttrs({ w, h, name, z = 0, body, x = 0, y = 0 }) {
   const attrs = {
     element: 'draw:frame', styleName: 'Frame', auto: null, kind: 'textbox', href: '',
     frameAttrs: { 'draw:name': name, 'text:anchor-type': 'paragraph', 'svg:x': cm(x), 'svg:y': cm(y), 'svg:width': cm(w), 'draw:z-index': String(z) },
     parts: [{ n: 'draw:text-box', a: { 'fo:min-height': cm(h) }, '#body': true }],
-    body: body || [{ type: 'paragraph', attrs: { styleName: 'Frame_20_contents' } }],
+    body: normalizeBody(body || [{ type: 'paragraph', attrs: { styleName: 'Frame_20_contents' } }]),
   };
   return withGraphic(withWrap(attrs, 'square', { x, y }), {
     'fo:border': '0.75pt solid #000000', 'fo:padding': '0.127cm', 'fo:background-color': '#ffffff', 'draw:fill': 'solid', 'draw:fill-color': '#ffffff',

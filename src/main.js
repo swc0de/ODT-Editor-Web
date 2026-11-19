@@ -52,7 +52,7 @@ import { textPropsCss } from './core/odt/css.js';
 import { sizePt } from './core/commands/text.js';
 import { createRepeat, createGoBack, extendSelection } from './core/navigation.js';
 import { findWrapping } from 'prosemirror-transform';
-import { TextSelection, Plugin } from 'prosemirror-state';
+import { TextSelection, NodeSelection, Plugin } from 'prosemirror-state';
 import * as pasteModes from './core/paste-modes.js';
 import { schema } from './core/schema.js';
 import { stateSteps } from './core/state-step.js';
@@ -455,7 +455,7 @@ function boot() {
   window.odtEditor = Object.freeze({
     io: { importOdt, exportOdt, stateToJSON, createBlankState }, registry, store, t, ready, version: APP_VERSION, appName: APP_NAME,
     tabs: TABS, search, keytips, ribbon, editor, session, docArea,
-    pm: { TextSelection },
+    pm: { TextSelection, NodeSelection },
   });
 }
 

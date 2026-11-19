@@ -223,6 +223,22 @@ export function createObjectServices({ store, docArea, getSession, getMainEditor
   /** Arrow keys nudge a selected floating object (0.1 cm; Ctrl: 1 px). */
   const keyPlugin = new Plugin({
     props: {
+      // Typing while a text box or shape is selected types into it (as in Word), rather than replacing it.
+      handleTextInput(view, _from, _to, text) {
+        const sel = view.state.selection;
+        if (!(sel instanceof NodeSelection) || sel.node.type.name !== 'frame' || !['textbox', 'shape'].includes(sel.node.attrs.kind)) return false;
+        registry?.run('shapeFormat.editText');
+        const deliver = (tries = 0) => {
+          const dom = view.nodeDOM(sel.from)?.querySelector?.('.obj-text .ProseMirror');
+          const inner = activeInner?.editor;
+          if (dom && inner && inner.view.dom === dom) {
+            const iv = inner.view;
+            iv.dispatch(iv.state.tr.setSelection(TextSelection.atEnd(iv.state.doc)).insertText(text));
+          } else if (tries < 10) requestAnimationFrame(() => deliver(tries + 1));
+        };
+        requestAnimationFrame(() => deliver());
+        return true;
+      },
       handleKeyDown(view, e) {
         const sel = view.state.selection;
         if (e.key === 'Escape' && env.endCrop()) return true;

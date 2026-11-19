@@ -36,6 +36,16 @@ function splitHeadingToParagraph(state, dispatch) {
   return true;
 }
 
+/** Ctrl+Home / Ctrl+End (with Shift: extend the selection). */
+const docEdge = (dir, extend) => (state, dispatch) => {
+  const target = dir < 0 ? TextSelection.atStart(state.doc) : TextSelection.atEnd(state.doc);
+  if (dispatch) {
+    const sel = extend ? TextSelection.create(state.doc, state.selection.anchor, target.head) : target;
+    dispatch(state.tr.setSelection(sel).scrollIntoView());
+  }
+  return true;
+};
+
 /**
  * Creates the editor.
  * @param {HTMLElement} mount
@@ -83,6 +93,12 @@ export function createEditor(mount, env) {
     Enter: splitHeadingToParagraph,
     Tab: insertNode(schema.nodes.tab),
     'Mod-a': selectAll,
+    // Start / end of the document, done here rather than by the browser, which
+    // can leave the caret where it was next to inline objects.
+    'Mod-Home': docEdge(-1, false),
+    'Mod-End': docEdge(1, false),
+    'Mod-Shift-Home': docEdge(-1, true),
+    'Mod-Shift-End': docEdge(1, true),
   });
 
   const notifyPlugin = new Plugin({

@@ -5,7 +5,7 @@
 import { NodeSelection } from 'prosemirror-state';
 import { schema } from '../../core/schema.js';
 import { SHAPES, fontworkGeometry } from '../../core/shapes.js';
-import { cm, withGraphic, withFrameAttrs, withWrap, uniqueName, maxZ, textBoxAttrs } from '../../core/objects.js';
+import { cm, withGraphic, withFrameAttrs, withWrap, uniqueName, maxZ, textBoxAttrs, normalizeBody } from '../../core/objects.js';
 import { shapeStyleGraphic } from '../objects/format.js';
 import { selectedTextblocks } from '../../core/commands/paragraph.js';
 
@@ -87,7 +87,7 @@ export function wordArtAttrs(styleId, { x, y, name, z, text = 'Your text here' }
     auto: { styleAttrs: {}, props: { 'style:text-properties': { a: tp } } },
     frameAttrs: { 'draw:name': name, 'text:anchor-type': 'paragraph', 'svg:x': cm(x), 'svg:y': cm(y), 'svg:width': cm(w), 'svg:height': cm(h), 'draw:z-index': String(z) },
     parts: [{ n: '#body' }, fontworkGeometry('shape')],
-    body: [{ type: 'paragraph', attrs: { styleName: 'Standard', auto: null, extra: null }, content: [A(text, tp)] }],
+    body: normalizeBody([{ type: 'paragraph', attrs: { styleName: 'Standard', auto: null, extra: null }, content: [A(text, tp)] }]),
   };
   return withGraphic(withWrap(attrs, 'square', { x, y }), {
     'draw:fill': s.fill === 'none' ? 'none' : 'solid', 'draw:fill-color': s.fill === 'none' ? null : s.fill,

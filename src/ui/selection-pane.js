@@ -32,6 +32,8 @@ export function createSelectionPane({ dock, store, getEditor, registry }) {
 
   function render(force = false) {
     if (!rec) return;
+    // Don't redraw under a rename in progress.
+    if (!force && listEl.querySelector('.selp-input')) return;
     const view = getEditor().view;
     const sel = view.state.selection;
     const items = objects();
@@ -54,15 +56,22 @@ export function createSelectionPane({ dock, store, getEditor, registry }) {
       });
       row.addEventListener('keydown', (e) => { if (e.key === 'Enter') row.click(); if (e.key === 'F2') rename(); });
       row.addEventListener('dblclick', () => rename());
-      eye.addEventListener('click', () => setAttrsAll([{ pos, attrs: withFrameAttrs(node.attrs, { 'draw:display': hidden ? null : 'none' }) }]));
+      // Attrs are read when the change is made (the row may be older than the node).
+      const current = () => getEditor().view.state.doc.nodeAt(pos)?.attrs || node.attrs;
+      eye.addEventListener('click', () => setAttrsAll([{ pos, attrs: withFrameAttrs(current(), { 'draw:display': hidden ? null : 'none' }) }]));
       const rename = () => {
         const input = h('input', { class: 'fm-input selp-input', value: name, 'aria-label': t('selp.rename') });
         label.replaceWith(input);
         input.focus();
         input.select();
+        let finished = false;
         const done = (ok) => {
-          if (ok && input.value.trim() && input.value.trim() !== name) setAttrsAll([{ pos, attrs: withFrameAttrs(node.attrs, { 'draw:name': input.value.trim() }) }]);
-          else render(true);
+          if (finished) return;
+          finished = true;
+          const value = input.value.trim();
+          input.remove();
+          if (ok && value && value !== name) setAttrsAll([{ pos, attrs: withFrameAttrs(current(), { 'draw:name': value }) }]);
+          render(true);
         };
         input.addEventListener('keydown', (e) => { if (e.key === 'Enter') done(true); if (e.key === 'Escape') done(false); e.stopPropagation(); });
         input.addEventListener('blur', () => done(true), { once: true });
