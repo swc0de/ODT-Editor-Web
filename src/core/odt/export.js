@@ -9,6 +9,7 @@
  *  - meta.xml gets fresh statistics, date and generator.
  */
 import { SOURCES_FILE } from '../bibliography.js';
+import { exportChanges } from '../track-changes.js';
 import { schema } from '../schema.js';
 import { escText, escAttr, attrsToXml, treeToXml, treeText, nsDeclarations, XML_DECL } from './xml.js';
 import { ROOT_PREFIXES } from './namespaces.js';
@@ -273,6 +274,7 @@ export function createBodyWriter(registry) {
   return {
     body(doc) { let s = ''; doc.forEach((n) => { s += block(n); }); return s; },
     block,
+    blocks: blocksFromJSON,
   };
 }
 
@@ -366,8 +368,27 @@ const DEFAULT_SETTINGS = `${XML_DECL}<office:document-settings xmlns:office="urn
 export function exportOdt(state, opts = {}) {
   const registry = createAutoRegistry();
   const writer = createBodyWriter(registry);
-  let body = writer.body(state.doc);
-  const prelude = (state.prelude || []).map(treeToXml).join('');
+  // Tracked changes: marks back to change markers and text:tracked-changes regions.
+  const tc = exportChanges(state.doc.toJSON());
+  let body = writer.body(schema.nodeFromJSON(tc.doc));
+  const regionXml = tc.regions.map((r) => {
+    const info = `<office:change-info><dc:creator>${escText(r.author || '')}</dc:creator><dc:date>${escText(r.date || '')}</dc:date></office:change-info>`;
+    const kind = r.type === 'format-change' ? 'text:format-change' : `text:${r.type}`;
+    return `<text:changed-region xml:id="${escAttr(r.id)}" text:id="${escAttr(r.id)}"><${kind}>${info}${r.type === 'deletion' ? writer.blocks(r.blocks) : ''}</${kind}></text:changed-region>`;
+  }).join('');
+  let preludeTrees = state.prelude || [];
+  if ((regionXml || state.trackChanges) && !preludeTrees.some((t) => t.n === 'text:tracked-changes')) {
+    // After office:forms, before the declarations (ODF prelude order).
+    const at = preludeTrees.findIndex((t) => t.n !== 'office:forms');
+    const tcTree = { n: 'text:tracked-changes', a: {}, c: [] };
+    preludeTrees = at < 0 ? [...preludeTrees, tcTree] : [...preludeTrees.slice(0, at), tcTree, ...preludeTrees.slice(at)];
+  }
+  const prelude = preludeTrees.map((t) => {
+    if (t.n !== 'text:tracked-changes') return treeToXml(t);
+    const a = { ...t.a };
+    if (state.trackChanges) a['text:track-changes'] = 'true'; else delete a['text:track-changes'];
+    return `<text:tracked-changes${attrsToXml(a)}>${(t.c || []).map((c) => (typeof c === 'string' ? escText(c) : treeToXml(c))).join('')}${regionXml}</text:tracked-changes>`;
+  }).join('');
 
   // Name generated automatic styles, avoiding names that are kept or used by
   // common styles. Kept styles include those the generated ones refer to (data styles…).

@@ -37,12 +37,14 @@ function blockDomAttrs(node) {
   const lines = dc ? Number(dc.a['style:lines'] || 0) : 0;
   if (lines > 1) style = `${style ? `${style};` : ''}--dc-lines:${lines};--dc-gap:${dc.a['style:distance'] || '0cm'}`;
   return {
-    class: `ps-${sanitize(a.styleName)}${lines > 1 ? ' has-dropcap' : ''}`,
+    class: `ps-${sanitize(a.styleName)}${lines > 1 ? ' has-dropcap' : ''}${a.change ? ` tc-break tc-break-${a.change.type === 'deletion' ? 'del' : 'ins'}` : ''}`,
     style: style || null,
     'data-style': a.styleName || '',
     'data-auto': a.auto ? json(a.auto) : null,
     'data-extra': a.extra ? json(a.extra) : null,
     'data-break': pp['fo:break-before'] && pp['fo:break-before'] !== 'auto' ? pp['fo:break-before'] : null,
+    'data-change': a.change ? json(a.change) : null,
+    'data-author': a.change ? authorKey(a.change.author) : null,
   };
 }
 
@@ -51,8 +53,26 @@ function blockAttrsFromDom(dom) {
     styleName: dom.getAttribute('data-style') || 'Standard',
     auto: parseJson(dom.getAttribute('data-auto')),
     extra: parseJson(dom.getAttribute('data-extra')),
+    change: parseJson(dom.getAttribute('data-change')),
   };
 }
+
+/**
+ * Tracked changes. Text carries insertion / deletion / formatChange marks
+ * ({ author, date, cid }); a paragraph whose ending (its break to the next
+ * paragraph) was inserted or deleted has `change` = { type, author, date, cid }.
+ * See core/track-changes.js.
+ */
+const CHANGE = { default: null };
+const changeAttrs = { author: { default: '' }, date: { default: '' }, cid: { default: '' }, old: { default: null } };
+/** A short stable key per author, used to colour their changes. */
+export function authorKey(name) {
+  let h = 0;
+  for (const ch of String(name || '')) h = (h * 31 + ch.codePointAt(0)) >>> 0;
+  return String(h % 8);
+}
+const changeDom = (cls) => (mark) => ['span', { class: `tc-${cls}`, 'data-tc': json(mark.attrs), 'data-author': authorKey(mark.attrs.author), title: `${mark.attrs.author || ''}` }, 0];
+const changeParse = (cls) => [{ tag: `span.tc-${cls}`, priority: 70, getAttrs: (dom) => parseJson(dom.getAttribute('data-tc')) || {} }];
 
 export const nodes = {
   doc: { content: `(${BLOCK})+` },
@@ -60,7 +80,7 @@ export const nodes = {
   paragraph: {
     group: 'block',
     content: 'inline*',
-    attrs: { styleName: { default: 'Standard' }, auto: AUTO, extra: EXTRA },
+    attrs: { styleName: { default: 'Standard' }, auto: AUTO, extra: EXTRA, change: CHANGE },
     parseDOM: [
       { tag: 'p[data-style]', priority: 60, getAttrs: blockAttrsFromDom },
       { tag: 'p', getAttrs: htmlBlockAttrs },
@@ -75,7 +95,7 @@ export const nodes = {
     content: 'inline*',
     defining: true,
     attrs: {
-      styleName: { default: 'Heading_20_1' }, level: { default: 1 }, auto: AUTO, extra: EXTRA,
+      styleName: { default: 'Heading_20_1' }, level: { default: 1 }, auto: AUTO, extra: EXTRA, change: CHANGE,
     },
     parseDOM: [{
       tag: 'h1[data-style], h2[data-style], h3[data-style], h4[data-style], h5[data-style], h6[data-style]', priority: 60,
@@ -316,6 +336,9 @@ for (const name of ['hard_break', 'tab', 'frame', 'note', 'annotation', 'annotat
 }
 
 export const marks = {
+  insertion: { attrs: changeAttrs, inclusive: true, excludes: 'insertion', parseDOM: changeParse('ins'), toDOM: changeDom('ins') },
+  deletion: { attrs: changeAttrs, inclusive: false, excludes: 'deletion', parseDOM: changeParse('del'), toDOM: changeDom('del') },
+  formatChange: { attrs: changeAttrs, inclusive: false, excludes: 'formatChange', parseDOM: changeParse('fmt'), toDOM: changeDom('fmt') },
   link: {
     attrs: { href: { default: '' }, extra: EXTRA },
     inclusive: false,

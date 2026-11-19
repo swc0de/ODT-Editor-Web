@@ -7,6 +7,7 @@
  */
 import { Fragment } from 'prosemirror-model';
 import { SOURCES_FILE } from '../bibliography.js';
+import { importChanges } from '../track-changes.js';
 import { schema } from '../schema.js';
 import { readPackage, strFromU8, PackageError } from './package.js';
 import { parseXml, toTree, qname, attrsOf, createNsContext, elementToXml, treeText } from './xml.js';
@@ -132,18 +133,57 @@ export function importOdt(bytes) {
   state.officeTextAttrs = attrsOf(officeText, ns);
 
   const conv = createConverter({ ns, autoIndex, styleIndex, objectKind: (href) => objectKindOf(state, href), takeObjectFiles: (href) => takeObjectFiles(state, href) });
-  const blocks = [];
+  let blocks = [];
   let inPrelude = true;
+  const regions = new Map();
   for (const el of officeText.children) {
     const name = qname(el, ns);
-    if (inPrelude && PRELUDE.has(name)) { state.prelude.push(toTree(el, ns)); continue; }
+    if (inPrelude && PRELUDE.has(name)) {
+      state.prelude.push(toTree(el, ns));
+      if (name === 'text:tracked-changes') readRegions(el, ns, conv, regions, state);
+      continue;
+    }
     inPrelude = false;
     blocks.push(...conv.block(el));
+  }
+  // Tracked changes become marks; the regions turned into marks leave the prelude.
+  const tc = importChanges(blocks, regions);
+  blocks = tc.blocks;
+  if (tc.used.size) {
+    state.prelude = state.prelude.map((t) => (t.n === 'text:tracked-changes'
+      ? { ...t, c: (t.c || []).filter((r) => typeof r === 'string' || !tc.used.has(r.a?.['text:id'])) }
+      : t)).filter((t) => t.n !== 'text:tracked-changes' || (t.c || []).some((r) => typeof r !== 'string'));
   }
   if (!blocks.length) blocks.push({ type: 'paragraph', attrs: { styleName: 'Standard' } });
   state.doc = schema.nodeFromJSON({ type: 'doc', content: blocks });
   state.nsExtra = { ...ns.extra };
   return state;
+}
+
+/** Reads text:tracked-changes: id → { type, author, date, blocks (deleted paragraphs) }. */
+function readRegions(el, ns, conv, regions, state) {
+  if (attrsOf(el, ns)['text:track-changes'] === 'true') state.trackChanges = true;
+  for (const r of el.children) {
+    if (qname(r, ns) !== 'text:changed-region') continue;
+    const a = attrsOf(r, ns);
+    const id = a['text:id'] || a['xml:id'];
+    const kind = [...r.children].find((c) => ['text:insertion', 'text:deletion', 'text:format-change'].includes(qname(c, ns)));
+    if (!id || !kind) continue;
+    const type = qname(kind, ns).slice(5);
+    const info = [...kind.children].find((c) => qname(c, ns) === 'office:change-info');
+    const get = (n) => [...(info?.children || [])].find((c) => qname(c, ns) === n)?.textContent || '';
+    const region = { type, author: get('dc:creator'), date: get('dc:date') };
+    if (type === 'deletion') {
+      region.blocks = [];
+      for (const c of kind.children) {
+        if (qname(c, ns) === 'office:change-info') continue;
+        region.blocks.push(...conv.block(c));
+      }
+    }
+    // Several change-infos or extra attributes: keep it as it is.
+    if ([...kind.children].filter((c) => qname(c, ns) === 'office:change-info').length !== 1) continue;
+    regions.set(id, region);
+  }
 }
 
 /** Kind of an embedded object from its sub-document: equation (MathML), chart or other object. */
