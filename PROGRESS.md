@@ -15,8 +15,8 @@ The memory between sessions. Statuses: `todo`, `in progress`, `awaiting approval
 | M8 — References | approved |
 | M9 — Review: comments, track changes, proofing | approved |
 | M10 — Draw tab | approved |
-| M11 — Mailings and Developer | awaiting approval |
-| M12 — View tab and windows | todo |
+| M11 — Mailings and Developer | approved |
+| M12 — View tab and windows | in progress |
 | M13 — Import/export, Options, polish and final audit | todo |
 
 ## Environment
@@ -333,7 +333,7 @@ Known limitations:
 - Groups containing frames, text or other groups (from other documents) are kept but not drawn.
 - The Pencil texture is drawn only in this editor; LibreOffice draws a plain line.
 
-## M11 — Mailings and Developer (awaiting approval)
+## M11 — Mailings and Developer (approved)
 
 Built:
 - **Recipients**: Select Recipients ▸ Use an Existing List reads CSV/TXT/TSV directly and XLSX/XLS/ODS with SheetJS (first sheet, first row = column names); ▸ Type a New List opens an editable grid (New Entry, Delete Entry, Add Column). **Edit Recipient List**: filter, sort by column, tick/untick recipients; a typed list stays editable. The list is saved inside the .odt (`MailMerge/recipients.json`), so a merge document re-opens ready to preview.
