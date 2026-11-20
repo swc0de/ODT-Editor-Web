@@ -15,10 +15,12 @@ import * as help from './help/index.js';
 import * as headerFooter from './headerfooter/index.js';
 import * as tableDesign from './table/design.js';
 import * as tableLayout from './table/layout.js';
+import * as outlining from './outlining/index.js';
+import * as immersive from './immersive/index.js';
 import * as app from './app.js';
 import { pictureTab, shapeTab } from './objects/format.js';
 
-export const TAB_MODULES = Object.freeze([file, home, insert, draw, design, layout, references, mailings, review, view, developer, zotero, help, headerFooter, tableDesign, tableLayout, pictureTab, shapeTab]);
+export const TAB_MODULES = Object.freeze([file, home, insert, draw, design, layout, references, mailings, review, view, developer, zotero, help, outlining, immersive, headerFooter, tableDesign, tableLayout, pictureTab, shapeTab]);
 export const TABS = Object.freeze(TAB_MODULES.map((m) => m.ribbon));
 
 export function registerFeatures(registry) {

@@ -144,12 +144,17 @@ function savedPensWidget(o) {
   return wrap;
 }
 
-function windowList() {
-  return h('div', { class: 'menu-widget' },
-    h('div', { class: 'menu-item', role: 'menuitemradio', 'aria-checked': 'true', tabindex: '-1', 'data-menu-focus': '' },
-      h('span', { class: 'menu-check', html: iconSvg('set-default', { size: 14 }) }),
-      h('span', { class: 'menu-label' }, `1 ${document.title}`)),
-    h('div', { class: 'menu-note' }, t('menu.noWindows')));
+/** View ▸ Switch Windows: the app's open windows (this one ticked). */
+function windowList(o) {
+  const c = o.registry.context();
+  const wins = c.ui.windows?.windows() || [];
+  return h('div', { class: 'menu-widget', role: 'group' }, wins.map((w, i) => {
+    const row = h('div', { class: 'menu-item', role: 'menuitemradio', 'aria-checked': String(!!w.self), tabindex: '-1', 'data-menu-focus': i === 0 ? '' : null, 'data-window': w.id },
+      h('span', { class: 'menu-check', html: w.self ? iconSvg('set-default', { size: 14 }) : '' }),
+      h('span', { class: 'menu-label' }, `${i + 1} ${w.title}`));
+    bind(row, o, 'view.switchWindows', () => c.ui.windows.focus(w.id));
+    return row;
+  }));
 }
 
 /** Header / footer galleries: small page-strip previews of each preset. */

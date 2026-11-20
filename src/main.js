@@ -8,7 +8,7 @@ import { CommandRegistry } from './core/command-registry.js';
 import { createStore, INITIAL_APP_STATE } from './core/app-state.js';
 import { getSetting, setSetting } from './core/settings.js';
 import { t } from './i18n/index.js';
-import { applyTheme, onThemeChange } from './ui/theme.js';
+import { applyTheme, onThemeChange, resolveTheme } from './ui/theme.js';
 import { h, isTextInput } from './ui/dom.js';
 import { registerFeatures, TABS } from './features/index.js';
 import { resolveId } from './features/define.js';
@@ -72,16 +72,21 @@ import * as pasteModes from './core/paste-modes.js';
 import { schema } from './core/schema.js';
 import { stateSteps } from './core/state-step.js';
 import { tablePlugins, tableKeymap } from './core/table-plugins.js';
+import { outlinePlugin, outlineKey } from './features/view/outline.js';
+import { syllablePlugin, syllableKey, createLineFocus, PAGE_COLOURS } from './features/immersive/index.js';
+import { createReadMode } from './ui/read-mode.js';
+import { createWindows } from './ui/windows.js';
+import { createSplitView } from './ui/split-view.js';
 
 function boot() {
   applyTheme();
-  const store = createStore({ ...INITIAL_APP_STATE, ribbonCollapsed: !!getSetting('ribbonCollapsed'), showRuler: getSetting('showRuler') !== false, zoom: getSetting('zoom') || 100 });
+  const store = createStore({ ...INITIAL_APP_STATE, darkPage: !!getSetting('darkPage'), ribbonCollapsed: !!getSetting('ribbonCollapsed'), showRuler: getSetting('showRuler') !== false, zoom: getSetting('zoom') || 100 });
   const ui = {};
   let editor = null;
   let session = null;
   let clipboard = null;
   // Commands act on the active editor: the body, or a header/footer being edited.
-  const activeEditor = () => ui.hf?.activeEditor() || ui.objects?.activeEditor() || editor;
+  const activeEditor = () => ui.hf?.activeEditor() || ui.objects?.activeEditor() || ui.split?.activeEditor() || editor;
   const registry = new CommandRegistry({ translate: t, context: () => ({ store, state: store.get(), ui, editor: activeEditor(), mainEditor: editor, session, clipboard }) });
   ui.registry = registry;
   ui.toast = (msg) => toast(msg);
@@ -92,6 +97,7 @@ function boot() {
     if (changed.includes('ribbonCollapsed')) setSetting('ribbonCollapsed', s.ribbonCollapsed);
     if (changed.includes('showRuler')) setSetting('showRuler', s.showRuler);
     if (changed.includes('zoom')) setSetting('zoom', s.zoom);
+    if (changed.includes('darkPage')) setSetting('darkPage', s.darkPage);
     registry.notify();
   });
   onThemeChange(() => registry.notify());
@@ -136,7 +142,7 @@ function boot() {
     },
     openFiles(files) { if (files[0]) session.openFile(files[0]).then((ok) => { if (ok) store.set({ backstageOpen: false }); }); },
     priorityPlugins: () => [flushSelectionPlugin(), new Plugin({ props: { handleKeyDown: (_v, e) => !!ui.handleEditorKey?.(e) } }), ...(ui.objects ? [ui.objects.keyPlugin] : []), tableKeymap, ...editingPlugins(() => ({ ...AUTOCORRECT_DEFAULTS, ...(getSetting('autocorrect') || {}) }), makeList)],
-    extraPlugins: () => [...docArea.plugins(), controlsPlugin({ forms: () => store.get().restrict === 'forms', design: () => store.get().ccDesign, openMenu: (point, items) => openMenu({ point, items }), pickDate: pickDatePopup, pickPicture: (pos) => pickControlPicture(pos) }), mergePreviewPlugin({ on: () => store.get().mergePreview, merge: () => session?.state?.mailMerge, record: () => (store.get().mergeRecord || 1) - 1, highlight: () => store.get().mergeHighlight }), readAloudPlugin(), proofingPlugin({ enabled: () => getSetting('checkSpelling') !== false, fallback: () => 'en-GB', onProblems: () => { if (ui.editorPane?.isOpen) ui.editorPane.render(false); } }), trackChangesPlugin({ isOn: () => store.get().trackChanges, author: userName, display: () => store.get().reviewDisplay, hidden: () => store.get().reviewHide }), editablePlugin(() => store.get().editingMode !== 'viewing'), sequencePlugin(), notesNumberingPlugin(() => session?.state, () => (docArea.pages.length ? (pos) => docArea.pageAt(pos) : null)), ...tablePlugins(tableUI), linkFollowPlugin(() => store.get().editingMode === 'viewing'), searchPlugin(), listLabelsPlugin((name) => getListStyle(ctx(), name))],
+    extraPlugins: () => [...docArea.plugins(), outlinePlugin({ on: () => store.get().view === 'outline' }), syllablePlugin(() => store.get().view === 'immersive' && !!store.get().irSyllables), controlsPlugin({ forms: () => store.get().restrict === 'forms', design: () => store.get().ccDesign, openMenu: (point, items) => openMenu({ point, items }), pickDate: pickDatePopup, pickPicture: (pos) => pickControlPicture(pos) }), mergePreviewPlugin({ on: () => store.get().mergePreview, merge: () => session?.state?.mailMerge, record: () => (store.get().mergeRecord || 1) - 1, highlight: () => store.get().mergeHighlight }), readAloudPlugin(), proofingPlugin({ enabled: () => getSetting('checkSpelling') !== false, fallback: () => 'en-GB', onProblems: () => { if (ui.editorPane?.isOpen) ui.editorPane.render(false); } }), trackChangesPlugin({ isOn: () => store.get().trackChanges, author: userName, display: () => store.get().reviewDisplay, hidden: () => store.get().reviewHide }), editablePlugin(() => store.get().editingMode !== 'viewing'), sequencePlugin(), notesNumberingPlugin(() => session?.state, () => (docArea.pages.length ? (pos) => docArea.pageAt(pos) : null)), ...tablePlugins(tableUI), linkFollowPlugin(() => store.get().editingMode === 'viewing'), searchPlugin(), listLabelsPlugin((name) => getListStyle(ctx(), name))],
     pasteMode(event) {
       const once = clipboard?.takeMode();
       if (once) return once;
@@ -219,9 +225,11 @@ function boot() {
       const inTbl = isInTable(c2.editor.view.state);
       const obj = ui.objects.selected(c2.editor) || ui.objects.selected(editor);
       const objTab = obj ? (obj.node.attrs.kind === 'image' ? 'picture' : (['shape', 'textbox', 'wordart', 'line'].includes(obj.node.attrs.kind) ? 'shape' : null)) : null;
-      const contextual = [store.get().hfEditing && 'headerFooter', inTbl && 'table', objTab].filter(Boolean).join(' ') || null;
+      const vw = store.get().view;
+      const contextual = [vw === 'outline' && 'outline', vw === 'immersive' && 'immersive', store.get().hfEditing && 'headerFooter', inTbl && 'table', objTab].filter(Boolean).join(' ') || null;
       const tabNow = store.get().activeTab;
-      const leaveTab = (!inTbl && (tabNow === 'tableDesign' || tabNow === 'tableLayout')) || (objTab !== 'picture' && tabNow === 'pictureFormat') || (objTab !== 'shape' && tabNow === 'shapeFormat');
+      const leaveTab = (!inTbl && (tabNow === 'tableDesign' || tabNow === 'tableLayout')) || (objTab !== 'picture' && tabNow === 'pictureFormat') || (objTab !== 'shape' && tabNow === 'shapeFormat')
+        || (vw !== 'outline' && tabNow === 'outlining') || (vw !== 'immersive' && tabNow === 'immersiveReader');
       const tbl = inTbl ? tableAt(c2.editor.view.state) : null;
       store.set({
         fontName: font, fontSize: sizePt(f.text['fo:font-size']), styleId, paragraphStyle: styleName,
@@ -268,7 +276,7 @@ function boot() {
     createNested: ui.objects.createNested,
     user: () => ({ author: userName(), initials: userInitials() }),
     t,
-    isShown: () => { const s = store.get(); return !s.reviewHide?.comments && s.reviewDisplay !== 'none' && s.reviewDisplay !== 'original' && s.pageMovement !== 'side'; },
+    isShown: () => { const s = store.get(); return s.view === 'print' && !s.reviewHide?.comments && s.reviewDisplay !== 'none' && s.reviewDisplay !== 'original' && s.pageMovement !== 'side'; },
     openMenu: (anchor, items) => openMenu({ anchor, items: items.map((it) => ({ label: it.label, run: it.run })) }),
     onChange: () => docArea.relayout(),
   });
@@ -277,7 +285,7 @@ function boot() {
   ui.objects.setAddPicture((bytes, type) => editorEnv.addPicture(bytes, type));
   editor = createEditor(docArea.view.mount, editorEnv);
   // Back in the body: commands act on it again.
-  editor.view.dom.addEventListener('focus', () => ui.objects.leaveInner());
+  editor.view.dom.addEventListener('focus', () => { ui.objects.leaveInner(); ui.split?.mainFocused(); });
   docArea.attach(editor);
   clipboard = createClipboardActions(editor, toast);
   ui.painter = createFormatPainter({ editor, store });
@@ -298,7 +306,7 @@ function boot() {
   ui.rightDock = rightDock;
   ui.leftDock = leftDock;
   ui.findDialog = createFindDialog({ editor, docArea, toast });
-  const nav = createNavigationPane({ dock: leftDock, editor, docArea, store, openReplace: (tab, q) => ui.findDialog.open(tab, q) });
+  const nav = createNavigationPane({ dock: leftDock, editor, docArea, store, openReplace: (tab, q) => ui.findDialog.open(tab, q), runCommand: (id) => registry.run(id) });
   ui.nav = nav;
   const stylesPane = createStylesPane({
     dock: rightDock, store,
@@ -482,6 +490,7 @@ function boot() {
     editor,
     toast,
     onLoad(state) {
+      ui.windows?.onLoad();
       // A document saved with Track Changes on opens with it on.
       store.set((st) => ({ trackChanges: !!state.trackChanges, restrict: null, trackLock: false, editingMode: state.trackChanges ? 'reviewing' : (st.editingMode === 'reviewing' || st.editingMode === 'viewing' ? 'editing' : st.editingMode) }));
       // Restrict Editing saved in the document.
@@ -492,7 +501,7 @@ function boot() {
       docArea.applyDocument(state);
       updateStyleSamples();
     },
-    onChange(info) { store.set({ docTitle: info.name, dirty: info.dirty }); },
+    onChange(info) { store.set({ docTitle: info.name, dirty: info.dirty }); queueMicrotask(() => ui.windows?.hub.announce()); },
   });
 
   const backstage = createBackstage({ registry, store, toast, session });
@@ -515,13 +524,89 @@ function boot() {
     else (next.querySelector('button:not([tabindex="-1"]), input, [tabindex="0"]') || next).focus();
   };
 
+  // ------------------------------------------------------------ views
+  ui.readMode = createReadMode({ store, getView: () => editor.view, registry, docTitle: () => session?.info.name || '' });
+  ui.lineFocus = createLineFocus({ host: docArea.el, canvas: docArea.canvas, getView: () => editor.view, lines: () => (store.get().view === 'immersive' ? store.get().irLineFocus : 0) });
+  const viewClasses = () => {
+    const s = store.get();
+    const el = docArea.el;
+    el.classList.toggle('ol-plain', s.view === 'outline' && s.outlineFormatting === false);
+    el.classList.toggle('ol-first-line', s.view === 'outline' && !!s.outlineFirstLine);
+    el.classList.toggle('ir-spacing', s.view === 'immersive' && !!s.irTextSpacing);
+    const colour = s.view === 'immersive' ? PAGE_COLOURS[s.irPageColour] : null;
+    el.style.setProperty('--ir-page', colour || '');
+    el.classList.toggle('ir-coloured', !!colour);
+    el.classList.toggle('ir-inverse', s.view === 'immersive' && s.irPageColour === 'inverse');
+    el.classList.toggle('dark-page', !!s.darkPage && resolveTheme() === 'dark' && s.view !== 'immersive');
+  };
+  onThemeChange(viewClasses);
+  viewClasses();
+  store.subscribe((s, changed) => {
+    if (changed.some((k) => ['view', 'outlineFormatting', 'outlineFirstLine', 'irTextSpacing', 'irPageColour', 'darkPage'].includes(k))) viewClasses();
+    if (changed.includes('view') || changed.includes('irSyllables')) {
+      const v = editor.view;
+      v.dispatch(v.state.tr.setMeta(outlineKey, {}).setMeta(syllableKey, true).setMeta('addToHistory', false).setMeta('tcSkip', true));
+      scheduleSync();
+      if (s.view !== 'read') requestAnimationFrame(() => { v.dispatch(v.state.tr.scrollIntoView().setMeta('addToHistory', false).setMeta('tcSkip', true)); });
+    }
+    if (changed.includes('view') || changed.includes('irLineFocus') || changed.includes('irColumnWidth') || changed.includes('irTextSpacing') || changed.includes('irSyllables')) ui.lineFocus.update();
+  });
+  const baseOnTransaction2 = editorEnv.onTransaction;
+  editorEnv.onTransaction = (view, tr) => { baseOnTransaction2(view, tr); if ((tr.selectionSet || tr.docChanged) && store.get().irLineFocus) ui.lineFocus.update(); };
+
+  // Window group: New Window, Arrange All, Side by Side, Switch Windows, Full Screen; Split.
+  ui.windows = createWindows({ store, getEditor: () => editor, getSession: () => session, docArea, toast, onTitle: (x) => session?.setTitleSuffix(x) });
+  ui.split = createSplitView({
+    docArea, store, getMain: () => editor, createEditor,
+    env: {
+      ...editorEnv,
+      priorityPlugins: () => [flushSelectionPlugin(), new Plugin({ props: { handleKeyDown: (_v, e) => !!ui.handleEditorKey?.(e) } }), tableKeymap],
+      extraPlugins: () => [searchPlugin(), listLabelsPlugin((name) => getListStyle(ctx(), name))],
+    },
+    onFocusChange: () => scheduleSync(),
+  });
+  const baseOnTransaction3 = editorEnv.onTransaction;
+  editorEnv.onTransaction = (view, tr, transactions) => {
+    baseOnTransaction3(view, tr, transactions);
+    if (view !== editor.view) return;
+    ui.split.mirror(tr, transactions || [tr]);
+    ui.windows.afterTransaction(tr);
+  };
+
+  // Focus: just the document, full screen; the ribbon appears at the top edge.
+  ui.setFocusMode = (on) => {
+    store.set({ focusMode: on });
+    try {
+      if (on && !document.fullscreenElement) document.documentElement.requestFullscreen?.().catch(() => {});
+      if (!on && document.fullscreenElement && ui.focusFullscreen) document.exitFullscreen?.().catch(() => {});
+    } catch { /* full screen isn't allowed here: Focus still hides everything else */ }
+    ui.focusFullscreen = on;
+  };
+
   const root = document.getElementById('app');
   const work = h('div', { class: 'work' }, leftDock.el, docArea.el, rightDock.el);
   const shell = h('div', { class: 'shell' }, ribbon.tabbar, ribbon.ribbon, work, status.el);
-  root.replaceChildren(shell, backstage.el);
+  root.replaceChildren(shell, ui.readMode.el, backstage.el);
+  store.subscribe((s, changed) => {
+    if (changed.includes('fullScreen')) { shell.classList.toggle('full-screen', !!s.fullScreen); shell.classList.remove('focus-show'); requestAnimationFrame(() => docArea.syncRulers()); }
+    if (changed.includes('focusMode')) { shell.classList.toggle('focus-mode', s.focusMode); shell.classList.remove('focus-show'); requestAnimationFrame(() => docArea.syncRulers()); }
+    if (changed.includes('view')) shell.inert = s.view === 'read' || s.backstageOpen;
+  });
+  document.addEventListener('mousemove', (e) => {
+    if (!store.get().focusMode && !store.get().fullScreen) return;
+    const show = shell.classList.contains('focus-show');
+    const bottom = show ? ribbon.ribbon.getBoundingClientRect().bottom + 8 : 6;
+    shell.classList.toggle('focus-show', e.clientY <= bottom);
+  });
+  document.addEventListener('keydown', (e) => {
+    if (e.key !== 'Escape' || isMenuOpen() || document.querySelector('.dlg-overlay')) return;
+    if (store.get().focusMode) ui.setFocusMode(false);
+    else if (store.get().fullScreen) ui.windows.setFullScreen(false);
+  });
+  document.addEventListener('fullscreenchange', () => { if (!document.fullscreenElement && store.get().focusMode && ui.focusFullscreen) ui.setFocusMode(false); });
   store.subscribe((s, changed) => {
     if (changed.includes('backstageOpen')) {
-      shell.inert = s.backstageOpen;
+      shell.inert = s.backstageOpen || s.view === 'read';
       if (!s.backstageOpen) requestAnimationFrame(() => editor.focus());
     }
   });
@@ -562,8 +647,10 @@ function boot() {
     root.setAttribute('aria-busy', 'false');
   });
 
+  // A window opened by New Window: load the shared document.
+  const joined = ready.then(() => ui.windows.joinFromUrl());
   // Offer recovery of documents left unsaved by an earlier session.
-  ready.then(() => session.recoverable()).then((list) => {
+  joined.then(() => session.recoverable()).then((list) => {
     if (list.length) toast(t('file.recoverToast', { count: list.length }));
   });
 

@@ -1,0 +1,103 @@
+/* M12 views: Web Layout, Draft, Outline, Immersive Reader (one flow, no pages), Focus, Read Mode. */
+.doc-area.flowing .canvas { background: var(--page-bg); }
+.doc-area.flowing .pages { padding: 40px 0 24px; }
+.doc-area[data-view="draft"] .pages, .doc-area[data-view="outline"] .pages { align-items: flex-start; padding-left: 8px; }
+.doc-area.flowing .vruler-strip, .doc-area[data-view="outline"] .hruler-strip, .doc-area[data-view="immersive"] .hruler-strip,
+.doc-area[data-view="outline"] .ruler-corner, .doc-area[data-view="immersive"] .ruler-corner { display: none; }
+.doc-area[data-view="outline"] .pages, .doc-area[data-view="immersive"] .pages { padding-top: 16px; }
+.page-stack.flowing .notes-layer, .page-stack.flowing .repeat-layer, .page-stack.flowing .comments-layer, .page-stack.flowing .ln-layer { display: none; }
+
+/* Draft: page and section breaks as labelled dotted lines. */
+.doc-area[data-view="draft"] .odt-doc .ProseMirror [data-break="page"]::before {
+  content: "Page Break"; display: block; margin: 6px 0; border-top: 1px dotted #8a8a8a; font: 11px/14px var(--font-ui); color: #6a6a6a; text-align: center;
+  font-style: normal; font-weight: normal; text-decoration: none; letter-spacing: normal; text-indent: 0;
+}
+
+/* Outline: symbols, indentation by level, collapse. */
+.doc-area[data-view="outline"] .odt-doc .ProseMirror .ol-item { position: relative; margin-left: calc(var(--ol-depth, 0) * 0.9cm + 24px) !important; }
+.doc-area[data-view="outline"] .odt-doc .ProseMirror .ol-hidden { display: none !important; }
+.ol-mark { position: absolute; left: -22px; top: 0.15em; width: 15px; height: 15px; display: inline-flex; align-items: center; justify-content: center; user-select: none; cursor: default; font: 600 12px/1 var(--font-ui); color: #555; text-indent: 0; font-style: normal; }
+.ol-mark-plus { cursor: pointer; }
+.ol-mark-plus::before { content: "+"; width: 13px; height: 13px; border: 1px solid #666; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-size: 12px; line-height: 1; }
+.ol-collapsed > .ol-mark-plus::before { background: #e3e6fb; border-color: #5b6ee1; color: #2b3aa8; }
+.ol-mark-minus::before { content: "−"; width: 13px; height: 13px; border: 1px solid #666; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-size: 12px; line-height: 1; }
+.ol-mark-body::before { content: ""; width: 5px; height: 5px; border-radius: 50%; background: #666; }
+.ol-collapsed::after { content: ""; display: block; height: 0; border-bottom: 2px dotted #9aa3e8; margin-top: 2px; }
+.ol-first-line .odt-doc .ProseMirror .ol-body { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ol-plain .odt-doc .ProseMirror .ol-item, .ol-plain .odt-doc .ProseMirror .ol-item * {
+  font-family: var(--doc-font) !important; font-size: 12pt !important; font-weight: normal !important; font-style: normal !important; color: #000 !important;
+  margin-top: 0 !important; margin-bottom: 0 !important; text-decoration: none !important; background: none !important;
+}
+
+/* Immersive Reader. */
+.doc-area[data-view="immersive"] .canvas, .doc-area[data-view="immersive"] .page-stack { background: var(--ir-page, var(--page-bg)); }
+.doc-area[data-view="immersive"] .odt-doc .ProseMirror :is(p, h1, h2, h3, h4, h5, h6, li) { line-height: 1.6; }
+.ir-spacing .odt-doc .ProseMirror :is(p, h1, h2, h3, h4, h5, h6, li) { letter-spacing: 0.07em; word-spacing: 0.3em; line-height: 2 !important; }
+.ir-inverse .odt-doc .ProseMirror, .ir-inverse .odt-doc .ProseMirror * { color: #ececec !important; }
+.ir-syl { color: #8a8a8a; padding: 0 0.04em; user-select: none; font-weight: normal; }
+.ir-mask { position: absolute; left: 0; right: 0; z-index: 4; background: rgba(0, 0, 0, 0.74); pointer-events: none; }
+.ir-mask-top { top: 0; }
+.ir-mask-bottom { bottom: 0; }
+
+/* Focus: only the document; the tabs and ribbon slide in at the top edge. */
+.shell.full-screen > .tabbar, .shell.full-screen > .ribbon, .shell.focus-mode > .tabbar, .shell.focus-mode > .ribbon { position: fixed; left: 0; right: 0; z-index: 900; transform: translateY(-100vh); transition: transform 0.12s ease-out; }
+.shell.focus-mode > .tabbar, .shell.full-screen > .tabbar { top: 0; }
+.shell.focus-mode > .ribbon, .shell.full-screen > .ribbon { top: calc(var(--tabbar-h) + 2px); box-shadow: 0 6px 16px rgba(0, 0, 0, 0.4); }
+.shell.focus-mode.focus-show > .tabbar, .shell.focus-mode.focus-show > .ribbon, .shell.full-screen.focus-show > .tabbar, .shell.full-screen.focus-show > .ribbon { transform: none; }
+.shell.focus-mode > .status-bar, .shell.focus-mode .pane-dock, .shell.focus-mode .hruler-strip, .shell.focus-mode .vruler-strip, .shell.focus-mode .ruler-corner { display: none !important; }
+.shell.focus-mode .doc-area:not(.flowing), .shell.focus-mode .doc-area:not(.flowing) .canvas { background: #0d0d0d; }
+
+/* Read Mode. */
+.read-mode { position: fixed; inset: 0; z-index: 40; display: flex; flex-direction: column; background: #ffffff; color: #1b1b1b; --rm-bg: #ffffff; }
+.read-mode[hidden] { display: none; }
+.read-mode:focus { outline: none; }
+.read-mode[data-colour="sepia"] { --rm-bg: #f4ecd8; background: var(--rm-bg); }
+.read-mode[data-colour="inverse"] { --rm-bg: #121212; background: var(--rm-bg); color: #ececec; }
+.read-mode[data-colour="inverse"] .rm-doc .ProseMirror, .read-mode[data-colour="inverse"] .rm-doc .ProseMirror * { color: #ececec !important; }
+.rm-bar { display: flex; align-items: center; gap: 4px; height: 38px; flex: none; padding: 0 10px; background: var(--app-bg); color: var(--text); border-bottom: 1px solid var(--chrome-line); }
+.rm-menu, .rm-edit { display: inline-flex; align-items: center; gap: 4px; height: 28px; padding: 0 10px; border: 1px solid transparent; border-radius: 4px; background: transparent; color: inherit; font: 13px var(--font-ui); }
+.rm-menu:hover, .rm-edit:hover { background: var(--hover-bg, rgba(127, 127, 127, 0.18)); }
+.rm-edit { border-color: var(--control-border, #555); }
+.rm-title { flex: 1; text-align: center; font: 13px var(--font-ui); overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.rm-body { flex: 1; min-height: 0; display: flex; align-items: stretch; }
+.rm-viewport { flex: 1; min-width: 0; overflow: hidden; padding: 28px 0; }
+.rm-columns { box-sizing: border-box; column-fill: auto; }
+.rm-doc { background: transparent; }
+.rm-doc .ProseMirror { outline: none; white-space: pre-wrap; }
+.rm-doc .ProseMirror :is(p, h1, h2, h3, h4, h5, h6) { break-inside: auto; orphans: 2; widows: 2; }
+.rm-doc .ProseMirror :is(table, figure, .odt-obj) { break-inside: avoid; }
+.rm-doc .ProseMirror img { max-width: 100%; height: auto; }
+.rm-arrow { flex: none; width: 56px; border: 0; background: transparent; color: #8a8a8a; display: flex; align-items: center; justify-content: center; }
+.rm-arrow:hover:not(:disabled) { color: #4a5bd4; background: rgba(127, 127, 127, 0.08); }
+.rm-arrow:disabled { opacity: 0.25; }
+.rm-status { flex: none; height: 26px; display: flex; align-items: center; justify-content: center; font: 12px var(--font-ui); background: var(--app-bg); color: var(--text-muted); }
+
+/* Navigation pane: dragging headings, page thumbnails. */
+.nav-heading.is-dragging { opacity: 0.5; }
+.nav-heading.drop-before { box-shadow: inset 0 2px 0 var(--accent); }
+.nav-heading.drop-after { box-shadow: inset 0 -2px 0 var(--accent); }
+.nav-thumbs { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 10px; padding: 8px 6px; justify-items: center; }
+.nav-thumb { border: 0; background: transparent; color: var(--text-muted); display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 4px; border-radius: 4px; }
+.nav-thumb:hover { background: var(--hover-bg); }
+.nav-thumb-page { position: relative; display: block; overflow: hidden; background: var(--page-bg); outline: 2px solid transparent; outline-offset: 1px; box-shadow: 0 1px 4px rgba(0, 0, 0, 0.45); pointer-events: none; }
+.nav-thumb.is-active .nav-thumb-page { outline-color: var(--accent); }
+.nav-thumb.is-active .nav-page-num { color: var(--accent); }
+.nav-mirror { pointer-events: none; }
+.nav-mirror .pg { box-shadow: none; }
+.nav-mirror .page-flow .ProseMirror { caret-color: transparent; }
+
+/* Switch Modes: dark pages (the page is inverted; pictures are inverted back). */
+.doc-area.dark-page:not(.flowing) .page-stack, .doc-area.dark-page.flowing .canvas { filter: invert(0.9) hue-rotate(180deg); }
+.doc-area.dark-page .page-stack img, .doc-area.dark-page .page-stack .odt-obj svg, .doc-area.dark-page .page-stack canvas { filter: invert(1) hue-rotate(180deg); }
+.doc-area.dark-page:not(.flowing) .canvas { background: var(--canvas-bg); }
+
+/* Split: a second pane of the document below the first. */
+.doc-area.is-split > .canvas { bottom: var(--split-h, 50%); }
+.split-pane { position: absolute; left: 0; right: 0; bottom: 0; z-index: 3; display: flex; flex-direction: column; background: var(--canvas-bg); }
+.split-pane[hidden] { display: none; }
+.split-bar { flex: none; height: 6px; cursor: row-resize; background: var(--chrome-line); border-top: 1px solid var(--divider); border-bottom: 1px solid var(--divider); }
+.split-bar:focus-visible { outline: 2px solid var(--accent); }
+.split-scroll { flex: 1; min-height: 0; overflow: auto; padding: 16px; }
+.split-page { margin: 0 auto; padding: 48px 72px; box-sizing: content-box; min-height: calc(100% - 96px); background: var(--page-bg); box-shadow: var(--page-shadow); }
+.doc-area.dark-page .split-page { filter: invert(0.9) hue-rotate(180deg); }
+.split-doc .ProseMirror { outline: none; white-space: pre-wrap; min-height: 2em; }

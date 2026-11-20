@@ -16,7 +16,7 @@ The memory between sessions. Statuses: `todo`, `in progress`, `awaiting approval
 | M9 — Review: comments, track changes, proofing | approved |
 | M10 — Draw tab | approved |
 | M11 — Mailings and Developer | approved |
-| M12 — View tab and windows | in progress |
+| M12 — View tab and windows | awaiting approval |
 | M13 — Import/export, Options, polish and final audit | todo |
 
 ## Environment
@@ -358,4 +358,32 @@ Known limitations:
 - No Outlook/contacts sources or database connections; only the first sheet of a workbook is read.
 - Envelope printing options (feed method) and custom label sizes aren't available.
 - Repeating-section and building-block content controls and legacy form fields aren't offered (legacy fields from other files are kept).
+
+## M12 — View tab and windows (awaiting approval)
+
+Built:
+- **Views**: Print Layout (pages); **Web Layout** (no pages, the text wraps to the window); **Draft** (no pages at the body width, page breaks shown as labelled dotted lines); **Outline** with the **Outlining** tab; **Read Mode** (a read-only copy of the document in screen-sized columns: ‹ › arrows, ← → / Page Up/Down / mouse wheel, Tools ▾ Find / Read Aloud, View ▾ Edit Document / Column Width / Page Colour, "Screen n of m", Esc to go back). The status bar's Read / Print / Web buttons switch views.
+- **Outlining tab**: Outline Level (Level 1–9 / Body Text), Promote to Heading 1, Promote, Demote, Demote to Body Text (Alt+Shift+← / →), Move Up / Down (Alt+Shift+↑ / ↓; a paragraph moves with the content hidden under it), Expand / Collapse (Alt+Shift+= / −, or click a heading's ⊕), Show Level, Show Text Formatting, Show First Line Only, Close Outline View. Heading 5–9 styles are added when first used.
+- **Focus** (document only, full screen, the ribbon slides in at the top edge, Esc to leave) and **Immersive Reader** (contextual tab): Column Width (very narrow → wide), Page Colour (none, sepia, inverse, mint, sky, rose), Line Focus (1, 3 or 5 lines), Text Spacing, Syllables (mid-dots from the en-GB hyphenation patterns, text unchanged), Read Aloud. The text stays editable.
+- **Navigation pane**: drag a heading to move its whole section (drop above or below another heading); right-click ▸ Promote / Demote / Select Heading and Content / Delete; **Pages** shows real rendered page thumbnails (made only for thumbnails in view).
+- **Dark Mode ▸ Switch Modes**: dark pages while the interface is dark (pictures keep their colours); remembered.
+- **Window**:
+  - **New Window** opens the same document in a second window; both stay in sync as you type (edits travel as ProseMirror steps over a BroadcastChannel, with prosemirror-collab rebasing concurrent edits; page setup and style changes and new pictures travel too). Titles show "Document1:1" / ":2". If the first window closes, another takes over.
+  - **Split**: a second, independently scrolling pane of the same document below the first (drag the bar to resize, double-click it to remove); typing and commands work in either pane.
+  - **View Side by Side** + **Synchronous Scrolling** between two windows of the app (New Window, or another document open in another tab); **Arrange All**; **Switch Windows** lists the app's windows; **Full Screen** (Esc to leave).
+- **Templates**: View ▸ Templates opens File ▸ New with seven original templates (Blank, Studio handbook, Letter, Résumé, Report, Newsletter, Meeting notes), Save as Template (.ott, ODF template mimetype) and Open a Template (opens as a new untitled document).
+- Also fixed: the Selection Pane's styles weren't included in the build.
+- Tests: 79 unit (new: outline items, sections and moving them) + 139 e2e (6 new in `tests/e2e/view.spec.js`: views and Read Mode; Outline with a round trip; Focus, Immersive Reader, Switch Modes; Navigation pane drag and thumbnails; New Window sync both ways, Switch Windows, Side by Side with Synchronous Scrolling, Split; Full Screen and templates with the .ott mimetype). Performance unchanged (100 pages: about 3.7 ms median per keystroke).
+- Screenshots: `reference/compare/ribbon-view-dark-compare.png` (matches `ribbon-view-dark.png`) and `m12-*-{dark,light}.png`: navigation pages, web layout, draft, outline, immersive, split, read mode, focus, switch modes, templates.
+
+Decisions:
+- Views without pages use the same editor with pagination switched off (no second renderer).
+- New Window uses BroadcastChannel (works between tabs opened from the same file); the first window of a document is the authority that orders edits. Undo in each window undoes that window's own edits.
+- Split's lower pane shows the document as one continuous page (not paginated).
+- Read Mode shows a read-only copy (it refreshes when you go back and return).
+- Browsers only let a page move or resize windows it opened itself, so Arrange All / Side by Side position windows made by New Window; a normal tab stays where it is (a message says so). Synchronous Scrolling works either way.
+
+Known limitations:
+- Settings outside the document text and styles (Restrict Editing, document properties) are not synced between windows.
+- Macros stays "Coming soon".
 

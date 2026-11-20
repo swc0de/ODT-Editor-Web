@@ -67,6 +67,66 @@ export const TEMPLATES = [
 <h3 class="tp-section" data-style="Heading_20_1" data-level="1">Skills</h3>
 <p class="tp-small" data-style="Standard">Hand joinery, CAD, steam bending, finishing, client briefs</p>`,
   },
+  {
+    id: 'report',
+    name: 'template.report',
+    home: false,
+    html: `
+<p class="tp-title" data-style="Title">Community Garden Annual Report</p>
+<p class="tp-sub" data-style="Subtitle">Season summary, budget and plans for next year</p>
+<h2 data-style="Heading_20_1" data-level="1">Summary</h2>
+<p data-style="Standard">This year the garden grew from twelve to twenty raised beds. Volunteers logged more than 600 hours, and the produce stall raised enough to pay for a new water butt and a tool shed roof.</p>
+<h2 data-style="Heading_20_1" data-level="1">Highlights</h2>
+<ul>
+<li><p data-style="List_20_Paragraph">Eight new beds built from reclaimed timber.</p></li>
+<li><p data-style="List_20_Paragraph">A weekly after-school club for the primary school.</p></li>
+<li><p data-style="List_20_Paragraph">Seed swap in March with 140 visitors.</p></li>
+</ul>
+<h2 data-style="Heading_20_1" data-level="1">Budget</h2>
+<table><thead><tr><th><p data-style="Table_20_Heading">Item</p></th><th><p data-style="Table_20_Heading">Planned</p></th><th><p data-style="Table_20_Heading">Spent</p></th></tr></thead>
+<tbody><tr><td><p data-style="Table_20_Contents">Timber and soil</p></td><td><p data-style="Table_20_Contents">£900</p></td><td><p data-style="Table_20_Contents">£820</p></td></tr>
+<tr><td><p data-style="Table_20_Contents">Tools</p></td><td><p data-style="Table_20_Contents">£300</p></td><td><p data-style="Table_20_Contents">£345</p></td></tr>
+<tr><td><p data-style="Table_20_Contents">Events</p></td><td><p data-style="Table_20_Contents">£150</p></td><td><p data-style="Table_20_Contents">£95</p></td></tr></tbody></table>
+<h2 data-style="Heading_20_1" data-level="1">Next year</h2>
+<p data-style="Standard">We plan to add a wildlife pond, start a composting rota and open the garden on the first Sunday of every month.</p>`,
+  },
+  {
+    id: 'newsletter',
+    name: 'template.newsletter',
+    home: false,
+    html: `
+<p class="tp-header" data-style="Header">Issue 14${TAB}Autumn</p>
+<p class="tp-title" data-style="Title">The Lantern Street Gazette</p>
+<p class="tp-sub" data-style="Subtitle">News from the neighbourhood</p>
+<h2 data-style="Heading_20_1" data-level="1">Street party a great success</h2>
+<p data-style="Standard">Over two hundred neighbours came along to September's street party. Thank you to everyone who brought food, lent tables or helped tidy up afterwards. The raffle raised £410 for the playground fund.</p>
+<h3 data-style="Heading_20_2" data-level="2">Library opening hours</h3>
+<p data-style="Standard">From November the library on Mill Lane opens late on Thursdays, until 8 p.m., with a homework club from 4 p.m.</p>
+<h3 data-style="Heading_20_2" data-level="2">Dates for your diary</h3>
+<ul>
+<li><p data-style="List_20_Paragraph"><b>12 October:</b> bulb planting on the green.</p></li>
+<li><p data-style="List_20_Paragraph"><b>31 October:</b> lantern walk, meet at the church gate at 6 p.m.</p></li>
+<li><p data-style="List_20_Paragraph"><b>6 December:</b> winter market.</p></li>
+</ul>
+<p class="tp-quote" data-style="Quote">Got news to share? Drop a note through the door of number 23.</p>`,
+  },
+  {
+    id: 'meeting',
+    name: 'template.meeting',
+    home: false,
+    html: `
+<p class="tp-title" data-style="Title">Meeting Notes</p>
+<p class="tp-small" data-style="No_20_Spacing"><b>Date:</b> 18 November 2026 · <b>Time:</b> 10:00 · <b>Place:</b> Room 2</p>
+<p class="tp-small" data-style="No_20_Spacing"><b>Attendees:</b> Alex, Bea, Chidi, Dana</p>
+<h2 data-style="Heading_20_1" data-level="1">Agenda</h2>
+<ol><li><p data-style="List_20_Paragraph">Review of last month's actions</p></li><li><p data-style="List_20_Paragraph">Project timeline</p></li><li><p data-style="List_20_Paragraph">Any other business</p></li></ol>
+<h2 data-style="Heading_20_1" data-level="1">Notes</h2>
+<p data-style="Standard">Write the main points of the discussion here, one short paragraph per agenda item.</p>
+<h2 data-style="Heading_20_1" data-level="1">Actions</h2>
+<table><thead><tr><th><p data-style="Table_20_Heading">Action</p></th><th><p data-style="Table_20_Heading">Owner</p></th><th><p data-style="Table_20_Heading">Due</p></th></tr></thead>
+<tbody><tr><td><p data-style="Table_20_Contents">Send the updated plan</p></td><td><p data-style="Table_20_Contents">Bea</p></td><td><p data-style="Table_20_Contents">25 Nov</p></td></tr>
+<tr><td><p data-style="Table_20_Contents">Book the hall</p></td><td><p data-style="Table_20_Contents">Chidi</p></td><td><p data-style="Table_20_Contents">1 Dec</p></td></tr></tbody></table>`,
+  },
 ];
 
 /** The template as a new document body (null for the blank document). */

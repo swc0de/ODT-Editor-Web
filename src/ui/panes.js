@@ -8,6 +8,8 @@ import { t } from '../i18n/index.js';
 import { iconSvg } from './icons.js';
 import { openMenu } from './menu.js';
 import { findAll, snippet, searchKey, selectRange } from '../core/search.js';
+import { TextSelection } from 'prosemirror-state';
+import { sectionRange, moveSection } from '../core/outline.js';
 
 /** A dock on one side. Panes are { id, title, body, onClose }. */
 export function createDock(side, { onResize } = {}) {
@@ -59,7 +61,7 @@ export function createDock(side, { onResize } = {}) {
 
 // ------------------------------------------------------------ Navigation pane
 
-export function createNavigationPane({ dock, editor, docArea, store, openReplace }) {
+export function createNavigationPane({ dock, editor, docArea, store, openReplace, runCommand }) {
   let matches = [];
   let current = -1;
   let tab = 'headings';
@@ -117,18 +119,17 @@ export function createNavigationPane({ dock, editor, docArea, store, openReplace
       let active = -1;
       hs.forEach((x, i) => { if (x.pos <= sel) active = i; });
       if (!hs.length) list.append(h('p', { class: 'pane-empty' }, t('nav.noHeadings')));
-      hs.forEach((x, i) => list.append(h('button', {
-        type: 'button', class: `nav-heading${i === active ? ' is-active' : ''}`, style: { paddingLeft: `${8 + (x.level - 1) * 14}px` },
-        onclick: () => { editor.focusAt(x.pos + 1); view().dispatch(view().state.tr.scrollIntoView()); },
-      }, x.text)));
+      hs.forEach((x, i) => {
+        const b = h('button', {
+          type: 'button', class: `nav-heading${i === active ? ' is-active' : ''}`, style: { paddingLeft: `${8 + (x.level - 1) * 14}px` }, draggable: 'true', 'data-pos': String(x.pos),
+          onclick: () => { editor.focusAt(x.pos + 1); view().dispatch(view().state.tr.scrollIntoView()); },
+        }, x.text);
+        headingDrag(b, x);
+        b.addEventListener('contextmenu', (e) => { e.preventDefault(); headingMenu(e, x); });
+        list.append(b);
+      });
     } else if (tab === 'pages') {
-      const pages = docArea.pages;
-      const grid = h('div', { class: 'nav-pages' });
-      pages.forEach((p, i) => grid.append(h('button', {
-        type: 'button', class: `nav-page${store.get().page === i + 1 ? ' is-active' : ''}`, 'aria-label': t('nav.pageN', { n: i + 1 }),
-        onclick: () => docArea.view.pageElement(i)?.scrollIntoView({ block: 'start' }),
-      }, h('span', { class: 'nav-page-thumb' }), h('span', { class: 'nav-page-num' }, String(i + 1)))));
-      list.append(grid);
+      renderThumbs();
     } else {
       if (!input.value) list.append(h('p', { class: 'pane-empty' }, t('nav.searchHint')));
       matches.slice(0, 500).forEach((m, i) => {
@@ -141,6 +142,125 @@ export function createNavigationPane({ dock, editor, docArea, store, openReplace
   }
 
   function select(k) { tab = k; render(); }
+
+  // ---------------------------------------------------------- headings: drag to move a section
+  let dragFrom = null;
+  function headingDrag(b, x) {
+    b.addEventListener('dragstart', (e) => { dragFrom = x.pos; e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', x.text); b.classList.add('is-dragging'); });
+    b.addEventListener('dragend', () => { dragFrom = null; b.classList.remove('is-dragging'); list.querySelectorAll('.drop-before, .drop-after').forEach((n) => n.classList.remove('drop-before', 'drop-after')); });
+    b.addEventListener('dragover', (e) => {
+      if (dragFrom == null || dragFrom === x.pos) return;
+      e.preventDefault();
+      const r = b.getBoundingClientRect();
+      const after = e.clientY > r.top + r.height / 2;
+      b.classList.toggle('drop-before', !after);
+      b.classList.toggle('drop-after', after);
+    });
+    b.addEventListener('dragleave', () => b.classList.remove('drop-before', 'drop-after'));
+    b.addEventListener('drop', (e) => {
+      e.preventDefault();
+      const after = b.classList.contains('drop-after');
+      b.classList.remove('drop-before', 'drop-after');
+      if (dragFrom == null) return;
+      moveHeading(dragFrom, x.pos, after);
+    });
+  }
+
+  /** Moves heading `from`'s section before heading `to` (or after `to`'s section). */
+  function moveHeading(from, to, after = false) {
+    const v = view();
+    let target = to;
+    if (after) { const r = sectionRange(v.state.doc, to); if (!r) return false; target = r.to; }
+    const own = sectionRange(v.state.doc, from);
+    if (!own || (target > own.from && target < own.to)) return false;
+    const tr = v.state.tr;
+    const at = moveSection(tr, from, target);
+    if (at == null) return false;
+    tr.setSelection(TextSelection.create(tr.doc, at + 1));
+    v.dispatch(tr.scrollIntoView());
+    editor.focus();
+    render();
+    return true;
+  }
+
+  function headingMenu(e, x) {
+    const v = view();
+    const selectHeading = () => v.dispatch(v.state.tr.setSelection(TextSelection.create(v.state.doc, x.pos + 1)));
+    const selectSection = () => {
+      const r = sectionRange(v.state.doc, x.pos);
+      if (r) v.dispatch(v.state.tr.setSelection(TextSelection.create(v.state.doc, r.from + 1, Math.max(r.from + 1, r.to - 1))));
+      editor.focus();
+    };
+    openMenu({
+      point: { x: e.clientX, y: e.clientY },
+      items: [
+        { label: t('nav.promote'), run: () => { selectHeading(); runCommand?.('outlining.promote'); } },
+        { label: t('nav.demote'), run: () => { selectHeading(); runCommand?.('outlining.demote'); } },
+        '-',
+        { label: t('nav.selectSection'), run: selectSection },
+        { label: t('nav.deleteSection'), run: () => { const r = sectionRange(v.state.doc, x.pos); if (r) { v.dispatch(v.state.tr.delete(r.from, r.to)); editor.focus(); } } },
+      ],
+    });
+  }
+
+  // ---------------------------------------------------------- pages: rendered thumbnails
+  // Each thumbnail is a window onto a scaled copy of the page stack; copies
+  // are made only for thumbnails scrolled into view, and reused until the
+  // document or its pages change.
+  const THUMB_W = 132;
+  let mirror = null;
+  let mirrorKey = '';
+  let io = null;
+  function stackCopy() {
+    const key = `${view().state.doc.content.size}|${docArea.pages.length}|${store.get().pageMovement}|${docArea.model?.version}|${view().state.doc.textContent.length}`;
+    if (!mirror || key !== mirrorKey) {
+      mirror = docArea.view.stack.cloneNode(true);
+      for (const n of mirror.querySelectorAll('[contenteditable]')) n.removeAttribute('contenteditable');
+      for (const n of mirror.querySelectorAll('[id]')) n.removeAttribute('id');
+      mirror.classList.add('nav-mirror');
+      mirrorKey = key;
+    }
+    return mirror.cloneNode(true);
+  }
+  function renderThumbs() {
+    const pages = docArea.pages;
+    const model = docArea.model;
+    const wrap = h('div', { class: 'nav-thumbs' });
+    list.append(wrap);
+    if (!model || !pages.length) return;
+    const scale = THUMB_W / model.width;
+    const cur = store.get().page - 1;
+    io?.disconnect();
+    io = new IntersectionObserver((entries) => {
+      for (const en of entries) {
+        if (!en.isIntersecting || en.target._filled) continue;
+        en.target._filled = true;
+        const i = Number(en.target.dataset.page);
+        const el = docArea.view.pageElement(i);
+        if (!el) continue;
+        const copy = stackCopy();
+        copy.style.zoom = String(scale);
+        copy.style.position = 'absolute';
+        copy.style.left = `${-el.offsetLeft}px`;
+        copy.style.top = `${-el.offsetTop}px`;
+        copy.setAttribute('aria-hidden', 'true');
+        en.target.append(copy);
+      }
+    }, { root: list, rootMargin: '200px 0px' });
+    pages.forEach((p, i) => {
+      const el = docArea.view.pageElement(i);
+      const w = (el?.offsetWidth || model.width) * scale;
+      const hgt = (el?.offsetHeight || p.box.pageHeight) * scale;
+      const frame = h('span', { class: 'nav-thumb-page', 'data-page': String(i), style: { width: `${w}px`, height: `${hgt}px` } });
+      const thumb = h('button', {
+        type: 'button', class: `nav-thumb${cur === i ? ' is-active' : ''}`, 'aria-label': t('nav.pageN', { n: i + 1 }), 'aria-current': cur === i ? 'page' : null,
+        onclick: () => { docArea.view.pageElement(i)?.scrollIntoView({ block: 'start' }); },
+      }, frame, h('span', { class: 'nav-page-num' }, String(i + 1)));
+      wrap.append(thumb);
+      io.observe(frame);
+    });
+    requestAnimationFrame(() => wrap.children[cur]?.scrollIntoView?.({ block: 'nearest' }));
+  }
 
   function open({ focusSearch = false, query = null } = {}) {
     if (!rec) {
@@ -184,7 +304,12 @@ export function createNavigationPane({ dock, editor, docArea, store, openReplace
 
   // Keep headings / pages current while the pane is open.
   let raf = 0;
-  const refresh = () => { if (rec && tab !== 'results' && !raf) raf = requestAnimationFrame(() => { raf = 0; render(); }); };
+  const refresh = () => {
+    if (!rec || tab === 'results' || raf) return;
+    // Thumbnails are rebuilt at most a few times a second.
+    if (tab === 'pages') { if (!refresh.timer) refresh.timer = setTimeout(() => { refresh.timer = 0; render(); }, 400); return; }
+    raf = requestAnimationFrame(() => { raf = 0; render(); });
+  };
 
   return {
     open,
@@ -192,6 +317,8 @@ export function createNavigationPane({ dock, editor, docArea, store, openReplace
     toggle: () => (rec ? dock.close('navigation') : open()),
     isOpen: () => !!rec,
     refresh,
+    showTab: (k) => select(k),
+    moveHeading,
   };
 }
 

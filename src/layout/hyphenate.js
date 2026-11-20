@@ -7,7 +7,7 @@
  */
 import { Plugin, PluginKey } from 'prosemirror-state';
 import { Decoration, DecorationSet } from 'prosemirror-view';
-import hyphenator from 'hyphen/en-gb';
+import hyphenator from 'hyphen/en-gb/index.js';
 import { mergeAuto } from '../core/odt/styles.js';
 
 export const hyphenKey = new PluginKey('hyphenation');
@@ -25,6 +25,16 @@ function breaks(word) {
   if (cache.size > 20000) cache.clear();
   cache.set(word, b);
   return b;
+}
+
+/** Syllable boundaries of a word (offsets), for Immersive Reader ▸ Syllables. */
+export function syllables(word) {
+  if (word.length < 4) return [];
+  const parts = hyphenator.hyphenateSync(word, { hyphenChar: SHY }).split(SHY);
+  const out = [];
+  let i = 0;
+  for (let j = 0; j < parts.length - 1; j++) { i += parts[j].length; out.push(i); }
+  return out;
 }
 
 const shy = () => {

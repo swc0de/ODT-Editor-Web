@@ -34,8 +34,9 @@ export function createSession({ editor, onLoad, onChange, toast }) {
 
   function currentState() { return { ...s.state, doc: editor.getDoc() }; }
 
+  let titleSuffix = '';
   function updateTitle() {
-    document.title = `${s.dirty ? '● ' : ''}${s.name} - ${APP_NAME}`;
+    document.title = `${s.dirty ? '● ' : ''}${s.name}${titleSuffix} - ${APP_NAME}`;
     onChange?.(info());
   }
 
@@ -327,5 +328,7 @@ export function createSession({ editor, onLoad, onChange, toast }) {
     confirmDiscard,
     load,
     sessionId: SESSION_ID,
+    /** ":1", ":2"… when the document is open in more than one window. */
+    setTitleSuffix(x) { if (x !== titleSuffix) { titleSuffix = x; updateTitle(); } },
   };
 }

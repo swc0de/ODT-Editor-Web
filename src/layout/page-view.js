@@ -186,13 +186,39 @@ export function createPageView({ getPictureUrl } = {}) {
     return pages;
   }
 
+  /**
+   * Web Layout, Draft, Outline and Immersive Reader: no pages, one continuous
+   * flow `width` px wide (unzoomed) with `pad` px of padding.
+   */
+  function renderFlow({ width, pad }) {
+    leaveSide();
+    bgs.hidden = true;
+    stack.classList.add('flowing');
+    stack.classList.remove('side');
+    stack.style.width = `${width}px`;
+    stack.style.height = '';
+    flow.style.paddingTop = `${pad}px`;
+    flow.style.paddingBottom = `${pad * 2}px`;
+    flow.style.paddingLeft = `${pad}px`;
+    flow.style.paddingRight = `${pad}px`;
+    lnLayer.replaceChildren();
+  }
+
+  function leaveFlow() {
+    if (!stack.classList.contains('flowing')) return;
+    stack.classList.remove('flowing');
+    bgs.hidden = false;
+    flow.style.paddingBottom = '';
+    for (const el of pageEls) el._key = null;
+  }
+
   function leaveSide() {
     for (const p of ['position', 'left', 'top', 'height', 'columnWidth', 'columnGap', 'width']) flow.style[p] = '';
     for (const el of pageEls) { el.style.left = '0px'; el._key = null; }
   }
 
   return {
-    el: pagesEl, stack, flow, mount, bgs, lnLayer, repeatLayer, notesLayer, commentsLayer, setModel, setOptions, renderPages, renderSide, leaveSide,
+    el: pagesEl, stack, flow, mount, bgs, lnLayer, repeatLayer, notesLayer, commentsLayer, setModel, setOptions, renderPages, renderSide, leaveSide, renderFlow, leaveFlow,
     pageElement: (i) => pageEls[i] || pageEls[0] || null,
     get options() { return opts; },
   };

@@ -111,14 +111,22 @@ export function createBackstage({ registry, store, toast, session }) {
   function renderHome() {
     return h('div', { class: 'bs-home' },
       h('h1', { class: 'bs-title' }, t(greetingKey())),
-      h('div', { class: 'tp-row' }, TEMPLATES.map(templateCard)),
+      h('div', { class: 'tp-row' }, TEMPLATES.filter((x) => x.home !== false).map(templateCard)),
       h('button', { type: 'button', class: 'bs-link', onclick: () => store.set({ backstagePage: 'new' }) }, t('backstage.moreTemplates'), h('span', { class: 'bs-link-arrow', html: iconSvg('arrow-right', { size: 13, strokeWidth: 2 }) })),
       h('h2', { class: 'bs-h2' }, t('backstage.recent')),
       recentList());
   }
 
   function renderNew() {
-    return h('div', { class: 'bs-home' }, h('h1', { class: 'bs-title' }, t('backstage.newTitle')), h('div', { class: 'tp-row wrap' }, TEMPLATES.map(templateCard)));
+    const saveTpl = h('button', { type: 'button', class: 'bs-big-btn', 'data-command': 'file.saveAsTemplate' }, h('span', { html: iconSvg('save-template', { size: 20 }) }), t('backstage.saveAsTemplate'));
+    saveTpl.addEventListener('click', async () => { if (await session.saveAs({ asTemplate: true })) store.set({ backstageOpen: false }); });
+    const openTpl = h('button', { type: 'button', class: 'bs-big-btn' }, h('span', { html: iconSvg('open', { size: 20 }) }), t('backstage.openTemplate'));
+    openTpl.addEventListener('click', async () => { if (await session.openDialog()) store.set({ backstageOpen: false }); });
+    return h('div', { class: 'bs-home' }, h('h1', { class: 'bs-title' }, t('backstage.newTitle')),
+      h('div', { class: 'tp-row wrap' }, TEMPLATES.map(templateCard)),
+      h('h2', { class: 'bs-h2' }, t('backstage.yourTemplates')),
+      h('p', { class: 'bs-empty' }, t('backstage.templatesHint')),
+      h('div', { class: 'bs-actions' }, saveTpl, openTpl));
   }
 
   function renderOpen() {

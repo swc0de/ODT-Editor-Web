@@ -23,7 +23,9 @@ import {
   RotateCw, Ruler, Save, ScanEye, Search, SendToBack, Settings, Settings2, Share, Signature, Smile, Sparkles, Speech,
   SpellCheck, SquareCheck, SquareChevronDown, SquareDashed, StickyNote, Sun, SwatchBook, TableOfContents, Tags, Type,
   Undo2, Redo2, Unlink, UserPen, UserSearch, Users, Volume2, WrapText, X, ZoomIn, ZoomOut, Scissors, Lasso, Radical,
-  Puzzle, DraftingCompass,
+  Puzzle, DraftingCompass, ChevronsLeft, ChevronsRight, ArrowUp, ArrowDown, Columns2, Columns3, Rows2, LayoutGrid,
+  AppWindow, Expand, Maximize, ArrowDownUp, SpellCheck2, AlignVerticalSpaceAround, Highlighter, Contrast, LayoutTemplate,
+  BookOpenCheck, PanelsTopLeft, FilePlus2, X as XIcon,
   ImageOff, SunDim, Paintbrush, WandSparkles, Blend, Shrink, ImageUp, RotateCcw, Frame, Layers, Crop, MoveVertical,
   MoveHorizontal, PenTool, PenLine, AlignVerticalJustifyCenter, ImageMinus, Image, Shapes, Pause, Play, TriangleAlert, CircleX,
 } from 'lucide';
@@ -272,6 +274,11 @@ const LUCIDE = {
   transparency: Blend, compress: Shrink, 'change-picture': ImageUp, 'reset-picture': RotateCcw, 'picture-border': Frame,
   'picture-effects': Layers, crop: Crop, height: MoveVertical, width: MoveHorizontal, 'edit-shape': PenTool, 'shape-outline-pen': PenLine,
   'align-text': AlignVerticalJustifyCenter, 'image-minus': ImageMinus, image: Image, 'shapes-lucide': Shapes,
+  'promote-h1': ChevronsLeft, promote: ArrowLeft, demote: ArrowRight, 'demote-body': ChevronsRight, 'move-up': ArrowUp, 'move-down': ArrowDown,
+  'expand-outline': Plus, 'collapse-outline': Minus, 'close-view': XIcon, 'column-width': Columns2, 'line-focus': Rows2,
+  'text-spacing': AlignVerticalSpaceAround, syllables: SpellCheck2, 'page-colour-ir': Contrast, 'read-columns': Columns3,
+  'template-gallery': LayoutTemplate, 'save-template': FilePlus2, 'window-grid': LayoutGrid, 'app-window': AppWindow, expand: Expand, maximize: Maximize,
+  'sync-arrows': ArrowDownUp, highlighter2: Highlighter, 'book-check': BookOpenCheck, panels: PanelsTopLeft,
   'volume-2': Volume2, 'rotate-cw': RotateCw, 'align-start': AlignHorizontalJustifyStart, share2: Share,
 };
 

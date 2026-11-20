@@ -25,7 +25,23 @@ export const INITIAL_APP_STATE = Object.freeze({
   backstagePage: 'home',
   ribbonCollapsed: false,
   ribbonPeek: false, // collapsed ribbon temporarily shown after clicking a tab
-  view: 'print', // 'read' | 'print' | 'web' | 'outline' | 'draft'
+  view: 'print', // 'read' | 'print' | 'web' | 'outline' | 'draft' | 'immersive'
+  outlineFormatting: true,
+  outlineFirstLine: false,
+  focusMode: false,
+  irColumnWidth: 680,
+  irPageColour: 'none',
+  irLineFocus: 0,
+  irTextSpacing: false,
+  irSyllables: false,
+  darkPage: false,
+  splitView: false,
+  fullScreen: false,
+  sideBySide: null, // the partner window's id
+  syncScroll: false,
+  windowsVersion: 0,
+  readColumns: 'default', // Read Mode column width: narrow | default | wide
+  readColour: 'none', // Read Mode page colour: none | sepia | inverse
   pageMovement: 'vertical', // 'vertical' | 'side'
   hideWhiteSpace: false,
   gridlines: false,

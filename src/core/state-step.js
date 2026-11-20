@@ -29,9 +29,10 @@ export class StateStep extends Step {
 
   merge() { return null; }
 
-  toJSON() { return { stepType: 'odtState', key: this.key }; }
+  // The values travel with the step (New Window sends steps to the other windows).
+  toJSON() { return { stepType: 'odtState', key: this.key, before: this.before ?? null, after: this.after ?? null }; }
 
-  static fromJSON(_schema, json) { return new StateStep(json.key, null, null); }
+  static fromJSON(_schema, json) { return new StateStep(json.key, json.before ?? null, json.after ?? null); }
 }
 Step.jsonID('odtState', StateStep);
 

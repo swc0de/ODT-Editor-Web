@@ -175,9 +175,10 @@ export function createEditor(mount, env) {
       return true;
     },
     dispatchTransaction(tr) {
-      const next = view.state.apply(tr);
+      // `transactions` includes those appended by plugins (Split and New Window mirror them all).
+      const { state: next, transactions } = view.state.applyTransaction(tr);
       view.updateState(next);
-      env.onTransaction?.(view, tr);
+      env.onTransaction?.(view, tr, transactions);
     },
   });
 

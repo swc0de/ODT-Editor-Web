@@ -24,6 +24,7 @@ export const commands = defineCommands('file', {
   open: { icon: 'open', shortcut: 'Mod-o', run: (ctx) => { ctx.session.openDialog().then((ok) => { if (ok) ctx.store.set({ backstageOpen: false }); }); } },
   save: { icon: 'save', shortcut: 'Mod-s', run: (ctx) => { ctx.session.save(); } },
   saveAs: { icon: 'save-as', shortcut: 'F12', run: (ctx) => { ctx.session.saveAs(); } },
+  saveAsTemplate: { icon: 'save-template', run: (ctx) => { ctx.session.saveAs({ asTemplate: true }); } },
   print: { icon: 'print', shortcut: 'Mod-p' },
   close: { icon: 'close', shortcut: 'Mod-w', run: (ctx) => { ctx.session.close().then((ok) => { if (ok) ctx.store.set({ backstageOpen: false }); }); } },
   undo: { icon: 'undo', shortcutHint: 'Mod-z', run: (ctx) => ctx.editor.undo(), isEnabled: (ctx) => ctx.editor.canUndo() },

@@ -103,7 +103,7 @@ reference/             UI reference screenshots; compare/ holds generated compar
 - App code: MIT.
 - Bundled fonts: Carlito, Caladea, Liberation Sans/Serif/Mono — SIL Open Font
   License 1.1 (see `assets/fonts/LICENSE.md`).
-- Libraries bundled into the HTML file: ProseMirror incl. prosemirror-tables (MIT), fflate (MIT),
+- Libraries bundled into the HTML file: ProseMirror incl. prosemirror-tables and prosemirror-collab (MIT), fflate (MIT),
   MathLive (MIT; the equation editor, with the KaTeX maths fonts, MIT),
   nspell (MIT) with the en-GB and en-US Hunspell dictionaries from
   wooorm/dictionaries (MIT AND BSD, from SCOWL),
@@ -267,7 +267,28 @@ UI inspired by the open-source WordCraft project (MIT/Apache-2.0).
   allows changes only inside the controls. Controls are saved the way
   LibreOffice saves them.
 
-## Known limitations (M11)
+## View
+
+- Views: Read Mode (screen-sized columns, paged with the arrows), Print
+  Layout, Web Layout, Outline (promote, demote, move, collapse, show level)
+  and Draft. Focus shows just the document; Immersive Reader adds column
+  width, page colour, line focus, text spacing, syllables and read aloud.
+- The Navigation pane moves whole sections when you drag a heading, and
+  shows thumbnails of the pages.
+- Switch Modes gives dark pages in the dark theme.
+- New Window opens the document again in another window, kept in sync as
+  you type; Split shows two panes of one document; View Side by Side and
+  Synchronous Scrolling compare two windows; Switch Windows, Arrange All and
+  Full Screen.
+- View ▸ Templates: seven templates, Save as Template (.ott).
+
+## Known limitations (M12)
+
+- Arrange All and View Side by Side can only move windows the app opened
+  (New Window); browser tabs stay where they are. Settings such as Restrict
+  Editing aren't shared between windows. Macros are Coming soon.
+
+## Earlier limitations (M11)
 
 - Mailings: Print Documents and Send Email Messages are Coming soon; only
   the first sheet of a workbook is read; no database or contacts sources;

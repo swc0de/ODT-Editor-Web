@@ -1,49 +1,56 @@
 /** View tab, laid out exactly as reference/ribbon-view-dark.png. */
 import { defineCommands } from '../define.js';
-import { setTheme, getThemePreference } from '../../ui/theme.js';
+import { setTheme, getThemePreference, resolveTheme } from '../../ui/theme.js';
 
-const setView = (view) => (ctx) => ctx.store.set({ view });
+const TAB_FOR = { outline: 'outlining', immersive: 'immersiveReader' };
+const setView = (view) => (ctx) => {
+  if (ctx.state.focusMode && view !== ctx.state.view) ctx.store.set({ focusMode: false });
+  ctx.store.set({ view, ...(TAB_FOR[view] ? { activeTab: TAB_FOR[view] } : (TAB_FOR[ctx.state.view] ? { activeTab: 'view' } : {})) });
+};
+const viewCmd = (icon, view) => ({ icon, run: setView(view), isChecked: (c) => c.state.view === view, isEnabled: (c) => !!c.mainEditor });
 
 export const commands = defineCommands('view', {
-  readMode: { icon: 'read-mode' },
-  printLayout: { icon: 'print-layout', run: setView('print') },
-  webLayout: { icon: 'web-layout' },
-  outline: { icon: 'outline' },
-  draft: { icon: 'draft' },
-  focus: { icon: 'focus' },
-  immersiveReader: { icon: 'immersive-reader' },
-  vertical: { icon: 'vertical', run: (ctx) => ctx.store.set({ pageMovement: 'vertical' }), isChecked: (ctx) => ctx.state.pageMovement === 'vertical' },
-  sideToSide: { icon: 'side-to-side', run: (ctx) => ctx.store.set({ pageMovement: 'side' }), isChecked: (ctx) => ctx.state.pageMovement === 'side' },
+  readMode: viewCmd('read-mode', 'read'),
+  printLayout: viewCmd('print-layout', 'print'),
+  webLayout: viewCmd('web-layout', 'web'),
+  outline: viewCmd('outline', 'outline'),
+  draft: viewCmd('draft', 'draft'),
+  focus: { icon: 'focus', isChecked: (c) => !!c.state.focusMode, run: (c) => c.ui.setFocusMode(!c.state.focusMode) },
+  immersiveReader: viewCmd('immersive-reader', 'immersive'),
+  vertical: { icon: 'vertical', run: (ctx) => ctx.store.set({ pageMovement: 'vertical' }), isChecked: (ctx) => ctx.state.pageMovement === 'vertical', isEnabled: (ctx) => ctx.state.view === 'print' },
+  sideToSide: { icon: 'side-to-side', run: (ctx) => ctx.store.set({ pageMovement: 'side' }), isChecked: (ctx) => ctx.state.pageMovement === 'side', isEnabled: (ctx) => ctx.state.view === 'print' },
   ruler: { run: (ctx) => ctx.store.set((s) => ({ showRuler: !s.showRuler })), isChecked: (ctx) => ctx.state.showRuler },
   gridlines: { run: (ctx) => ctx.store.set((s) => ({ gridlines: !s.gridlines })), isChecked: (ctx) => ctx.state.gridlines },
   navigationPane: { run: (ctx) => ctx.ui.nav.toggle(), isChecked: (ctx) => !!ctx.state.navigationPane },
   hideWhiteSpace: {
     run: (ctx) => ctx.store.set((s) => ({ hideWhiteSpace: !s.hideWhiteSpace })),
     isChecked: (ctx) => ctx.state.hideWhiteSpace,
-    isEnabled: (ctx) => ctx.state.pageMovement === 'vertical',
+    isEnabled: (ctx) => ctx.state.pageMovement === 'vertical' && ctx.state.view === 'print',
   },
   zoomDialog: { icon: 'zoom-in', run: (ctx) => ctx.ui.openZoomDialog() },
   zoom100: { icon: 'zoom-100', run: (ctx) => ctx.ui.docArea.setZoom(100) },
   zoomIn: { icon: 'circle-plus', run: (ctx) => ctx.ui.docArea.zoomIn(), isEnabled: (ctx) => ctx.state.zoom < 500 },
   zoomOut: { icon: 'circle-minus', run: (ctx) => ctx.ui.docArea.zoomOut(), isEnabled: (ctx) => ctx.state.zoom > 10 },
-  onePage: { icon: 'one-page', run: (ctx) => ctx.ui.docArea.onePage() },
-  multiplePages: { icon: 'multiple-pages', run: (ctx) => ctx.ui.docArea.multiplePages() },
+  onePage: { icon: 'one-page', run: (ctx) => ctx.ui.docArea.onePage(), isEnabled: (ctx) => ctx.state.view === 'print' },
+  multiplePages: { icon: 'multiple-pages', run: (ctx) => ctx.ui.docArea.multiplePages(), isEnabled: (ctx) => ctx.state.view === 'print' },
   pageWidth: { icon: 'page-width', run: (ctx) => ctx.ui.docArea.pageWidth() },
-  switchModes: { icon: 'switch-modes' },
+  // Dark pages while the interface is dark (like Word's Switch Modes).
+  switchModes: { icon: 'switch-modes', isEnabled: () => resolveTheme() === 'dark', isChecked: (c) => !!c.state.darkPage && resolveTheme() === 'dark', run: (c) => c.store.set((s) => ({ darkPage: !s.darkPage })) },
   interfaceTheme: { icon: 'interface-theme', menuOnly: true },
   themeDark: { icon: 'moon', run: () => setTheme('dark'), isChecked: () => getThemePreference() === 'dark' },
   themeLight: { icon: 'sun', run: () => setTheme('light'), isChecked: () => getThemePreference() === 'light' },
   themeSystem: { icon: 'monitor', run: () => setTheme('system'), isChecked: () => getThemePreference() === 'system' },
-  newWindow: { icon: 'new-window' },
-  arrangeAll: { icon: 'arrange-all' },
-  split: { icon: 'split' },
-  // Need a second open window (M12); only one window can exist so far.
-  sideBySide: { icon: 'side-by-side', isEnabled: () => false },
-  synchronousScrolling: { icon: 'sync-scroll', isEnabled: () => false },
-  switchWindows: { icon: 'switch-windows' },
-  fullScreen: { icon: 'full-screen' },
+  newWindow: { icon: 'new-window', isEnabled: (c) => !!c.ui.windows, run: (c) => c.ui.windows.newWindow() },
+  arrangeAll: { icon: 'arrange-all', isEnabled: (c) => !!c.ui.windows, run: (c) => c.ui.windows.arrangeAll() },
+  split: { icon: 'split', isEnabled: (c) => !!c.ui.split && c.state.view !== 'read', isChecked: (c) => !!c.state.splitView, run: (c) => c.ui.split.toggle() },
+  // Need another window of the app (a New Window, or another document open in another tab).
+  sideBySide: { icon: 'side-by-side', isEnabled: (c) => !!c.ui.windows && (!!c.state.sideBySide || c.ui.windows.windows().length > 1), isChecked: (c) => !!c.state.sideBySide, run: (c) => c.ui.windows.sideBySide() },
+  synchronousScrolling: { icon: 'sync-scroll', isEnabled: (c) => !!c.state.sideBySide, isChecked: (c) => !!c.state.sideBySide && !!c.state.syncScroll, run: (c) => c.store.set((s) => ({ syncScroll: !s.syncScroll })) },
+  switchWindows: { icon: 'switch-windows', isEnabled: (c) => !!c.ui.windows, menuOnly: true },
+  fullScreen: { icon: 'full-screen', isChecked: (c) => !!c.state.fullScreen, run: (c) => c.ui.windows.setFullScreen(!c.state.fullScreen) },
   macros: { icon: 'macros' },
-  templates: { icon: 'templates' },
+  // The templates gallery (File ▸ New), with Save as Template.
+  templates: { icon: 'templates', run: (c) => c.store.set({ backstageOpen: true, backstagePage: 'new' }) },
 });
 
 export const ribbon = {

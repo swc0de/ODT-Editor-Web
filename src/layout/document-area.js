@@ -28,6 +28,9 @@ import { editState } from '../core/state-step.js';
 import { isInTable, tableAt, columnWidths, setWidths } from '../core/commands/tables.js';
 
 export const ZOOM_MIN = 10;
+/** Views without pages: the document is one continuous flow. */
+export const FLOW_VIEWS = new Set(['web', 'draft', 'outline', 'immersive']);
+const FLOW_PAD = 24;
 export const ZOOM_MAX = 500;
 
 export function createDocumentArea({ store, getEditor, getSession, onPagesChange, pictureUrl }) {
@@ -51,10 +54,21 @@ export function createDocumentArea({ store, getEditor, getSession, onPagesChange
     labelOf: (node) => t(node?.attrs.noteClass === 'endnote' ? 'ref.endnoteText' : 'ref.footnoteText'),
   });
 
+  const flowMode = () => (FLOW_VIEWS.has(store.get().view) ? store.get().view : null);
   const options = () => {
     const s = store.get();
-    return { zoom: s.zoom / 100, hideWhiteSpace: s.hideWhiteSpace && s.pageMovement === 'vertical', enabled: s.pageMovement === 'vertical', gridlines: s.gridlines };
+    const flow = flowMode();
+    return { zoom: s.zoom / 100, hideWhiteSpace: !flow && s.hideWhiteSpace && s.pageMovement === 'vertical', enabled: !flow && s.pageMovement === 'vertical', gridlines: !flow && s.gridlines, flow };
   };
+
+  /** Width of the flow (unzoomed px) in a view without pages. */
+  function flowWidth(mode) {
+    const z = options().zoom;
+    const avail = Math.max(320, (canvas.clientWidth - 32) / z);
+    if (mode === 'web') return avail;
+    if (mode === 'immersive') return Math.min(avail, (store.get().irColumnWidth || 640) + FLOW_PAD * 2);
+    return Math.min(Math.max(avail, 400), (model?.first.bodyWidth || 640) + FLOW_PAD * 2);
+  }
 
   const rulers = createRulers({
     store,
@@ -89,6 +103,22 @@ export function createDocumentArea({ store, getEditor, getSession, onPagesChange
   function syncRulers() {
     const ed = getEditor();
     if (!model || !ed) return;
+    const flow = flowMode();
+    if (flow) {
+      const r = view.stack.getBoundingClientRect();
+      const z = options().zoom;
+      const w = r.width / z;
+      const node = selectedTextblocks(ed.view.state)[0]?.node;
+      rulers.update({
+        left: r.left, top: r.top, scale: z,
+        page: { width: w, height: r.height / z, marginLeft: FLOW_PAD, marginRight: FLOW_PAD, bodyTop: FLOW_PAD, bodyBottom: r.height / z - FLOW_PAD },
+        indents: node ? paragraphIndents(node, styleIndex) : { left: 0, right: 0, firstLine: 0 },
+        tabs: node ? tabStopsOf(node, styleIndex).map((s) => ({ pos: s.pos, type: s.type, char: s.char })) : [],
+        interval: defaultTabInterval(styleIndex),
+      });
+      store.set({ page: 1, pageCount: 1 });
+      return;
+    }
     const i = currentPageIndex();
     const page = pages[i];
     const el = view.pageElement(i);
@@ -141,6 +171,20 @@ export function createDocumentArea({ store, getEditor, getSession, onPagesChange
   // ------------------------------------------------------------ layout
 
   function handleLayout(newPages) {
+    const flow = flowMode();
+    area.dataset.view = store.get().view;
+    area.classList.toggle('flowing', !!flow);
+    if (flow) {
+      pages = newPages;
+      view.renderFlow({ width: flowWidth(flow), pad: FLOW_PAD });
+      view.repeatLayer.firstChild.replaceChildren();
+      view.notesLayer.firstChild.replaceChildren();
+      comments?.render();
+      syncRulers();
+      onPagesChange?.(pages);
+      return;
+    }
+    view.leaveFlow();
     if (store.get().pageMovement === 'side') {
       view.leaveSide();
       pages = view.renderSide();
@@ -243,6 +287,7 @@ export function createDocumentArea({ store, getEditor, getSession, onPagesChange
     const z = Math.round(Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, pct)));
     const prev = store.get().zoom;
     if (z === prev) return;
+    if (flowMode()) { store.set({ zoom: z }); view.setOptions(options()); view.renderFlow({ width: flowWidth(flowMode()), pad: FLOW_PAD }); requestAnimationFrame(syncRulers); return; }
     const ratioY = (canvas.scrollTop + canvas.clientHeight / 2) / Math.max(1, canvas.scrollHeight);
     const ratioX = (canvas.scrollLeft + canvas.clientWidth / 2) / Math.max(1, canvas.scrollWidth);
     store.set({ zoom: z });
@@ -276,9 +321,19 @@ export function createDocumentArea({ store, getEditor, getSession, onPagesChange
   });
 
   canvas.addEventListener('scroll', () => syncRulers(), { passive: true });
-  new ResizeObserver(() => syncRulers()).observe(canvas);
+  let lastW = 0;
+  new ResizeObserver(() => {
+    // Web Layout and Immersive Reader wrap to the window.
+    if (flowMode() && Math.abs(canvas.clientWidth - lastW) > 1) { lastW = canvas.clientWidth; view.renderFlow({ width: flowWidth(flowMode()), pad: FLOW_PAD }); }
+    syncRulers();
+  }).observe(canvas);
   store.subscribe((s, changed) => {
     if (changed.includes('showRuler') || changed.includes('ribbonCollapsed') || changed.includes('ribbonPeek')) requestAnimationFrame(syncRulers);
+    if (changed.includes('view') || changed.includes('irColumnWidth')) {
+      view.setOptions(options());
+      if (changed.includes('view')) view.leaveSide();
+      paginator?.relayout();
+    }
     if (changed.includes('pageMovement') || changed.includes('hideWhiteSpace') || changed.includes('gridlines')) {
       view.setOptions({ ...options(), side: s.pageMovement === 'side' });
       if (changed.includes('pageMovement') && s.pageMovement !== 'side') view.leaveSide();
@@ -321,7 +376,7 @@ export function createDocumentArea({ store, getEditor, getSession, onPagesChange
     onePage: () => { store.set({ pageMovement: 'vertical' }); setZoom(fitPage()); },
     pageWidth: () => setZoom(fitWidth()),
     multiplePages: () => { store.set({ pageMovement: 'side' }); setZoom(fitWidth(2)); },
-    fitWidth, fitPage,
+    fitWidth, fitPage, flowMode,
     get pages() { return pages; },
     get styleIndex() { return styleIndex; },
     get model() { return model; },
