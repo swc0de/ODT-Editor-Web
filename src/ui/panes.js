@@ -16,7 +16,7 @@ export function createDock(side, { onResize } = {}) {
   const el = h('aside', { class: `pane-dock ${side}`, hidden: true });
   const panes = new Map();
   let width = side === 'left' ? 300 : 300;
-  const grip = h('div', { class: 'pane-grip', role: 'separator', 'aria-orientation': 'vertical', tabindex: '-1' });
+  const grip = h('div', { class: 'pane-grip', role: 'separator', 'aria-orientation': 'vertical', tabindex: '-1', 'aria-label': t('pane.resize'), 'aria-valuemin': '220', 'aria-valuemax': '560', 'aria-valuenow': '300' });
   el.append(grip);
   grip.addEventListener('pointerdown', (e) => {
     e.preventDefault();
@@ -26,6 +26,7 @@ export function createDock(side, { onResize } = {}) {
     const move = (ev) => {
       width = Math.max(220, Math.min(560, w0 + (side === 'left' ? ev.clientX - x0 : x0 - ev.clientX)));
       el.style.width = `${width}px`;
+      grip.setAttribute('aria-valuenow', String(Math.round(width)));
     };
     const up = () => { grip.removeEventListener('pointermove', move); grip.removeEventListener('pointerup', up); onResize?.(); };
     grip.addEventListener('pointermove', move);
@@ -346,10 +347,11 @@ export function createStylesPane({ dock, store, listStyles, current, apply, acti
       const active = cur[s.family] === s.name;
       const label = h('span', { class: 'sp-name', style: showPreview ? previewCss(s.family, s.name) : null }, s.display);
       const kind = h('span', { class: 'sp-kind', 'aria-hidden': 'true' }, s.family === 'paragraph' ? '¶' : 'a');
-      const more = h('button', { type: 'button', class: 'sp-more', tabindex: '-1', 'aria-label': t('sp.optionsFor', { name: s.display }), html: iconSvg('chevron-down', { size: 10 }) });
-      const row = h('div', { class: `sp-row${active ? ' is-active' : ''}`, role: 'option', 'aria-selected': String(active), tabindex: '0', 'data-style': s.name, 'data-family': s.family }, label, kind, more);
+      const more = h('button', { type: 'button', class: 'sp-more', 'aria-label': t('sp.optionsFor', { name: s.display }), html: iconSvg('chevron-down', { size: 10 }) });
+      // The row's name is a button (keyboard); the ▾ button beside it has the style's menu.
+      const applyBtn = h('button', { type: 'button', class: 'sp-apply', 'aria-pressed': String(active) }, label, kind);
+      const row = h('div', { class: `sp-row${active ? ' is-active' : ''}`, role: 'listitem', 'data-style': s.name, 'data-family': s.family }, applyBtn, more);
       row.addEventListener('click', (e) => { if (!more.contains(e.target)) apply(s.family, s.name); });
-      row.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); apply(s.family, s.name); } });
       more.addEventListener('click', (e) => {
         e.stopPropagation();
         openMenu({
@@ -368,7 +370,7 @@ export function createStylesPane({ dock, store, listStyles, current, apply, acti
 
   function open() {
     if (rec) return;
-    listEl = h('div', { class: 'sp-list', role: 'listbox', 'aria-label': t('sp.title') });
+    listEl = h('div', { class: 'sp-list', role: 'list', 'aria-label': t('sp.title') });
     const preview = h('label', { class: 'fm-check' }, h('input', { type: 'checkbox', onchange: (e) => { showPreview = e.target.checked; render(); } }), t('sp.showPreview'));
     const inUse = h('label', { class: 'fm-check' }, h('input', { type: 'checkbox', onchange: (e) => { onlyInUse = e.target.checked; render(); } }), t('sp.inUse'));
     const foot = h('div', { class: 'sp-foot' },

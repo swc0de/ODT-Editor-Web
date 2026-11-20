@@ -172,7 +172,7 @@ function textBoxGallery(o) {
 function coverPages(o) {
   const cmdId = 'insert.insertCoverPage';
   let first = true;
-  const sample = { title: 'Title', subtitle: 'Subtitle', author: 'Author', date: 'Date' };
+  const sample = { title: t('cover.sample.title'), subtitle: t('cover.sample.subtitle'), author: t('cover.sample.author'), date: t('cover.sample.date') };
   const grid = h('div', { class: 'cp-grid' }, Object.keys(COVER_PAGES).map((id) => {
     const page = h('span', { class: `cp-page cp-${id}` }, COVER_PAGES[id](sample).filter((b) => b.text).map((b) => h('span', { class: `cp-line cp-${b.s.toLowerCase()}` })));
     const cell = h('button', { type: 'button', class: 'cp-cell', tabindex: '-1', 'aria-label': t(`cover.${id}`), 'data-menu-focus': first ? '' : null }, page, h('span', { class: 'tb-caption' }, t(`cover.${id}`)));

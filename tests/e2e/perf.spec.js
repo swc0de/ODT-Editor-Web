@@ -117,3 +117,63 @@ test('a 100-page document types without lag and scrolls smoothly', async ({ page
   console.log(`100-page scrolling: ${frames.length} frames, median ${frames[frames.length >> 1].toFixed(1)} ms, p95 ${p95.toFixed(1)} ms`);
   expect(p95).toBeLessThan(34); // at most an occasional dropped frame
 });
+
+test('100 and 300 pages: open and save times, memory, typing latency', async ({ page }) => {
+  test.setTimeout(300_000);
+  await openApp(page);
+  const bytes = (await import('node:fs')).readFileSync((await import('node:path')).resolve('tests/fixtures/long-100-pages.odt'));
+  const results = {};
+  for (const copies of [1, 3]) {
+    // Open: import + first full layout (the 300-page document is the 100-page one three times).
+    const r = await page.evaluate(async ({ b64, copies }) => {
+      const { session, io, docArea, editor } = window.odtEditor;
+      const bin = Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
+      let data = bin;
+      if (copies > 1) {
+        const st = io.importOdt(bin);
+        const content = [];
+        for (let i = 0; i < copies; i++) st.doc.forEach((n) => content.push(n));
+        st.doc = st.doc.type.create(st.doc.attrs, content);
+        data = io.exportOdt(st).bytes;
+      }
+      const t0 = performance.now();
+      await session.openBytes(data, { name: `long-${copies}.odt`, skipGuard: true, remember: false });
+      const imported = performance.now() - t0;
+      let last = '';
+      for (let i = 0; i < 2000; i++) {
+        await new Promise((res) => requestAnimationFrame(res));
+        const sig = `${docArea.pages.length}`;
+        if (!docArea.layoutPending && sig === last) break;
+        last = sig;
+      }
+      const laidOut = performance.now() - t0;
+      const s0 = performance.now();
+      const saved = await session.serialize();
+      const save = performance.now() - s0;
+      // Typing in the middle.
+      const { view } = editor;
+      const doc = view.state.doc;
+      let target = 1;
+      let n = 0;
+      doc.forEach((node, offset) => { if (n++ === Math.floor(doc.childCount / 2)) target = offset + 1; });
+      view.dispatch(view.state.tr.setSelection(view.state.selection.constructor.near(doc.resolve(target))).scrollIntoView());
+      view.focus();
+      window.__proc = [];
+      let k0 = 0;
+      view.dom.addEventListener('keydown', () => { k0 = performance.now(); }, true);
+      document.addEventListener('input', () => { const s = k0; Promise.resolve().then(() => Promise.resolve()).then(() => { view.dom.getBoundingClientRect(); window.__proc.push(performance.now() - s); }); });
+      return { pages: docArea.pages.length, imported, laidOut, save, size: saved.length, heap: performance.memory ? performance.memory.usedJSHeapSize : 0 };
+    }, { b64: bytes.toString('base64'), copies });
+    for (let i = 0; i < 30; i++) { await page.keyboard.type('x'); await page.waitForTimeout(25); }
+    const proc = await page.evaluate(() => window.__proc.slice(3).sort((a, b) => a - b));
+    r.typingMedian = proc[proc.length >> 1];
+    r.typingP95 = proc[Math.floor(proc.length * 0.95)];
+    results[copies] = r;
+    console.log(`${r.pages} pages: open ${(r.imported / 1000).toFixed(2)} s (laid out ${(r.laidOut / 1000).toFixed(2)} s), save ${(r.save / 1000).toFixed(2)} s (${(r.size / 1024).toFixed(0)} KiB), JS heap ${(r.heap / 1048576).toFixed(0)} MiB, typing median ${r.typingMedian.toFixed(2)} ms p95 ${r.typingP95.toFixed(2)} ms`);
+    expect(r.typingMedian).toBeLessThan(16);
+    expect(r.typingP95).toBeLessThan(16);
+  }
+  expect(results[3].pages).toBeGreaterThan(280);
+  expect(results[3].laidOut).toBeLessThan(60_000);
+  expect(results[3].save).toBeLessThan(10_000);
+});

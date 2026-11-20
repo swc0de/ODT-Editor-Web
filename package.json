@@ -1,6 +1,6 @@
 {
   "name": "odt-editor",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "private": true,
   "description": "A full offline word processor for OpenDocument Text, delivered as one self-contained HTML file.",
   "type": "module",
@@ -36,6 +36,7 @@
   },
   "devDependencies": {
     "@playwright/test": "^1.63.0",
+    "axe-core": "^4.10.2",
     "citeproc": "^2.4.63",
     "dictionary-en": "^4.0.0",
     "dictionary-en-gb": "^3.0.0",

@@ -109,7 +109,7 @@
 .bs-export-icon { flex: none; color: var(--accent); margin-top: 2px; }
 .bs-export-text { display: flex; flex-direction: column; gap: 2px; }
 .bs-export-name { font-weight: 600; }
-.bs-export-desc { color: var(--text-muted); font-size: 12.5px; }
+.bs-export-desc { color: var(--text); opacity: 0.85; font-size: 12.5px; }
 
 /* Printing: only the print container (see ui/print.js). */
 #print-root { display: none; }
@@ -200,3 +200,6 @@ kbd { font: 12px var(--font-ui); padding: 1px 6px; border: 1px solid var(--contr
 .about-licences td { padding: 4px 10px 4px 0; border-bottom: 1px solid var(--divider); vertical-align: top; }
 .about-licences td:last-child { color: var(--text-muted); white-space: nowrap; }
 .about-credit { margin-top: 18px; color: var(--text-muted); }
+
+.sp-apply { flex: 1; min-width: 0; display: flex; align-items: center; gap: 6px; border: 0; background: transparent; color: inherit; font: inherit; text-align: left; padding: 0; cursor: default; }
+.sp-apply:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }

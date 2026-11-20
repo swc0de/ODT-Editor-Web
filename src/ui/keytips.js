@@ -100,7 +100,7 @@ export function createKeyTips({ ribbon, store, openCommandSearch }) {
       const id = el.dataset.tab;
       if (id === 'file') { exit(); el.click(); return; }
       ribbon.selectTab(id, { fromClick: store.get().ribbonCollapsed });
-      requestAnimationFrame(showTab);
+      requestAnimationFrame(() => { if (level) showTab(); });
       return;
     }
     exit();
@@ -163,5 +163,5 @@ export function createKeyTips({ ribbon, store, openCommandSearch }) {
   addEventListener('blur', () => { altDown = false; exit(); });
   addEventListener('resize', () => { if (level) render(); });
 
-  return { start, exit, isActive: () => !!level };
+  return { start, exit, isActive: () => !!level, get level() { return level; } };
 }

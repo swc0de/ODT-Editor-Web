@@ -70,7 +70,7 @@ export const commands = defineCommands('zotero', {
 
 export const ribbon = {
   id: 'zotero',
-  keytip: 'Z',
+  keytip: 'X',
   groups: [
     {
       id: 'citations', icon: 'citation',

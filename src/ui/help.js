@@ -61,7 +61,7 @@ export function shortcutsDialog(registry, tabs) {
   ]);
   const order = [...tabs.map((d) => d.id === 'file' ? 'file' : d.id), 'app', 'other'];
   const filter = h('input', { type: 'search', class: 'fm-input help-filter', placeholder: t('help.filter'), 'aria-label': t('help.filter') });
-  const list = h('div', { class: 'help-list' });
+  const list = h('div', { class: 'help-list', tabindex: '0', role: 'region', 'aria-label': t('help.title') });
   const draw = () => {
     const q = filter.value.trim().toLowerCase();
     list.replaceChildren();
@@ -97,6 +97,6 @@ export async function feedbackDialog(toast) {
 const NEWS = ['m13', 'm12', 'm11', 'm10', 'm9', 'm8', 'm7', 'm6', 'm5', 'm4'];
 
 export function whatsNewDialog() {
-  const list = h('div', { class: 'help-list' }, NEWS.map((k) => h('section', {}, h('h3', { class: 'help-group' }, t(`news.${k}.title`)), h('p', {}, t(`news.${k}.text`)))));
+  const list = h('div', { class: 'help-list', tabindex: '0', role: 'region', 'aria-label': t('news.title', { version: APP_VERSION }) }, NEWS.map((k) => h('section', {}, h('h3', { class: 'help-group' }, t(`news.${k}.title`)), h('p', {}, t(`news.${k}.text`)))));
   return showDialog({ title: t('news.title', { version: APP_VERSION }), message: h('div', { class: 'help-sheet' }, list), wide: true, buttons: [{ label: t('common.close'), value: true, primary: true }], cancelValue: true });
 }

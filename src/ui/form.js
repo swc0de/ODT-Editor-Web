@@ -5,6 +5,7 @@
 import { getSetting } from '../core/settings.js';
 import { convert, parseUserLength, UNIT_DECIMALS } from '../layout/units.js';
 import { h, uid } from './dom.js';
+import { t } from '../i18n/index.js';
 
 export function field(label, control, { wide = false } = {}) {
   const id = control.id || uid('f');
@@ -45,7 +46,7 @@ export function radios(name, options, value) {
   return wrap;
 }
 
-export const colour = (value = '#000000', attrs = {}) => h('input', { type: 'color', class: 'fm-colour', value, ...attrs });
+export const colour = (value = '#000000', attrs = {}) => h('input', { type: 'color', class: 'fm-colour', value, 'aria-label': t('form.colour'), ...attrs });
 
 /**
  * A length input that accepts "1.5 cm", "12pt", '2"' or a bare number. Lengths

@@ -5,32 +5,37 @@ browser from **one self-contained HTML file**: `dist/odt-editor.html`.
 No server, no uploads, no analytics — open the file (even from `file://`, even
 offline) and everything happens locally.
 
-> **Status: milestone M7 (Insert tab).** Open .odt/.ott files and edit
-> them on real pages with the Home, Layout and Design tabs: formatting, lists,
-> styles, find and replace; page setup, sections with their own page size and
-> orientation, columns, breaks, line numbers, hyphenation; editable headers and
-> footers with page numbers; themes, style sets, watermarks, page colour and
-> borders; tables with the Table Design and Table Layout tabs; pictures,
-> shapes, text boxes, WordArt, icons, links, bookmarks, fields, symbols,
-> equations and charts — plus live rulers, zoom and an autosaving,
-> crash-safe workflow.
-> Other ribbon tabs arrive in later milestones — see [MILESTONES.md](MILESTONES.md)
-> and [PROGRESS.md](PROGRESS.md). Controls for features that aren't built yet
-> are dimmed with a "Coming soon" tooltip.
+> **Version 1.0.0.** A complete Word-style editor: every ribbon tab (Home,
+> Insert, Draw, Design, Layout, References, Mailings, Review, View,
+> Developer, Help) with real pages, rulers and zoom; it opens and saves ODT
+> (and opens DOCX, HTML, Markdown, RTF and text; exports DOCX, PDF, HTML,
+> Markdown, RTF, text and page pictures), autosaves, keeps a version history
+> and can encrypt documents with a password. The few controls that aren't
+> built are dimmed with a "Coming soon" tooltip and listed under
+> [Known limitations](#known-limitations-v10).
 
 ## Working with files
 
-- **Open**: Ctrl+O, drag an `.odt` onto the window, or File ▸ Open / Recent.
-  Opening a template (`.ott`) starts a new document from it.
+- **Open**: Ctrl+O, drag a file onto the window, or File ▸ Open / Recent.
+  Opening a template (`.ott`) starts a new document from it. Word (`.docx`),
+  web pages, Markdown, RTF and text files open as new documents (saving them
+  writes ODT). Password-protected ODT files ask for their password.
 - **Save**: Ctrl+S. In Chromium-based browsers (Chrome, Edge) the file you
   opened is updated in place; elsewhere the document is downloaded.
   Save As: F12 or File ▸ Save As.
 - **Never lose work**: the document is autosaved in this browser every 30
   seconds and whenever you switch away; File ▸ Recover brings back anything
   that wasn't saved. You are asked before unsaved changes are discarded.
-- **Fidelity**: anything the editor doesn't understand yet (tables of
-  contents, text boxes, tracked changes, unknown elements…) is kept and
-  written back unchanged.
+- **Export**: File ▸ Export saves a copy as ODT, PDF (through the print
+  dialog), Word, web page, Markdown, RTF or text, or the current page as a
+  PNG picture. Share offers the system share sheet where the browser has one,
+  Download, Export PDF and Copy as HTML.
+- **Print**: Ctrl+P opens File ▸ Print with a preview and page ranges; the
+  browser's print dialog does the rest (choose "Save as PDF" for a PDF).
+- **Protect**: File ▸ Info ▸ Protect Document encrypts the file with a
+  password (AES-256, the way LibreOffice does it).
+- **Fidelity**: anything the editor doesn't understand is kept and written
+  back unchanged.
 
 ## Using it
 
@@ -104,6 +109,7 @@ reference/             UI reference screenshots; compare/ holds generated compar
 - Bundled fonts: Carlito, Caladea, Liberation Sans/Serif/Mono — SIL Open Font
   License 1.1 (see `assets/fonts/LICENSE.md`).
 - Libraries bundled into the HTML file: ProseMirror incl. prosemirror-tables and prosemirror-collab (MIT), fflate (MIT),
+  mammoth (BSD-2-Clause; DOCX import), docx (MIT; DOCX export), marked (MIT; Markdown import),
   MathLive (MIT; the equation editor, with the KaTeX maths fonts, MIT),
   nspell (MIT) with the en-GB and en-US Hunspell dictionaries from
   wooorm/dictionaries (MIT AND BSD, from SCOWL),
@@ -114,9 +120,26 @@ reference/             UI reference screenshots; compare/ holds generated compar
   from CTAN (hyph-en-gb), SheetJS Community Edition (Apache-2.0; reading
   spreadsheet recipient lists).
 
+- Development only (not in the HTML file): esbuild, Playwright, axe-core (MPL-2.0; accessibility tests).
+
 UI inspired by the open-source WordCraft project (MIT/Apache-2.0).
 
 ## Keyboard
+
+Word-compatible (⌘ instead of Ctrl on macOS). Help ▸ Help (F1) lists every
+shortcut, searchable.
+
+- File: Ctrl+N new, Ctrl+O open, Ctrl+S save, F12 save as, Ctrl+P print, Ctrl+W close.
+- Editing: Ctrl+Z / Ctrl+Y undo / redo, F4 repeat, Ctrl+A select all, F8 extend selection, Shift+F5 go back.
+- Characters: Ctrl+B / I / U, Ctrl+= subscript, Ctrl+Shift+= superscript, Ctrl+] / [ grow / shrink, Shift+F3 change case, Ctrl+Space clear formatting, Ctrl+D font.
+- Paragraphs: Ctrl+L / E / R / J align, Ctrl+1 / 2 / 5 line spacing, Ctrl+M / Ctrl+Shift+M indent, Ctrl+Q clear, Ctrl+Alt+1 / 2 / 3 headings, Ctrl+Shift+N Normal.
+- Breaks: Ctrl+Enter page break, Shift+Enter line break.
+- Find: Ctrl+F (Navigation pane), Ctrl+H replace, Ctrl+G go to.
+- Insert: Ctrl+K link, Ctrl+Alt+M comment, Ctrl+Alt+F footnote, Alt+X Unicode.
+- Review: Ctrl+Shift+E track changes, F7 spelling, Ctrl+* show ¶.
+- Outline view: Alt+Shift+← / → promote / demote, Alt+Shift+↑ / ↓ move, Alt+Shift+= / − expand / collapse.
+- AutoCorrect: smart quotes, dashes, (c) → ©, "1. " and "* " lists, capitalised sentences (File ▸ Options ▸ Proofing).
+
 
 - **Alt** (or F10): KeyTips — letters over tabs, then over the active tab's controls. Esc goes back.
 - **Alt+Q**: search every command.
@@ -282,55 +305,64 @@ UI inspired by the open-source WordCraft project (MIT/Apache-2.0).
   Full Screen.
 - View ▸ Templates: seven templates, Save as Template (.ott).
 
-## Known limitations (M12)
+## File ▸ Info, Options and Help
 
-- Arrange All and View Side by Side can only move windows the app opened
-  (New Window); browser tabs stay where they are. Settings such as Restrict
-  Editing aren't shared between windows. Macros are Coming soon.
+- **Info**: title, subject, author, keywords and comments (saved in the
+  document); statistics; Inspect Document (comments, tracked changes, names
+  of people, mail-merge data — with Remove); Version History (earlier states
+  saved in this browser); Protect Document (password).
+- **Options**: General (your name, initials, theme), Display, Proofing
+  (spelling, AutoCorrect, your dictionary), Save (autosave interval, version
+  history, writing straight to files), Language, Advanced (measurement units
+  cm / mm / in / pt for rulers, spin boxes and dialogs; paste defaults),
+  Customise Ribbon (show / hide tabs), Quick Access Toolbar (off by default).
+- **Help**: keyboard shortcuts (F1), a feedback note kept in this browser,
+  What's New and About (version and licences).
 
-## Earlier limitations (M11)
+## Known limitations (v1.0)
 
-- Mailings: Print Documents and Send Email Messages are Coming soon; only
-  the first sheet of a workbook is read; no database or contacts sources;
-  no custom label sizes.
-- Developer: no repeating-section or building-block controls.
+Coming soon (dimmed controls with a "Coming soon" tooltip):
+- Home: Clipboard pane, Phonetic Guide, Enclose Characters, Glow.
+- Insert: Stock Images, Online Pictures (need an online service), New Drawing
+  Canvas from the Shapes menu (use Draw ▸ Drawing Canvas), SmartArt, Page
+  Number ▸ Page Margins, Drop Cap ▸ In Margin, Object (OLE), Ink Equation.
+- Design: Effects. Layout: Edit Wrap Points, Group / Ungroup objects.
+- Picture Format: Remove Background, Artistic Effects, Compress Pictures,
+  Picture Layout, Crop to Shape. Shape Format: Edit Shape, Text Effects,
+  Create Link.
+- Mailings: Send Email Messages (needs a mail service).
+- Review: Thesaurus (open thesauri are too big to bundle), Translate (needs an
+  online service), Track Changes ▸ Just Mine, Show Markup ▸ Ink / Balloons,
+  Compare ▸ Combine. View: Macros. Zotero: Add Note.
 
-## Earlier limitations (M10)
-
-- Draw: strokes can't be edited point by point; Ink to Math is unavailable;
-  the Pencil texture shows only in this editor.
-
-## Earlier limitations (M9)
-
+Other limitations:
+- Layout: text wraps on one side of a floating object; objects anchored to the
+  page in other files are kept but not drawn; a row taller than a page isn't
+  split inside the row; a paragraph taller than a column isn't split inside a
+  column region; a footnote too long for its page isn't continued.
 - Review: paragraph formatting, table structure and edits inside text boxes,
   notes and comments aren't tracked; grammar checks are simple rules; only
-  English is spell-checked. Coming soon: Thesaurus (open thesauri are too big
-  to bundle), Translate (needs an online service), Combine Documents.
+  English is spell-checked.
+- Draw: strokes can't be edited point by point; Ink to Math is unavailable.
+- Mailings: only the first sheet of a workbook is read; no database or
+  contacts sources; no custom label sizes.
+- Import: DOCX keeps text, headings and named styles, emphasis, lists,
+  tables and pictures but not page setup, fonts, colours or headers; RTF
+  pictures are PNG / JPEG only. Export: DOCX headers and footers are plain
+  text; HTML and Markdown keep the content, not the page layout.
+- Printing uses the first page size for the browser's default and named page
+  sizes for others; PDF bookmarks depend on the browser.
+- Windows: Arrange All and Side by Side can only move windows the app opened
+  (New Window); settings such as Restrict Editing aren't shared between
+  windows.
+- Password-protected documents are decrypted in the browser; their autosaves
+  in this browser are not encrypted, and they keep no version history.
+- The interface is in English (UK); other languages can be added in
+  `src/i18n/`.
 
-## Earlier limitations (M8)
+## Performance
 
-- References: a footnote too long for its page isn't continued on the next
-  page; one source per citation (no page locators or multi-source citations
-  yet); Zotero ▸ Add Note, index "See" cross-references and page ranges are
-  Coming soon.
-
-- Objects: text wraps on one side of a floating object, and floating objects
-  anchored in the same paragraph stack rather than overlap. Objects anchored
-  to the page itself (rather than a paragraph) in other files are kept but not
-  drawn. WordArt has no warped-text effects. Coming soon: Remove Background,
-  Artistic Effects, Compress Pictures, Picture Layout, Crop to Shape, Edit
-  Shape, Edit Wrap Points, Group, Text Effects, Stock / Online Pictures,
-  Drawing Canvas, SmartArt, Ink Equation, Object (OLE), Drop Cap in Margin.
-
-- Tables: a single row taller than a page isn't split inside the row; formulas
-  don't recalculate by themselves (run Formula again; LibreOffice recalculates
-  on open).
-- Columns: a paragraph taller than a column isn't split across pages inside a
-  column region. Line numbers count body paragraphs only. Hyphenation is
-  British English. Coming soon: Design ▸ Effects and Page Number ▸ Page
-  Margins (they need text frames, M7).
-- Coming soon on the Home tab: the Clipboard pane, Phonetic Guide, Enclose
-  Characters, Glow, the Editor (spelling) pane.
-- Content inside merged-away table cells (rare) is not kept.
-- Password-protected ODT files can't be opened.
-- Backstage Info, Print, Export and Options are placeholders.
+Measured in headless Chromium (software rendering) by `tests/e2e/perf.spec.js`:
+typing in a 100-page document takes about 3–4 ms per keystroke, in a 300-page
+document about 10 ms; a 300-page document opens and lays out in under half a
+second and saves in about 0.2 s.

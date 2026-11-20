@@ -13,6 +13,7 @@ import { dropCursor } from 'prosemirror-dropcursor';
 import { gapCursor } from 'prosemirror-gapcursor';
 import { Slice, Fragment } from 'prosemirror-model';
 import { schema } from './schema.js';
+import { t } from '../i18n/index.js';
 import { cleanPastedHTML } from './clipboard.js';
 import { ObjectView } from '../layout/object-view.js';
 import { imageAttrs, uniqueName, maxZ } from './objects.js';
@@ -128,7 +129,7 @@ export function createEditor(mount, env) {
 
   view = new EditorView(mount, {
     state: makeState(schema.node('doc', null, [schema.node('paragraph')])),
-    attributes: { class: 'odt-body', spellcheck: 'true', 'aria-label': 'Document', role: 'textbox', 'aria-multiline': 'true' },
+    attributes: { class: 'odt-body', spellcheck: 'true', 'aria-label': t('region.document'), role: 'textbox', 'aria-multiline': 'true', tabindex: '0' },
     nodeViews: { frame: (node, v, getPos) => new ObjectView(node, v, getPos, env) },
     transformPastedHTML: cleanPastedHTML,
     transformPasted: adoptPastedImages,

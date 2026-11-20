@@ -17,7 +17,7 @@ The memory between sessions. Statuses: `todo`, `in progress`, `awaiting approval
 | M10 — Draw tab | approved |
 | M11 — Mailings and Developer | approved |
 | M12 — View tab and windows | approved |
-| M13 — Import/export, Options, polish and final audit | in progress |
+| M13 — Import/export, Options, polish and final audit | awaiting approval |
 
 ## Environment
 
@@ -386,4 +386,29 @@ Decisions:
 Known limitations:
 - Settings outside the document text and styles (Restrict Editing, document properties) are not synced between windows.
 - Macros stays "Coming soon".
+
+## M13 — Import/export, Options, polish and final audit (awaiting approval)
+
+Built:
+- **Import** (as new, unsaved documents; saving writes ODT): DOCX (mammoth, with Word's Title / Subtitle / Quote / No Spacing / Caption styles mapped and table borders kept), HTML (scripts and active content dropped), Markdown (marked, GFM tables), RTF (own parser: fonts, colours, paragraph alignment and indents, character formatting, Unicode, hyperlinks, tables, PNG/JPEG pictures, heading styles), TXT, OTT. Pictures in imported files become package pictures.
+- **Export** (File ▸ Export, Share): ODT copy, PDF (print pipeline), DOCX (`docx`: headings, styles, alignment, indents, spacing, character formatting, links, lists, tables with merged cells, pictures, footnotes, page size and margins, headers/footers with page numbers), HTML (one self-contained page with pictures inlined), Markdown, RTF, TXT, and the current page as PNG (drawn exactly as shown, with the bundled fonts). Share: system share sheet where available, Download, Export PDF, Copy as HTML. LibreOffice opens the DOCX and RTF exports (checked in the tests).
+- **Printing**: the pages are laid out again without gaps and copied into a print-only container; page ranges ("2-3, 5") and current page; each page size gets a named @page rule. Ctrl+P opens File ▸ Print with a page preview and settings. The PDF tests check one PDF page per page with the right text on each. Mail Merge ▸ Print Documents works now.
+- **File ▸ Info**: properties (title, subject, author, keywords, comments → meta.xml, undoable), statistics, dates; Inspect Document (comments, tracked changes, names of people, mail-merge data, content from other programs, with Remove); Version History (autosaved versions in IndexedDB, at most one per 2 minutes, 12 per document; open one as a new document); **Protect Document**: ODF package encryption (AES-256-CBC, PBKDF2-SHA1 100 000 iterations over SHA-256 of the password, sha256-1k checksums), compatible with LibreOffice both ways (tested: LibreOffice opens ours with the password through UNO, and we open a file LibreOffice encrypted; WebCrypto's PKCS#7 check is worked around for ODF's padding).
+- **File ▸ Options** (dialog): General, Display, Proofing (spelling, AutoCorrect switches, your dictionary), Save (autosave interval, version history, file access), Language (proofing language), Advanced (**measurement units** cm/mm/in/pt for rulers, ribbon spin boxes and dialog lengths; paste defaults), Customise Ribbon (hide tabs), Quick Access Toolbar (off by default; before the tabs or below the ribbon; add/remove/move commands).
+- **Help tab**: Help (F1) — every keyboard shortcut, searchable; Feedback — a note kept in this browser, downloadable; What's New; About — version, build date, licences of every bundled library and font, and "UI inspired by the open-source WordCraft project (MIT/Apache-2.0)."
+- **Audit**:
+  - Accessibility: axe-core (WCAG 2.1 A/AA incl. colour contrast) over every tab, every Backstage page, Options, shortcuts, Font, Paragraph, the Navigation and Styles panes, Outline, Immersive Reader and Read Mode — no violations in either theme (`tests/e2e/audit.spec.js`). Fixed on the way: Backstage navigation roles (now buttons with aria-current), Recent / Recover list roles, Styles pane rows (no nested interactive controls), pane resize grips, unlabelled colour inputs, Subtitle sample and template preview contrast, a focusable document region.
+  - Keyboard: every tab opens with its KeyTip and shows control KeyTips; F6 cycles tabs, ribbon, document and status bar; every ribbon control has an accessible name. Fixed: the Zotero tab's KeyTip "Z" clashed with the top-right buttons ("ZS"…), now "X"; a race where KeyTips came back after Esc.
+  - i18n: a unit test scans the UI code for hard-coded user-facing strings (none left; the document's aria-label and cover-page samples were moved to the catalogue).
+  - Performance (headless Chromium): 100 pages — open 0.1 s, save 0.1 s, typing median 3.4 ms (p95 4 ms); 300 pages — open and lay out 0.4 s, save 0.2 s, typing median ≈10 ms (p95 ≈15 ms), JS heap about 30 MiB.
+  - Visual pass: all six reference screenshots compared again (`reference/compare/*-compare.png`, light variants), plus `m13-*-{dark,light}.png` (export, print, info, about, options, shortcuts).
+- Tests: 80 unit + 147 e2e + 3 perf, all passing. New: `tests/e2e/final.spec.js` (imports, exports with LibreOffice checks, printing to PDF, Info and password protection both ways, Options / QAT / units / Help / versions), `tests/e2e/audit.spec.js`, `tests/unit/i18n-scan.test.mjs`, a 300-page perf test. Fixtures: `lo-formatting-zoo.docx/.rtf`, `lo-tables.docx/.rtf` (made by LibreOffice), `protected/lo-encrypted.odt`.
+- Version 1.0.0.
+
+Decisions:
+- mammoth, docx and marked are bundled as one lazily loaded chunk (≈1.2 MB, loaded the first time a converter is used).
+- PDF export is the browser's print-to-PDF: there's no PDF writer that keeps the page layout better than the browser's own.
+- Password-protected documents keep no version history; their autosaves stay in this browser unencrypted (so work isn't lost) — listed as a limitation.
+
+Known limitations: see README ▸ Known limitations (v1.0).
 

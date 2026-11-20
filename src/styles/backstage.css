@@ -42,9 +42,9 @@
 .tp-page th { background: #0f4761; color: #fff; text-align: left; padding: 2px 6px; }
 .tp-page td { padding: 2px 6px; }
 .tp-page tr:nth-child(even) td { background: #c1e4f5; }
-.tp-sub { color: #777; font-size: 14px; }
-.tp-quote { text-align: center; color: #777; font-style: italic; }
-.tp-header { display: flex; justify-content: space-between; color: #888; font-size: 11px; margin-bottom: 12px !important; }
+.tp-sub { color: #666; font-size: 14px; }
+.tp-quote { text-align: center; color: #666; font-style: italic; }
+.tp-header { display: flex; justify-content: space-between; color: #666; font-size: 11px; margin-bottom: 12px !important; }
 .tp-page .odt-tab { display: none; }
 .tp-page li p { margin: 0; }
 .tp-page h2, .tp-page h3 { font-weight: 400; }

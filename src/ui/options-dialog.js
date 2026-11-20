@@ -109,7 +109,12 @@ export async function optionsDialog(o) {
   const qatOn = check(t('opt.qatShow'), !!getSetting('qatShow'));
   const qatPos = select([['top', t('opt.qatAbove')], ['below', t('opt.qatBelow')]], getSetting('qatPosition') || 'top');
   const qat = [...(getSetting('qatCommands') || DEFAULT_QAT)];
-  const all = registry.list().filter((c) => c.run && !c.comingSoon && !c.hidden && !c.menuOnly).sort((a, b) => registry.label(a.id).localeCompare(registry.label(b.id)));
+  // Commands that make sense as toolbar buttons: an icon and a name (not values such as "½ pt").
+  const seenLabels = new Set();
+  const all = registry.list()
+    .filter((c) => c.run && c.icon && !c.comingSoon && !c.hidden && !c.menuOnly && /[A-Za-z]{3}/.test(registry.label(c.id)))
+    .sort((a, b) => registry.label(a.id).localeCompare(registry.label(b.id)))
+    .filter((c) => { const l = registry.label(c.id); if (seenLabels.has(l)) return false; seenLabels.add(l); return true; });
   const choose = h('select', { class: 'opt-list', size: '10', 'aria-label': t('opt.qatChoose') }, all.map((c) => h('option', { value: c.id }, registry.label(c.id))));
   const current = h('select', { class: 'opt-list', size: '10', 'aria-label': t('opt.qatCurrent'), 'data-qat-list': '' });
   const drawQat = () => current.replaceChildren(...qat.map((id) => h('option', { value: id }, registry.label(id))));

@@ -130,6 +130,7 @@ test.describe('app shell', () => {
     await page.keyboard.press('Alt');
     await page.keyboard.press('w');
     // Control letters appear on the next frame.
+    await expect.poll(() => page.evaluate(() => window.odtEditor.keytips.level)).toBe('tab');
     await expect.poll(() => page.locator('.keytip').count()).toBeGreaterThan(15);
     const tip = await page.evaluate(() => {
       const el = document.querySelector('.ribbon-panel [data-command="view.interfaceTheme"]');
