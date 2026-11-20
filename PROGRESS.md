@@ -16,8 +16,8 @@ The memory between sessions. Statuses: `todo`, `in progress`, `awaiting approval
 | M9 — Review: comments, track changes, proofing | approved |
 | M10 — Draw tab | approved |
 | M11 — Mailings and Developer | approved |
-| M12 — View tab and windows | awaiting approval |
-| M13 — Import/export, Options, polish and final audit | todo |
+| M12 — View tab and windows | approved |
+| M13 — Import/export, Options, polish and final audit | in progress |
 
 ## Environment
 
@@ -359,7 +359,7 @@ Known limitations:
 - Envelope printing options (feed method) and custom label sizes aren't available.
 - Repeating-section and building-block content controls and legacy form fields aren't offered (legacy fields from other files are kept).
 
-## M12 — View tab and windows (awaiting approval)
+## M12 — View tab and windows (approved)
 
 Built:
 - **Views**: Print Layout (pages); **Web Layout** (no pages, the text wraps to the window); **Draft** (no pages at the body width, page breaks shown as labelled dotted lines); **Outline** with the **Outlining** tab; **Read Mode** (a read-only copy of the document in screen-sized columns: ‹ › arrows, ← → / Page Up/Down / mouse wheel, Tools ▾ Find / Read Aloud, View ▾ Edit Document / Column Width / Page Colour, "Screen n of m", Esc to go back). The status bar's Read / Print / Web buttons switch views.
