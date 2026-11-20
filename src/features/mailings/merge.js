@@ -217,6 +217,17 @@ export async function editIndividual(c) {
   await c.session.openBytes(c.ui.io.exportOdt(st).bytes, { name: t('mm.lettersName'), remember: false });
 }
 
+/** Finish & Merge ▸ Print Documents: the merged letters open as a new document and print. */
+export async function printDocuments(c) {
+  const total = recordCount(c);
+  if (!total) return;
+  const range = await mergeToDialog(total, c.store.get().mergeRecord || 1);
+  if (!range) return;
+  const st = await mergedState(c, range);
+  const ok = await c.session.openBytes(c.ui.io.exportOdt(st).bytes, { name: t('mm.lettersName'), remember: false });
+  if (ok) await c.ui.print.run({ range: 'all' });
+}
+
 // ------------------------------------------------------------------ envelopes and labels
 
 const selectionText = (c) => { const s = view(c).state; return s.doc.textBetween(s.selection.from, s.selection.to, '\n', '\n').trim(); };

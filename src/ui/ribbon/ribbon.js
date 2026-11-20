@@ -53,7 +53,7 @@ export function createRibbon({ registry, store, tabs, toast }) {
   commentsBtn.addEventListener('click', () => { if (!registry.run('app.commentsPane')) toast(t('toast.comingSoon', { name: t('top.comments') }), commentsBtn); });
   const shareBtn = h('button', { type: 'button', class: 'top-btn share', 'data-command': 'file.share', 'aria-haspopup': 'menu', 'aria-expanded': 'false', 'data-menu-button': '', 'data-keytip': 'ZS' },
     h('span', { class: 'top-icon', html: iconSvg('share', { size: 14 }) }), h('span', { class: 'top-text' }, t('top.share')));
-  shareBtn.addEventListener('click', () => openMenu({ anchor: shareBtn, items: ['file.shareDownload', 'file.shareExportPdf', 'file.shareCopyHtml'], tab: 'file' }));
+  shareBtn.addEventListener('click', () => openMenu({ anchor: shareBtn, items: [...(registry.isEnabled('file.shareNative') ? ['file.shareNative', '-'] : []), 'file.shareDownload', 'file.shareExportPdf', 'file.shareCopyHtml'], tab: 'file' }));
 
   const tabbar = h('div', { class: 'tabbar', 'data-region': 'tabs' }, tablist, h('div', { class: 'tabbar-spacer' }),
     h('div', { class: 'top-actions' }, commentsBtn, editingBtn, shareBtn));

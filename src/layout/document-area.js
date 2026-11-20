@@ -54,10 +54,14 @@ export function createDocumentArea({ store, getEditor, getSession, onPagesChange
     labelOf: (node) => t(node?.attrs.noteClass === 'endnote' ? 'ref.endnoteText' : 'ref.footnoteText'),
   });
 
-  const flowMode = () => (FLOW_VIEWS.has(store.get().view) ? store.get().view : null);
+  // While printing: real pages, one after another with no gaps, whatever the view.
+  let printing = false;
+  const flowMode = () => (!printing && FLOW_VIEWS.has(store.get().view) ? store.get().view : null);
+  const sideMode = () => !printing && store.get().pageMovement === 'side';
   const options = () => {
     const s = store.get();
     const flow = flowMode();
+    if (printing) return { zoom: s.zoom / 100, hideWhiteSpace: false, enabled: true, gridlines: false, flow: null, pageGap: 0 };
     return { zoom: s.zoom / 100, hideWhiteSpace: !flow && s.hideWhiteSpace && s.pageMovement === 'vertical', enabled: !flow && s.pageMovement === 'vertical', gridlines: !flow && s.gridlines, flow };
   };
 
@@ -90,7 +94,7 @@ export function createDocumentArea({ store, getEditor, getSession, onPagesChange
   function currentPageIndex() {
     const ed = getEditor();
     if (!ed || !pages.length) return 0;
-    if (store.get().pageMovement === 'side') {
+    if (sideMode()) {
       try {
         const c = ed.view.coordsAtPos(ed.view.state.selection.head);
         const r = view.stack.getBoundingClientRect();
@@ -185,14 +189,14 @@ export function createDocumentArea({ store, getEditor, getSession, onPagesChange
       return;
     }
     view.leaveFlow();
-    if (store.get().pageMovement === 'side') {
+    if (sideMode()) {
       view.leaveSide();
       pages = view.renderSide();
     } else {
       pages = newPages;
       view.renderPages(pages);
     }
-    if (store.get().pageMovement !== 'side') {
+    if (!sideMode()) {
       requestAnimationFrame(() => {
         updatePageFields(getEditor().view, pages, model);
         renderRepeatedRows({ view: getEditor().view, layer: view.repeatLayer, zoom: options().zoom, origin: () => view.stack });
@@ -210,7 +214,7 @@ export function createDocumentArea({ store, getEditor, getSession, onPagesChange
       }
     } else { view.repeatLayer.firstChild.replaceChildren(); view.notesLayer.firstChild.replaceChildren(); }
     cancelAnimationFrame(lnFrame);
-    if (model?.lineNumbering && store.get().pageMovement !== 'side') {
+    if (model?.lineNumbering && !sideMode()) {
       lnFrame = requestAnimationFrame(() => renderLineNumbers({ view: getEditor().view, layer: view.lnLayer, model, pages, index: styleIndex, zoom: options().zoom, origin: () => view.stack }));
     } else view.lnLayer.replaceChildren();
     syncRulers();
@@ -377,6 +381,22 @@ export function createDocumentArea({ store, getEditor, getSession, onPagesChange
     pageWidth: () => setZoom(fitWidth()),
     multiplePages: () => { store.set({ pageMovement: 'side' }); setZoom(fitWidth(2)); },
     fitWidth, fitPage, flowMode,
+    /** Printing layout on / off; resolves once the pages are laid out. */
+    async setPrinting(on) {
+      if (printing === on) return;
+      printing = on;
+      view.setOptions({ ...options(), side: sideMode() });
+      if (on) view.leaveSide();
+      paginator?.relayout();
+      let last = '';
+      for (let i = 0; i < 400; i++) {
+        await new Promise((r) => requestAnimationFrame(r));
+        const sig = pages.map((p) => `${p.startPos}:${Math.round(p.top)}`).join(',');
+        if (!paginator?.pending && sig === last) break;
+        last = sig;
+      }
+    },
+    get printing() { return printing; },
     get pages() { return pages; },
     get styleIndex() { return styleIndex; },
     get model() { return model; },

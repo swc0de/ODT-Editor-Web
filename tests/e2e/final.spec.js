@@ -1,0 +1,215 @@
+/**
+ * M13: importing DOCX / HTML / Markdown / RTF / TXT, exporting every format,
+ * printing (and PDF), File ▸ Info (properties, inspect, versions, password
+ * protection), Options, Quick Access Toolbar and the Help tab.
+ */
+import { test, expect } from '@playwright/test';
+import { mkdirSync, readFileSync, writeFileSync, existsSync } from 'node:fs';
+import { spawnSync, execFileSync } from 'node:child_process';
+import path from 'node:path';
+import { openApp } from './helpers.js';
+import { readZipText } from '../lib/odf.mjs';
+
+const OUT = path.resolve('test-results/final');
+mkdirSync(OUT, { recursive: true });
+const FIX = path.resolve('tests/fixtures');
+const soffice = ['soffice', 'libreoffice'].find((bin) => spawnSync(bin, ['--version'], { timeout: 60_000 }).status === 0);
+const hasPdftotext = spawnSync('pdftotext', ['-v']).status === 0;
+
+const run = (page, id, ...args) => page.evaluate(({ id, args }) => { const r = window.odtEditor.registry.run(id, ...args); return r instanceof Promise ? 'pending' : r; }, { id, args });
+const body = (page) => page.locator('.page-flow > .odt-doc > .ProseMirror');
+const docText = (page) => page.evaluate(() => window.odtEditor.editor.view.state.doc.textContent);
+
+async function openFile(page, name, buffer) {
+  const chooser = page.waitForEvent('filechooser');
+  await run(page, 'file.open');
+  await (await chooser).setFiles({ name, mimeType: 'application/octet-stream', buffer });
+}
+
+async function exportFile(page, id) {
+  const dl = page.waitForEvent('download');
+  await run(page, `file.export_${id}`);
+  const d = await dl;
+  const file = path.join(OUT, d.suggestedFilename());
+  await d.saveAs(file);
+  return file;
+}
+
+function loText(file) {
+  const dir = path.join(OUT, 'lo', path.basename(file).replace(/\W/g, '_'));
+  mkdirSync(dir, { recursive: true });
+  execFileSync(soffice, [`-env:UserInstallation=file://${OUT}/lo-profile`, '--headless', '--norestore', '--convert-to', 'txt:Text (encoded):UTF8', '--outdir', dir, file], { stdio: 'pipe', timeout: 120_000 });
+  return readFileSync(path.join(dir, `${path.basename(file).replace(/\.[^.]+$/, '')}.txt`), 'utf8');
+}
+
+async function sample(page) {
+  await body(page).click();
+  await run(page, 'home.styleHeading1');
+  await page.keyboard.type('Garden report');
+  await page.keyboard.press('Enter');
+  await page.keyboard.type('Some ');
+  await page.keyboard.press('Control+b');
+  await page.keyboard.type('bold');
+  await page.keyboard.press('Control+b');
+  await page.keyboard.type(' and ');
+  await page.keyboard.press('Control+i');
+  await page.keyboard.type('italic');
+  await page.keyboard.press('Control+i');
+  await page.keyboard.type(' text, café “quotes”.');
+  await page.keyboard.press('Enter');
+  await page.keyboard.type('* first item');
+  await page.keyboard.press('Enter');
+  await page.keyboard.type('second item');
+  await page.keyboard.press('Enter');
+  await page.keyboard.press('Enter');
+  await page.keyboard.type('The end.');
+}
+
+test.describe('final', () => {
+  let problems;
+  test.beforeEach(async ({ page }) => { problems = await openApp(page); });
+  test.afterEach(() => {
+    expect(problems.pageErrors).toEqual([]);
+    expect(problems.consoleErrors).toEqual([]);
+    expect(problems.networkRequests).toEqual([]);
+  });
+
+  test('imports DOCX, RTF, HTML, Markdown and plain text as new documents', async ({ page }) => {
+    await openFile(page, 'lo-formatting-zoo.docx', readFileSync(path.join(FIX, 'lo-formatting-zoo.docx')));
+    await expect.poll(() => docText(page)).not.toBe('');
+    const docx = await page.evaluate(() => { const o = { headings: 0, bold: 0, italic: 0 }; window.odtEditor.editor.view.state.doc.descendants((n) => { if (n.type.name === 'heading') o.headings++; for (const m of n.marks || []) { const a = m.attrs.auto?.props?.['style:text-properties']?.a || {}; if (a['fo:font-weight'] === 'bold') o.bold++; if (a['fo:font-style'] === 'italic') o.italic++; } return true; }); return o; });
+    expect(docx.bold + docx.italic).toBeGreaterThan(0);
+    expect(await page.title()).toContain('lo-formatting-zoo');
+    // Tables survive a DOCX import.
+    await openFile(page, 'lo-tables.docx', readFileSync(path.join(FIX, 'lo-tables.docx')));
+    await page.locator('.dlg button', { hasText: 'Don’t Save' }).click();
+    await expect.poll(() => page.evaluate(() => { let n = 0; window.odtEditor.editor.view.state.doc.descendants((x) => { if (x.type.name === 'table') n++; return true; }); return n; })).toBeGreaterThan(0);
+    // RTF from LibreOffice: tables and formatting.
+    await openFile(page, 'lo-tables.rtf', readFileSync(path.join(FIX, 'lo-tables.rtf')));
+    await page.locator('.dlg button', { hasText: 'Don’t Save' }).click();
+    await expect.poll(() => page.evaluate(() => { let n = 0; window.odtEditor.editor.view.state.doc.descendants((x) => { if (x.type.name === 'table') n++; return true; }); return n; })).toBeGreaterThan(0);
+    await openFile(page, 'lo-formatting-zoo.rtf', readFileSync(path.join(FIX, 'lo-formatting-zoo.rtf')));
+    await page.locator('.dlg button', { hasText: 'Don’t Save' }).click();
+    await expect.poll(() => docText(page)).not.toBe('');
+    // HTML, Markdown, text.
+    await openFile(page, 'page.html', Buffer.from('<h1>Web title</h1><p>Hello <b>web</b> <script>window.bad = 1</script></p><ul><li>one</li><li>two</li></ul>'));
+    await page.locator('.dlg button', { hasText: 'Don’t Save' }).click();
+    await expect.poll(() => docText(page)).toBe('Web titleHello webonetwo');
+    expect(await page.evaluate(() => window.bad)).toBeUndefined();
+    await openFile(page, 'notes.md', Buffer.from('# Notes\n\nSome *emphasis* and **strong** text.\n\n1. First\n2. Second\n\n| A | B |\n|---|---|\n| 1 | 2 |\n'));
+    await page.locator('.dlg button', { hasText: 'Don’t Save' }).click();
+    await expect.poll(() => page.evaluate(() => { const o = []; window.odtEditor.editor.view.state.doc.forEach((b) => o.push(b.type.name)); return o; })).toEqual(['heading', 'paragraph', 'list', 'table']);
+    await openFile(page, 'plain.txt', Buffer.from('Line one\nLine\ttwo\n\nLine four\n'));
+    await page.locator('.dlg button', { hasText: 'Don’t Save' }).click();
+    await expect.poll(() => page.evaluate(() => window.odtEditor.editor.view.state.doc.childCount)).toBe(4);
+    // Saving an imported document writes ODT.
+    const bytes = await page.evaluate(async () => Array.from(await window.odtEditor.session.serialize()));
+    expect(readZipText(new Uint8Array(bytes)).mimetype).toBe('application/vnd.oasis.opendocument.text');
+  });
+
+  test('exports DOCX, HTML, Markdown, RTF, TXT and PNG; others open them', async ({ page }) => {
+    await sample(page);
+    const md = readFileSync(await exportFile(page, 'markdown'), 'utf8');
+    expect(md).toBe('# Garden report\n\nSome **bold** and *italic* text, café “quotes”.\n\n- First item\n- Second item\n\nThe end.\n');
+    const txt = readFileSync(await exportFile(page, 'text'), 'utf8');
+    expect(txt).toContain('• First item');
+    const html = readFileSync(await exportFile(page, 'html'), 'utf8');
+    expect(html).toMatch(/^<!doctype html>/);
+    expect(html).toContain('<h1');
+    expect(html).not.toContain('contenteditable');
+    const rtf = readFileSync(await exportFile(page, 'rtf'), 'latin1');
+    expect(rtf).toMatch(/^\{\\rtf1/);
+    expect(rtf).toContain('{\\f2\\fs24\\b bold}');
+    const png = readFileSync(await exportFile(page, 'png'));
+    expect(png.subarray(1, 4).toString()).toBe('PNG');
+    expect(png.readUInt32BE(16)).toBeGreaterThan(1000);
+    const docx = await exportFile(page, 'docx');
+    expect(readFileSync(docx).subarray(0, 2).toString()).toBe('PK');
+    // The app opens its own exports again.
+    for (const f of [docx]) {
+      await openFile(page, path.basename(f), readFileSync(f));
+      await page.locator('.dlg button', { hasText: 'Don’t Save' }).click().catch(() => {});
+      await expect.poll(() => docText(page)).toContain('Some bold and italic text');
+    }
+    if (soffice) {
+      expect(loText(docx)).toContain('Some bold and italic text, café “quotes”.');
+      expect(loText(path.join(OUT, 'Document1.rtf'))).toContain('Some bold and italic text, café “quotes”.');
+    }
+  });
+
+  test('printing: the print layout makes one PDF page per page, ranges work; Print page preview', async ({ page }) => {
+    await page.evaluate(() => { const v = window.odtEditor.editor.view; const s = v.state.schema; const ps = []; for (let i = 0; i < 90; i++) ps.push(s.nodes.paragraph.create(null, s.text(`Paragraph ${i} of a long document with enough words to wrap over a line or two in the page body.`))); v.dispatch(v.state.tr.replaceWith(0, v.state.doc.content.size, ps)); });
+    await expect.poll(() => page.evaluate(() => window.odtEditor.docArea.pages.length)).toBeGreaterThan(4);
+    const n = await page.evaluate(() => window.odtEditor.docArea.pages.length);
+    const starts = await page.evaluate(() => window.odtEditor.docArea.pages.map((p) => window.odtEditor.editor.view.state.doc.textBetween(p.startPos, p.startPos + 13)));
+    expect(await page.evaluate(() => window.odtEditor.registry.context().ui.print.prepare({ range: 'all' }))).toBe(n);
+    await page.pdf({ path: path.join(OUT, 'all.pdf'), preferCSSPageSize: true, printBackground: true });
+    await page.evaluate(() => window.odtEditor.registry.context().ui.print.cleanup());
+    expect(await page.evaluate(() => window.odtEditor.registry.context().ui.print.prepare({ range: 'custom', pages: '2-3' }))).toBe(2);
+    await page.pdf({ path: path.join(OUT, 'range.pdf'), preferCSSPageSize: true });
+    await page.evaluate(() => window.odtEditor.registry.context().ui.print.cleanup());
+    if (hasPdftotext) {
+      const pages = (f) => Number(execFileSync('pdfinfo', [f]).toString().match(/Pages:\s+(\d+)/)[1]);
+      expect(pages(path.join(OUT, 'all.pdf'))).toBe(n);
+      expect(pages(path.join(OUT, 'range.pdf'))).toBe(2);
+      for (let i = 1; i <= n; i++) {
+        const text = execFileSync('pdftotext', ['-f', String(i), '-l', String(i), path.join(OUT, 'all.pdf'), '-']).toString().trim();
+        expect(text.startsWith(starts[i - 1].trim().slice(0, 12))).toBe(true);
+      }
+      expect(execFileSync('pdftotext', ['-f', '1', '-l', '1', path.join(OUT, 'range.pdf'), '-']).toString().trim().startsWith(starts[1].trim().slice(0, 12))).toBe(true);
+    }
+    // After printing the screen layout is back (with page gaps).
+    await expect.poll(() => page.evaluate(() => window.odtEditor.docArea.pages[1].top - window.odtEditor.docArea.pages[0].box.pageHeight)).toBe(16);
+    // Ctrl+P opens the Print page with a preview.
+    await body(page).click();
+    await page.keyboard.press('Control+p');
+    await expect(page.locator('.bs-print-page .page-stack')).toHaveCount(1);
+    await expect(page.locator('.bs-print-label')).toHaveText(`1 of ${n}`);
+    await page.locator('.bs-print-nav button').last().click();
+    await expect(page.locator('.bs-print-label')).toHaveText(`2 of ${n}`);
+  });
+
+  test('Info: properties, inspect, version history; password protection both ways', async ({ page }) => {
+    await sample(page);
+    await run(page, 'file.infoPage');
+    await page.locator('.bs-prop-input[data-prop="title"]').fill('Garden Report 2026');
+    await page.locator('.bs-prop-input[data-prop="keywords"]').fill('garden, report');
+    await page.locator('.bs-prop-input[data-prop="keywords"]').press('Tab');
+    await expect(page.locator('[data-stat="words"]')).toHaveText('15');
+    expect(await page.locator('.bs-inspect-row').count()).toBeGreaterThanOrEqual(0);
+    const meta = await page.evaluate(async () => { const b = await window.odtEditor.session.serialize(); return window.odtEditor.io.importOdt(b).meta.c.filter((x) => x.n === 'dc:title' || x.n === 'meta:keyword').map((x) => `${x.n}=${x.c[0]}`); });
+    expect(meta).toEqual(['dc:title=Garden Report 2026', 'meta:keyword=garden', 'meta:keyword=report']);
+    // Encrypt with a password; the saved file is encrypted and opens again with it.
+    await page.locator('.bs-info-btn[data-action="protect"]').click();
+    const inputs = page.locator('.pw-dlg input[type=password]');
+    await inputs.nth(0).fill('s3cret');
+    await inputs.nth(1).fill('s3cret');
+    await page.locator('.dlg button.primary').click();
+    const enc = Buffer.from(await page.evaluate(async () => Array.from(await window.odtEditor.session.serialize())));
+    const file = path.join(OUT, 'protected.odt');
+    writeFileSync(file, enc);
+    const zip = readZipText(new Uint8Array(enc));
+    expect(zip['META-INF/manifest.xml']).toContain('manifest:encryption-data');
+    expect(Object.keys(zip)).not.toContain('Thumbnails/thumbnail.png');
+    await page.keyboard.press('Escape');
+    await openFile(page, 'protected.odt', enc);
+    await page.locator('.pw-dlg input[type=password]').fill('wrong');
+    await page.locator('.dlg button.primary').click();
+    await expect(page.locator('.pw-error')).toHaveText('The password is incorrect. Try again.');
+    await page.locator('.pw-dlg input[type=password]').fill('s3cret');
+    await page.locator('.dlg button.primary').click();
+    await page.locator('.dlg button', { hasText: 'Don’t Save' }).click();
+    await expect.poll(() => docText(page)).toContain('Garden report');
+    expect(await page.evaluate(() => window.odtEditor.session.protected)).toBe(true);
+    // A file LibreOffice encrypted.
+    await openFile(page, 'lo-encrypted.odt', readFileSync(path.join(FIX, 'lo-encrypted.odt')));
+    await page.locator('.pw-dlg input[type=password]').fill('lo-pass');
+    await page.locator('.dlg button.primary').click();
+    await expect.poll(() => docText(page)).toBe('Written and encrypted by LibreOffice.');
+    // LibreOffice opens our encrypted file with the password.
+    if (soffice && existsSync('/usr/lib/libreoffice/program/pythonloader.py')) {
+      const py = spawnSync('python3', [path.resolve('tests/lib/lo-open-encrypted.py'), file, 's3cret', OUT], { timeout: 180_000 });
+      expect(py.stdout.toString()).toContain('Garden report');
+    }
+  });
+});

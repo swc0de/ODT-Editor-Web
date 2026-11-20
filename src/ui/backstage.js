@@ -9,6 +9,8 @@ import { iconSvg } from './icons.js';
 import { t } from '../i18n/index.js';
 import { setPinned, removeRecent } from '../core/storage.js';
 import { TEMPLATES, templateDoc } from '../features/file/templates.js';
+import { EXPORTS } from '../features/file/export.js';
+import { renderInfo } from './info-page.js';
 
 const NAV = [
   { id: 'home', icon: 'home', label: 'backstage.home' },
@@ -171,7 +173,88 @@ export function createBackstage({ registry, store, toast, session }) {
       h('p', { class: 'bs-empty' }, t('backstage.placeholder'), ' ', PLANNED[page] ? t('backstage.placeholderIn', { milestone: PLANNED[page] }) : ''));
   }
 
-  const PAGES = { home: renderHome, new: renderNew, open: renderOpen, saveAs: renderSaveAs, recover: renderRecover };
+  /** Print: settings on the left, a preview of the pages on the right. */
+  let printOpts = { range: 'all', pages: '' };
+  let previewPage = 0;
+  function renderPrint() {
+    const ui = registry.context().ui;
+    const da = ui.docArea;
+    const total = da.pages.length;
+    previewPage = Math.min(previewPage, total - 1);
+    const printBtn = h('button', { type: 'button', class: 'bs-print-btn', 'data-command': 'file.printNow' }, h('span', { html: iconSvg('print', { size: 28 }) }), t('print.print'));
+    printBtn.addEventListener('click', async () => {
+      store.set({ backstageOpen: false });
+      await ui.print.run({ ...printOpts });
+    });
+    const rangeSel = h('select', { class: 'bs-select', 'aria-label': t('print.pages') },
+      ['all', 'current', 'custom'].map((k) => h('option', { value: k, selected: printOpts.range === k ? '' : null }, t(`print.range.${k}`))));
+    const pagesInput = h('input', { type: 'text', class: 'bs-input', placeholder: t('print.pagesPlaceholder'), 'aria-label': t('print.pagesLabel'), value: printOpts.pages });
+    rangeSel.addEventListener('change', () => { printOpts.range = rangeSel.value; pagesInput.hidden = rangeSel.value !== 'custom'; if (rangeSel.value === 'custom') pagesInput.focus(); });
+    pagesInput.addEventListener('input', () => { printOpts.pages = pagesInput.value; if (pagesInput.value) { printOpts.range = 'custom'; rangeSel.value = 'custom'; } });
+    pagesInput.hidden = printOpts.range !== 'custom';
+    const m = da.model;
+    const cm = (px) => `${(px / (96 / 2.54)).toFixed(1)} cm`;
+    const setup = m ? `${cm(m.width)} × ${cm(m.first.height)} · ${m.width > m.first.height ? t('print.landscape') : t('print.portrait')} · ${t('print.margins', { top: cm(m.first.marginTop), left: cm(m.first.marginLeft) })}` : '';
+    const pageSetup = h('button', { type: 'button', class: 'bs-text-btn', onclick: () => { store.set({ backstageOpen: false }); registry.run('layout.pageSetupDialog'); } }, t('print.pageSetup'));
+    const settings = h('div', { class: 'bs-print-settings' },
+      h('h1', { class: 'bs-title' }, t('backstage.print')),
+      printBtn,
+      h('p', { class: 'bs-empty' }, t('print.dialogHint')),
+      h('h2', { class: 'bs-h2' }, t('print.settings')),
+      h('label', { class: 'bs-field' }, h('span', {}, t('print.pages')), rangeSel),
+      pagesInput,
+      h('p', { class: 'bs-empty' }, setup), pageSetup,
+      h('h2', { class: 'bs-h2' }, t('export.pdf')),
+      h('p', { class: 'bs-empty' }, t('export.pdfDesc')));
+    // Preview: a copy of the page at a size that fits.
+    const frame = h('div', { class: 'bs-print-page' });
+    const label = h('span', { class: 'bs-print-label', role: 'status' });
+    const prev = h('button', { type: 'button', class: 'bs-icon-btn', 'aria-label': t('print.previousPage'), html: iconSvg('chevron-left', { size: 16 }) });
+    const next = h('button', { type: 'button', class: 'bs-icon-btn', 'aria-label': t('print.nextPage'), html: iconSvg('chevron-right', { size: 16 }) });
+    const show = () => {
+      const el = da.view.pageElement(previewPage);
+      frame.replaceChildren();
+      label.textContent = t('print.pageOf', { n: previewPage + 1, count: total });
+      prev.disabled = previewPage <= 0;
+      next.disabled = previewPage >= total - 1;
+      if (!el) return;
+      const scale = Math.min(520 / el.offsetHeight, 420 / el.offsetWidth);
+      frame.style.width = `${el.offsetWidth * scale}px`;
+      frame.style.height = `${el.offsetHeight * scale}px`;
+      const copy = da.view.stack.cloneNode(true);
+      for (const x of copy.querySelectorAll('[contenteditable]')) x.removeAttribute('contenteditable');
+      for (const x of copy.querySelectorAll('.comments-layer')) x.remove();
+      copy.style.zoom = String(scale);
+      copy.style.position = 'absolute';
+      copy.style.left = `${-el.offsetLeft}px`;
+      copy.style.top = `${-el.offsetTop}px`;
+      copy.setAttribute('aria-hidden', 'true');
+      copy.inert = true;
+      frame.append(copy);
+    };
+    prev.addEventListener('click', () => { previewPage--; show(); });
+    next.addEventListener('click', () => { previewPage++; show(); });
+    requestAnimationFrame(show);
+    const preview = h('div', { class: 'bs-print-preview' }, frame, h('div', { class: 'bs-print-nav' }, prev, label, next));
+    return h('div', { class: 'bs-home bs-print' }, settings, preview);
+  }
+
+  /** Export: one button per format. */
+  function renderExport() {
+    const list = h('div', { class: 'bs-export' }, EXPORTS.map((f) => {
+      const b = h('button', { type: 'button', class: 'bs-export-item', 'data-command': `file.export_${f.id}`, 'data-format': f.id },
+        h('span', { class: 'bs-export-icon', html: iconSvg(f.icon, { size: 22 }) }),
+        h('span', { class: 'bs-export-text' }, h('span', { class: 'bs-export-name' }, t(`export.${f.id}`)), h('span', { class: 'bs-export-desc' }, t(`export.${f.id}Desc`))));
+      b.addEventListener('click', async () => {
+        const ok = await registry.run(`file.export_${f.id}`);
+        if (f.id === 'pdf' && ok !== false) store.set({ backstageOpen: false });
+      });
+      return b;
+    }));
+    return h('div', { class: 'bs-home' }, h('h1', { class: 'bs-title' }, t('backstage.exportTitle')), h('p', { class: 'bs-empty' }, t('backstage.exportHint')), list);
+  }
+
+  const PAGES = { home: renderHome, new: renderNew, open: renderOpen, saveAs: renderSaveAs, recover: renderRecover, export: renderExport, print: renderPrint, info: () => renderInfo({ registry, store, session, refresh: () => refreshPage() }) };
   function renderPage(page) { content.replaceChildren((PAGES[page] || (() => renderPlaceholder(page)))()); }
   function refreshPage() { renderPage(store.get().backstagePage); }
 

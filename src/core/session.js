@@ -11,13 +11,23 @@ import { exportOdt } from './odt/export.js';
 import { renderThumbnail } from './odt/thumbnail.js';
 import { buildStyleIndex } from './odt/styles.js';
 import { createBlankState, stateToJSON, stateFromJSON } from './document.js';
-import { storage, addRecent, recentBytes, listRecent } from './storage.js';
+import { storage, addRecent, recentBytes, listRecent, addVersion, listVersions } from './storage.js';
 import { getSetting } from './settings.js';
 import { showDialog, alertDialog } from '../ui/dialog.js';
+import { importFile, isImportable, IMPORT_EXTENSIONS } from './convert/index.js';
+import { isEncrypted, decryptPackage, encryptPackage } from './odt/crypto.js';
+import { passwordDialog } from '../ui/password-dialog.js';
 
 const SESSION_ID = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
 const uid = () => (crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`);
 const ODT_TYPES = [{ description: 'OpenDocument Text', accept: { 'application/vnd.oasis.opendocument.text': ['.odt'], 'application/vnd.oasis.opendocument.text-template': ['.ott'] } }];
+const OPEN_TYPES = [
+  { description: 'All documents', accept: { 'application/vnd.oasis.opendocument.text': ['.odt', '.ott', ...IMPORT_EXTENSIONS] } },
+  ...ODT_TYPES,
+  { description: 'Word document', accept: { 'application/vnd.openxmlformats-officedocument.wordprocessingml.document': ['.docx'] } },
+  { description: 'Web page, Markdown, Rich Text, Plain text', accept: { 'text/plain': ['.htm', '.html', '.md', '.markdown', '.rtf', '.txt'] } },
+];
+const ACCEPT = ['.odt', '.ott', ...IMPORT_EXTENSIONS].join(',');
 
 export function createSession({ editor, onLoad, onChange, toast }) {
   let untitledCounter = 0;
@@ -43,6 +53,7 @@ export function createSession({ editor, onLoad, onChange, toast }) {
   function info() { return { name: s.name, dirty: s.dirty, hasHandle: !!s.handle, mime: s.state?.mime }; }
 
   function load(state, { name, handle = null, dirty = false, docId = uid() }) {
+    s.password = null;
     s.state = state;
     s.name = name;
     s.handle = handle;
@@ -113,6 +124,20 @@ export function createSession({ editor, onLoad, onChange, toast }) {
   /** Opens bytes as a document. Templates (.ott) open as a new untitled document. */
   async function openBytes(bytes, { name, handle = null, skipGuard = false, remember = true }) {
     let state;
+    let password = null;
+    const original = bytes;
+    // A password-protected document: ask for the password (again if it's wrong).
+    if (isEncrypted(bytes)) {
+      let error = '';
+      for (;;) {
+        password = await passwordDialog({ title: t('protect.openTitle'), message: t('protect.openPrompt', { name }), error });
+        if (password == null) return false;
+        try { bytes = await decryptPackage(bytes, password); break; } catch (e) {
+          if (e.code !== 'wrong-password') { await alertDialog(t('file.openFailedTitle'), t('file.openFailed', { name, reason: e.message })); return false; }
+          error = t('protect.wrong');
+        }
+      }
+    }
     try {
       state = importOdt(bytes);
     } catch (e) {
@@ -129,20 +154,40 @@ export function createSession({ editor, onLoad, onChange, toast }) {
     } else {
       load(state, { name: name.replace(/\.odt$/i, ''), handle });
       s.fileName = name;
+      s.password = password;
     }
-    if (remember) addRecent({ name, bytes, handle }).then(() => onChange?.(info()));
+    if (remember) addRecent({ name, bytes: original, handle }).then(() => onChange?.(info()));
     return true;
   }
 
   async function openFile(file, handle = null) {
     const bytes = new Uint8Array(await file.arrayBuffer());
+    if (isImportable(file.name)) return importBytes(bytes, file.name);
     return openBytes(bytes, { name: file.name, handle });
+  }
+
+  /** DOCX, HTML, Markdown, RTF, TXT: a new document named after the file (saving writes ODT). */
+  async function importBytes(bytes, name) {
+    let result;
+    try {
+      result = await importFile(name, bytes);
+    } catch (e) {
+      console.warn('Import failed:', e);
+      await alertDialog(t('file.openFailedTitle'), t('file.openFailed', { name, reason: e.message }));
+      return false;
+    }
+    if (!(await confirmDiscard())) return false;
+    await discardAutosave();
+    load(result.state, { name: name.replace(/\.[^.]+$/, ''), dirty: true });
+    s.importedFrom = name;
+    toast?.(t('file.imported', { name }));
+    return true;
   }
 
   async function openDialog() {
     if (getSetting('fileSystemAccess') !== false && typeof window.showOpenFilePicker === 'function') {
       try {
-        const [handle] = await window.showOpenFilePicker({ types: ODT_TYPES, multiple: false });
+        const [handle] = await window.showOpenFilePicker({ types: OPEN_TYPES, multiple: false, excludeAcceptAllOption: false });
         return openFile(await handle.getFile(), handle);
       } catch (e) {
         if (e.name !== 'AbortError') console.warn(e);
@@ -150,7 +195,7 @@ export function createSession({ editor, onLoad, onChange, toast }) {
       }
     }
     return new Promise((resolve) => {
-      const input = Object.assign(document.createElement('input'), { type: 'file', accept: '.odt,.ott,application/vnd.oasis.opendocument.text,application/vnd.oasis.opendocument.text-template' });
+      const input = Object.assign(document.createElement('input'), { type: 'file', accept: `${ACCEPT},application/vnd.oasis.opendocument.text,application/vnd.oasis.opendocument.text-template` });
       input.addEventListener('change', () => resolve(input.files[0] ? openFile(input.files[0]) : false));
       input.addEventListener('cancel', () => resolve(false));
       input.click();
@@ -176,7 +221,9 @@ export function createSession({ editor, onLoad, onChange, toast }) {
     const state = currentState();
     let thumbnail;
     try { thumbnail = await renderThumbnail(state, buildStyleIndex(state)); } catch (e) { console.warn('Thumbnail failed:', e); }
-    return exportOdt(state, { thumbnail, asTemplate }).bytes;
+    const bytes = exportOdt(state, { thumbnail, asTemplate }).bytes;
+    // Encrypt with Password (File ▸ Info ▸ Protect Document).
+    return s.password ? encryptPackage(bytes, s.password) : bytes;
   }
 
   function download(bytes, fileName) {
@@ -268,6 +315,8 @@ export function createSession({ editor, onLoad, onChange, toast }) {
     s.autosaveDirty = false;
     const json = stateToJSON(currentState());
     await storage.put('autosave', { id: s.docId, sessionId: SESSION_ID, name: s.name, savedAt: Date.now(), json });
+    // Password-protected documents keep no history in the browser.
+    if (!s.password) await addVersion({ docId: s.docId, name: s.name, json });
   }
 
   async function discardAutosave() { await storage.delete('autosave', s.docId); }
@@ -313,6 +362,7 @@ export function createSession({ editor, onLoad, onChange, toast }) {
     openDialog,
     openFile,
     openBytes,
+    importBytes,
     openRecent,
     listRecent,
     save,
@@ -329,6 +379,18 @@ export function createSession({ editor, onLoad, onChange, toast }) {
     load,
     sessionId: SESSION_ID,
     /** ":1", ":2"… when the document is open in more than one window. */
+    get protected() { return !!s.password; },
+    get docId() { return s.docId; },
+    versions: () => listVersions({ docId: s.docId, name: s.name }),
+    /** Opens an earlier version as a new, unsaved document. */
+    async openVersion(v) {
+      if (!(await confirmDiscard())) return false;
+      await discardAutosave();
+      load(stateFromJSON(v.json), { name: t('info.versionName', { name: v.name, when: new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(v.savedAt)) }), dirty: true });
+      return true;
+    },
+    /** Sets (or with null removes) the password the document is saved with. */
+    setPassword(pw) { s.password = pw || null; markDirty(); onChange?.(info()); },
     setTitleSuffix(x) { if (x !== titleSuffix) { titleSuffix = x; updateTitle(); } },
   };
 }

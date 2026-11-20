@@ -3,7 +3,7 @@ import { defineCommands } from '../define.js';
 
 import {
   hasList, useExistingList, typeNewList, editRecipients, insertField, insertAddressBlock, insertGreeting, ruleIfThenElse, ruleFillIn, ruleSkipRecord,
-  ruleNextRecord, ruleMergeRecord, recordCount, goRecord, setPreview, findRecipient, editIndividual, envelopes, labels, startMerge, stopMerge,
+  ruleNextRecord, ruleMergeRecord, recordCount, goRecord, setPreview, findRecipient, editIndividual, printDocuments, envelopes, labels, startMerge, stopMerge,
 } from './merge.js';
 import { mergeOf } from '../../core/mailmerge.js';
 
@@ -51,7 +51,7 @@ export const commands = defineCommands('mailings', {
   finishMerge: { icon: 'finish-merge', isEnabled: preview, menuOnly: true },
   editIndividual: { isEnabled: preview, run: editIndividual },
   // Printing arrives with File ▸ Print (M13).
-  printDocuments: {},
+  printDocuments: { icon: 'print', isEnabled: (c) => recordCount(c) > 0, run: (c) => printDocuments(c) },
 });
 
 export const ribbon = {

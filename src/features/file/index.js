@@ -3,6 +3,7 @@
  * in M2; Backstage navigation is built now.
  */
 import { defineCommands } from '../define.js';
+import { EXPORTS, exportAs, copyAsHtml, canShareFiles, shareNative } from './export.js';
 
 const openPage = (page) => (ctx) => ctx.store.set({ backstageOpen: true, backstagePage: page, ribbonPeek: false });
 
@@ -25,15 +26,19 @@ export const commands = defineCommands('file', {
   save: { icon: 'save', shortcut: 'Mod-s', run: (ctx) => { ctx.session.save(); } },
   saveAs: { icon: 'save-as', shortcut: 'F12', run: (ctx) => { ctx.session.saveAs(); } },
   saveAsTemplate: { icon: 'save-template', run: (ctx) => { ctx.session.saveAs({ asTemplate: true }); } },
-  print: { icon: 'print', shortcut: 'Mod-p' },
+  print: { icon: 'print', shortcut: 'Mod-p', run: openPage('print') },
+  printNow: { icon: 'print', run: (ctx) => ctx.ui.print.run({ range: 'all' }) },
   close: { icon: 'close', shortcut: 'Mod-w', run: (ctx) => { ctx.session.close().then((ok) => { if (ok) ctx.store.set({ backstageOpen: false }); }); } },
   undo: { icon: 'undo', shortcutHint: 'Mod-z', run: (ctx) => ctx.editor.undo(), isEnabled: (ctx) => ctx.editor.canUndo() },
   redo: { icon: 'redo', shortcutHint: 'Mod-y', run: (ctx) => ctx.editor.redo(), isEnabled: (ctx) => ctx.editor.canRedo() },
   repeat: { shortcut: 'F4', isEnabled: (ctx) => !!ctx.ui.canRepeat?.(), run: (ctx) => ctx.ui.repeat() },
-  share: { icon: 'share' },
+  share: { icon: 'share', menuOnly: true },
+  shareNative: { icon: 'share2', isEnabled: () => canShareFiles(), run: (ctx) => shareNative(ctx) },
   shareDownload: { icon: 'download', run: (ctx) => { ctx.session.downloadCopy(); } },
-  shareExportPdf: { icon: 'export' },
-  shareCopyHtml: { icon: 'copy' },
+  shareExportPdf: { icon: 'export', run: (ctx) => exportAs(ctx, 'pdf') },
+  shareCopyHtml: { icon: 'copy', run: (ctx) => copyAsHtml(ctx) },
+  // File ▸ Export
+  ...Object.fromEntries(EXPORTS.map((f) => [`export_${f.id}`, { icon: f.icon, run: (ctx) => exportAs(ctx, f.id) }])),
 });
 
 export const ribbon = { id: 'file', keytip: 'F', backstage: true, groups: [] };

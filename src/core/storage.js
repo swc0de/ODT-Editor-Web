@@ -6,7 +6,7 @@
 import { APP_ID } from '../config.js';
 
 const DB_NAME = `${APP_ID}`;
-const VERSION = 1;
+const VERSION = 2;
 let dbPromise = null;
 
 function open() {
@@ -19,6 +19,8 @@ function open() {
       if (!db.objectStoreNames.contains('recent')) db.createObjectStore('recent', { keyPath: 'id' });
       if (!db.objectStoreNames.contains('files')) db.createObjectStore('files', { keyPath: 'id' });
       if (!db.objectStoreNames.contains('autosave')) db.createObjectStore('autosave', { keyPath: 'id' });
+      // Version history (File ▸ Info): earlier states of documents, a few per document.
+      if (!db.objectStoreNames.contains('versions')) db.createObjectStore('versions', { keyPath: 'id' });
     };
     req.onsuccess = () => resolve(req.result);
     req.onerror = () => reject(req.error);
@@ -99,4 +101,24 @@ async function pruneRecent() {
 export async function recentBytes(id) {
   const f = await storage.get('files', id);
   return f?.bytes || null;
+}
+
+// ------------------------------------------------------------------ versions
+
+const MAX_VERSIONS = 12;
+const VERSION_GAP_MS = 2 * 60 * 1000;
+
+/** Keeps a version of a document (at most one every two minutes, the latest 12 per document). */
+export async function addVersion({ docId, name, json, force = false }) {
+  const all = (await storage.getAll('versions')).filter((v) => v.name === name || v.docId === docId).sort((a, b) => b.savedAt - a.savedAt);
+  if (!force && all[0] && Date.now() - all[0].savedAt < VERSION_GAP_MS) return false;
+  const savedAt = Date.now();
+  await storage.put('versions', { id: `${docId}:${savedAt}`, docId, name, savedAt, json });
+  for (const old of all.slice(MAX_VERSIONS - 1)) await storage.delete('versions', old.id);
+  return true;
+}
+
+/** Versions of a document (by its id or name), newest first. */
+export async function listVersions({ docId, name }) {
+  return (await storage.getAll('versions')).filter((v) => v.docId === docId || v.name === name).sort((a, b) => b.savedAt - a.savedAt);
 }

@@ -219,7 +219,7 @@ export function createPaginator(o) {
     const restart = unit?.kind === 'para' ? unit.props.pageNumber : null;
     const number = restart || (prev ? prev.number + 1 : 1);
     const box = bodyBox(master, indexInMaster, number, o.getOptions());
-    const gap = o.getOptions().hideWhiteSpace ? 1 : PAGE_GAP;
+    const gap = o.getOptions().pageGap ?? (o.getOptions().hideWhiteSpace ? 1 : PAGE_GAP);
     const top = prev ? prev.top + prev.box.pageHeight + gap : 0;
     return { index: prev ? prev.index + 1 : 0, master: master.name, indexInMaster, number, box, top, startPos: unit ? unit.pos : 0, clean: true, D: 0, notes: [], notesH: 0 };
   }

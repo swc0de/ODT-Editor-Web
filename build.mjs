@@ -152,6 +152,19 @@ async function buildSheetJs() {
 }
 let sheetChunk = null;
 
+/** mammoth (BSD-2-Clause), docx (MIT) and marked (MIT): DOCX/Markdown import and DOCX export, loaded on first use. */
+async function buildConvert() {
+  const r = await esbuild.build({
+    entryPoints: [path.join(root, 'src', 'vendor', 'convert-entry.js')],
+    bundle: true, format: 'esm', platform: 'browser', target: ['chrome110', 'firefox115', 'safari16'],
+    minify: true, legalComments: 'none', write: false, logLevel: 'error',
+    define: { global: 'globalThis', 'process.env.NODE_ENV': '"production"' },
+    external: ['buffer'],
+  });
+  return Buffer.from(r.outputFiles[0].text, 'utf8').toString('base64');
+}
+let convertChunk = null;
+
 async function writeHtml(jsText, cssText) {
   const appName = await readAppName();
   const template = await readFile(path.join(root, 'src', 'index.html'), 'utf8');
@@ -167,6 +180,7 @@ async function writeHtml(jsText, cssText) {
     CITEPROC: citeprocChunk ??= await buildCiteproc(),
     SPELL: spellChunk ??= await buildSpell(),
     SHEETJS: sheetChunk ??= await buildSheetJs(),
+    CONVERT: convertChunk ??= await buildConvert(),
     // A literal "</script" inside the bundle would end the inline script early.
     APP_JS: jsText.replace(/<\/script/gi, '<\\/script').replace(/<!--/g, '<\\!--'),
   });

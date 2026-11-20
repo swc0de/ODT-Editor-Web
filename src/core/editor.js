@@ -68,7 +68,7 @@ const docEdge = (dir, extend) => (state, dispatch) => {
 export function createEditor(mount, env) {
   let view;
   const handleFilesDrop = (files) => {
-    const docs = [...files].filter((f) => /\.(odt|ott)$/i.test(f.name));
+    const docs = [...files].filter((f) => /\.(odt|ott|docx|html?|md|markdown|rtf)$/i.test(f.name));
     if (docs.length) { env.openFiles?.(docs); return true; }
     return false;
   };

@@ -77,6 +77,7 @@ import { syllablePlugin, syllableKey, createLineFocus, PAGE_COLOURS } from './fe
 import { createReadMode } from './ui/read-mode.js';
 import { createWindows } from './ui/windows.js';
 import { createSplitView } from './ui/split-view.js';
+import { createPrint } from './ui/print.js';
 
 function boot() {
   applyTheme();
@@ -179,7 +180,7 @@ function boot() {
     const ss = stateSteps(tr);
     if (ss.length) {
       for (const s of ss) session.state[s.key] = s.after;
-      if (ss.some((s) => s.key !== 'bibliography')) {
+      if (ss.some((s) => s.key !== 'bibliography' && s.key !== 'meta')) {
         docArea.applyDocument(session.state);
         ui.onStylesChanged?.();
       }
@@ -554,6 +555,8 @@ function boot() {
   const baseOnTransaction2 = editorEnv.onTransaction;
   editorEnv.onTransaction = (view, tr) => { baseOnTransaction2(view, tr); if ((tr.selectionSet || tr.docChanged) && store.get().irLineFocus) ui.lineFocus.update(); };
 
+  // Printing and PDF.
+  ui.print = createPrint({ docArea, store, toast, t });
   // Window group: New Window, Arrange All, Side by Side, Switch Windows, Full Screen; Split.
   ui.windows = createWindows({ store, getEditor: () => editor, getSession: () => session, docArea, toast, onTitle: (x) => session?.setTitleSuffix(x) });
   ui.split = createSplitView({
@@ -635,7 +638,7 @@ function boot() {
   addEventListener('drop', (e) => {
     if (!hasFiles(e) || e.defaultPrevented) return;
     e.preventDefault();
-    const file = [...e.dataTransfer.files].find((f) => /\.(odt|ott)$/i.test(f.name));
+    const file = [...e.dataTransfer.files].find((f) => /\.(odt|ott|docx|html?|md|markdown|rtf|txt)$/i.test(f.name));
     if (file) editorEnv.openFiles([file]);
   });
 
