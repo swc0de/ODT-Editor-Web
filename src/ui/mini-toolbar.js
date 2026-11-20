@@ -3,6 +3,7 @@
  * context menu), and the document's right-click context menu. Both call the
  * same commands as the ribbon.
  */
+import { getSetting } from '../core/settings.js';
 import { h } from './dom.js';
 import { t } from '../i18n/index.js';
 import { iconSvg } from './icons.js';
@@ -57,6 +58,8 @@ export function createMiniToolbar({ registry, store, editor }) {
 
   let shownAt = null;
   function show(x, y) {
+    // File ▸ Options ▸ Display ▸ Show the Mini Toolbar on selection.
+    if (getSetting('miniToolbar') === false) return;
     sync();
     el.hidden = false;
     const r = el.getBoundingClientRect();

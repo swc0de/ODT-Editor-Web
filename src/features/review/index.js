@@ -25,7 +25,7 @@ export const commands = defineCommands('review', {
   translate: { icon: 'translate' },
   language: { icon: 'language', isEnabled: (c) => !!c.editor && canEdit(c), run: setLanguage },
   setProofingLanguage: { isEnabled: (c) => !!c.editor && canEdit(c), run: setLanguage },
-  languagePreferences: {},
+  languagePreferences: { icon: 'language', run: (c) => c.ui.openOptions('language') },
   deleteComment: { icon: 'delete-comment', isEnabled: (c) => canEdit(c) && hasComments(c) && !!currentThread(c), run: deleteCurrent },
   deleteAllShown: { isEnabled: (c) => canEdit(c) && hasComments(c), run: (c) => deleteAll(c, { shownOnly: true }) },
   deleteAllComments: { isEnabled: (c) => canEdit(c) && hasComments(c), run: (c) => deleteAll(c) },

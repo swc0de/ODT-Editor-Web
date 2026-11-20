@@ -18,7 +18,8 @@ export const commands = defineCommands('file', {
   saveAsPage: { icon: 'save-as', run: openPage('saveAs'), hidden: true },
   printPage: { icon: 'print', run: openPage('print'), hidden: true },
   exportPage: { icon: 'export', run: openPage('export') },
-  optionsPage: { icon: 'options', run: openPage('options') },
+  optionsPage: { icon: 'options', run: (ctx) => ctx.ui.openOptions() },
+  options: { icon: 'options', keywords: ['settings', 'preferences'], run: (ctx) => ctx.ui.openOptions() },
   aboutPage: { icon: 'about', run: openPage('about'), hidden: true },
   // Actions
   new: { icon: 'new', shortcut: 'Mod-n', run: (ctx) => { ctx.store.set({ backstageOpen: false }); ctx.session.newDocument(); } },

@@ -78,10 +78,12 @@ import { createReadMode } from './ui/read-mode.js';
 import { createWindows } from './ui/windows.js';
 import { createSplitView } from './ui/split-view.js';
 import { createPrint } from './ui/print.js';
+import { createQat } from './ui/qat.js';
+import { optionsDialog } from './ui/options-dialog.js';
 
 function boot() {
   applyTheme();
-  const store = createStore({ ...INITIAL_APP_STATE, darkPage: !!getSetting('darkPage'), ribbonCollapsed: !!getSetting('ribbonCollapsed'), showRuler: getSetting('showRuler') !== false, zoom: getSetting('zoom') || 100 });
+  const store = createStore({ ...INITIAL_APP_STATE, hiddenTabs: getSetting('hiddenTabs') || [], darkPage: !!getSetting('darkPage'), ribbonCollapsed: !!getSetting('ribbonCollapsed'), showRuler: getSetting('showRuler') !== false, zoom: getSetting('zoom') || 100 });
   const ui = {};
   let editor = null;
   let session = null;
@@ -143,7 +145,7 @@ function boot() {
     },
     openFiles(files) { if (files[0]) session.openFile(files[0]).then((ok) => { if (ok) store.set({ backstageOpen: false }); }); },
     priorityPlugins: () => [flushSelectionPlugin(), new Plugin({ props: { handleKeyDown: (_v, e) => !!ui.handleEditorKey?.(e) } }), ...(ui.objects ? [ui.objects.keyPlugin] : []), tableKeymap, ...editingPlugins(() => ({ ...AUTOCORRECT_DEFAULTS, ...(getSetting('autocorrect') || {}) }), makeList)],
-    extraPlugins: () => [...docArea.plugins(), outlinePlugin({ on: () => store.get().view === 'outline' }), syllablePlugin(() => store.get().view === 'immersive' && !!store.get().irSyllables), controlsPlugin({ forms: () => store.get().restrict === 'forms', design: () => store.get().ccDesign, openMenu: (point, items) => openMenu({ point, items }), pickDate: pickDatePopup, pickPicture: (pos) => pickControlPicture(pos) }), mergePreviewPlugin({ on: () => store.get().mergePreview, merge: () => session?.state?.mailMerge, record: () => (store.get().mergeRecord || 1) - 1, highlight: () => store.get().mergeHighlight }), readAloudPlugin(), proofingPlugin({ enabled: () => getSetting('checkSpelling') !== false, fallback: () => 'en-GB', onProblems: () => { if (ui.editorPane?.isOpen) ui.editorPane.render(false); } }), trackChangesPlugin({ isOn: () => store.get().trackChanges, author: userName, display: () => store.get().reviewDisplay, hidden: () => store.get().reviewHide }), editablePlugin(() => store.get().editingMode !== 'viewing'), sequencePlugin(), notesNumberingPlugin(() => session?.state, () => (docArea.pages.length ? (pos) => docArea.pageAt(pos) : null)), ...tablePlugins(tableUI), linkFollowPlugin(() => store.get().editingMode === 'viewing'), searchPlugin(), listLabelsPlugin((name) => getListStyle(ctx(), name))],
+    extraPlugins: () => [...docArea.plugins(), outlinePlugin({ on: () => store.get().view === 'outline' }), syllablePlugin(() => store.get().view === 'immersive' && !!store.get().irSyllables), controlsPlugin({ forms: () => store.get().restrict === 'forms', design: () => store.get().ccDesign, openMenu: (point, items) => openMenu({ point, items }), pickDate: pickDatePopup, pickPicture: (pos) => pickControlPicture(pos) }), mergePreviewPlugin({ on: () => store.get().mergePreview, merge: () => session?.state?.mailMerge, record: () => (store.get().mergeRecord || 1) - 1, highlight: () => store.get().mergeHighlight }), readAloudPlugin(), proofingPlugin({ enabled: () => getSetting('checkSpelling') !== false, fallback: () => getSetting('proofingLanguage') || 'en-GB', onProblems: () => { if (ui.editorPane?.isOpen) ui.editorPane.render(false); } }), trackChangesPlugin({ isOn: () => store.get().trackChanges, author: userName, display: () => store.get().reviewDisplay, hidden: () => store.get().reviewHide }), editablePlugin(() => store.get().editingMode !== 'viewing'), sequencePlugin(), notesNumberingPlugin(() => session?.state, () => (docArea.pages.length ? (pos) => docArea.pageAt(pos) : null)), ...tablePlugins(tableUI), linkFollowPlugin(() => store.get().editingMode === 'viewing'), searchPlugin(), listLabelsPlugin((name) => getListStyle(ctx(), name))],
     pasteMode(event) {
       const once = clipboard?.takeMode();
       if (once) return once;
@@ -167,6 +169,17 @@ function boot() {
   }
 
   const ribbon = createRibbon({ registry, store, tabs: TABS, toast });
+  // File ▸ Options.
+  ui.openOptions = (section) => optionsDialog({
+    registry, store, tabs: TABS, section,
+    onApplied: () => {
+      // Measurement units, proofing and display settings take effect now.
+      docArea.syncRulers?.();
+      registry.notify();
+      const v = editor.view;
+      v.dispatch(v.state.tr.setMeta('addToHistory', false).setMeta('tcSkip', true).setMeta('proofingRecheck', true));
+    },
+  });
   const status = createStatusBar({ registry, store, toast });
 
   let statsTimer = null;
@@ -590,6 +603,7 @@ function boot() {
   const work = h('div', { class: 'work' }, leftDock.el, docArea.el, rightDock.el);
   const shell = h('div', { class: 'shell' }, ribbon.tabbar, ribbon.ribbon, work, status.el);
   root.replaceChildren(shell, ui.readMode.el, backstage.el);
+  ui.qat = createQat({ registry, store, tabbar: ribbon.tabbar, ribbonEl: ribbon.ribbon, toast });
   store.subscribe((s, changed) => {
     if (changed.includes('fullScreen')) { shell.classList.toggle('full-screen', !!s.fullScreen); shell.classList.remove('focus-show'); requestAnimationFrame(() => docArea.syncRulers()); }
     if (changed.includes('focusMode')) { shell.classList.toggle('focus-mode', s.focusMode); shell.classList.remove('focus-show'); requestAnimationFrame(() => docArea.syncRulers()); }

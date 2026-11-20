@@ -316,7 +316,7 @@ export function createSession({ editor, onLoad, onChange, toast }) {
     const json = stateToJSON(currentState());
     await storage.put('autosave', { id: s.docId, sessionId: SESSION_ID, name: s.name, savedAt: Date.now(), json });
     // Password-protected documents keep no history in the browser.
-    if (!s.password) await addVersion({ docId: s.docId, name: s.name, json });
+    if (!s.password && getSetting('keepVersions') !== false) await addVersion({ docId: s.docId, name: s.name, json });
   }
 
   async function discardAutosave() { await storage.delete('autosave', s.docId); }

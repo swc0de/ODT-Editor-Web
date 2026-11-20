@@ -1,7 +1,8 @@
 /**
  * Backstage (File): a full-window view with an indigo navigation column.
  * Home shows a greeting, template previews (real rendered pages), "More
- * templates" and Recent. Other pages are placeholders until their milestone.
+ * templates" and Recent; then New, Open, Info, Recover, Save As, Print,
+ * Export and About (Options opens a dialog).
  * Esc or the ‹ back arrow returns to the document.
  */
 import { h } from './dom.js';
@@ -11,6 +12,7 @@ import { setPinned, removeRecent } from '../core/storage.js';
 import { TEMPLATES, templateDoc } from '../features/file/templates.js';
 import { EXPORTS } from '../features/file/export.js';
 import { renderInfo } from './info-page.js';
+import { renderAbout } from './help.js';
 
 const NAV = [
   { id: 'home', icon: 'home', label: 'backstage.home' },
@@ -23,11 +25,11 @@ const NAV = [
   { id: 'print', icon: 'print', label: 'backstage.print' },
   { id: 'export', icon: 'export', label: 'backstage.export' },
   { id: 'close', icon: 'close', label: 'backstage.close', command: 'file.close' },
-  { id: 'options', icon: 'options', label: 'backstage.options' },
+  { id: 'options', icon: 'options', label: 'backstage.options', command: 'file.options' },
 ];
 
 /** Milestone in which each placeholder page is built. */
-const PLANNED = { info: 'M13', print: 'M13', export: 'M13', options: 'M13', about: 'M13' };
+const PLANNED = {};
 
 export function greetingKey(date = new Date()) {
   const hr = date.getHours();
@@ -254,7 +256,7 @@ export function createBackstage({ registry, store, toast, session }) {
     return h('div', { class: 'bs-home' }, h('h1', { class: 'bs-title' }, t('backstage.exportTitle')), h('p', { class: 'bs-empty' }, t('backstage.exportHint')), list);
   }
 
-  const PAGES = { home: renderHome, new: renderNew, open: renderOpen, saveAs: renderSaveAs, recover: renderRecover, export: renderExport, print: renderPrint, info: () => renderInfo({ registry, store, session, refresh: () => refreshPage() }) };
+  const PAGES = { home: renderHome, new: renderNew, open: renderOpen, saveAs: renderSaveAs, recover: renderRecover, export: renderExport, print: renderPrint, about: renderAbout, info: () => renderInfo({ registry, store, session, refresh: () => refreshPage() }) };
   function renderPage(page) { content.replaceChildren((PAGES[page] || (() => renderPlaceholder(page)))()); }
   function refreshPage() { renderPage(store.get().backstagePage); }
 

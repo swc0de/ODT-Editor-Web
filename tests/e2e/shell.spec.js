@@ -217,8 +217,8 @@ test.describe('app shell', () => {
   });
 
   test('app shortcuts never trigger browser defaults', async ({ page }) => {
-    // Ctrl+P would open the browser's print dialog; printing arrives in M13.
+    // Ctrl+P opens File ▸ Print (not the browser's own print dialog straight away).
     await page.keyboard.press('Control+p');
-    await expect(page.locator('.toast')).toContainText('Print — coming soon');
+    await expect(page.locator('.bs-print-settings')).toBeVisible();
   });
 });

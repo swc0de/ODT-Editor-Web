@@ -1,11 +1,13 @@
-/** Help tab: Help (shortcuts), Feedback, What's New, About (M13). */
+/** Help tab: Help (keyboard shortcuts), Feedback (a local note), What's New, About (licences). */
 import { defineCommands } from '../define.js';
+import { shortcutsDialog, feedbackDialog, whatsNewDialog } from '../../ui/help.js';
+import { TABS } from '../index.js';
 
 export const commands = defineCommands('help', {
-  help: { icon: 'help', shortcut: 'F1' },
-  feedback: { icon: 'feedback' },
-  whatsNew: { icon: 'whats-new' },
-  about: { icon: 'about' },
+  help: { icon: 'help', shortcut: 'F1', keywords: ['keyboard shortcuts', 'keys'], run: (c) => shortcutsDialog(c.ui.registry, TABS) },
+  feedback: { icon: 'feedback', run: (c) => feedbackDialog(c.ui.toast) },
+  whatsNew: { icon: 'whats-new', run: () => whatsNewDialog() },
+  about: { icon: 'about', run: (c) => c.store.set({ backstageOpen: true, backstagePage: 'about' }) },
 });
 
 export const ribbon = {

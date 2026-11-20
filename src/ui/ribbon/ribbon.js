@@ -199,6 +199,12 @@ export function createRibbon({ registry, store, tabs, toast }) {
       const shown = String(state.contextual || '').split(' ');
       for (const d of tabs) if (d.contextual) tabButtons.get(d.id).hidden = !shown.includes(d.contextual);
     }
+    // Options ▸ Customise Ribbon: tabs the user hid.
+    if (!changed || changed.includes('hiddenTabs')) {
+      const hide = new Set(state.hiddenTabs || []);
+      for (const d of tabs) if (!d.contextual && !d.backstage) tabButtons.get(d.id).hidden = hide.has(d.id);
+      if (hide.has(state.activeTab)) { const first = tabs.find((d) => !d.contextual && !d.backstage && !hide.has(d.id)); if (first) queueMicrotask(() => store.set({ activeTab: first.id })); }
+    }
     if (!changed || changed.includes('activeTab')) showTab(state.activeTab);
     ribbon.classList.toggle('is-collapsed', state.ribbonCollapsed);
     ribbon.classList.toggle('is-peek', state.ribbonCollapsed && state.ribbonPeek);

@@ -3,6 +3,7 @@
  * data-tip. Shows the label, the shortcut and "Coming soon" for unbuilt
  * commands. One shared element; shown after a short hover or on keyboard focus.
  */
+import { getSetting } from '../core/settings.js';
 import { h } from './dom.js';
 import { t } from '../i18n/index.js';
 
@@ -73,7 +74,7 @@ export function initTooltips(registry) {
     const el = target(e);
     if (el === current) return;
     hideTooltip();
-    if (!el || el.closest('.menu')) return;
+    if (!el || el.closest('.menu') || getSetting('screenTips') === false) return;
     timer = setTimeout(() => show(el), 450);
   });
   document.addEventListener('pointerdown', hideTooltip, true);

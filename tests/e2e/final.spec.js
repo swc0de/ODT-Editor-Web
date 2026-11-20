@@ -202,7 +202,7 @@ test.describe('final', () => {
     await expect.poll(() => docText(page)).toContain('Garden report');
     expect(await page.evaluate(() => window.odtEditor.session.protected)).toBe(true);
     // A file LibreOffice encrypted.
-    await openFile(page, 'lo-encrypted.odt', readFileSync(path.join(FIX, 'lo-encrypted.odt')));
+    await openFile(page, 'lo-encrypted.odt', readFileSync(path.join(FIX, 'protected', 'lo-encrypted.odt')));
     await page.locator('.pw-dlg input[type=password]').fill('lo-pass');
     await page.locator('.dlg button.primary').click();
     await expect.poll(() => docText(page)).toBe('Written and encrypted by LibreOffice.');
@@ -211,5 +211,65 @@ test.describe('final', () => {
       const py = spawnSync('python3', [path.resolve('tests/lib/lo-open-encrypted.py'), file, 's3cret', OUT], { timeout: 180_000 });
       expect(py.stdout.toString()).toContain('Garden report');
     }
+  });
+
+  test('Options: units, Customise Ribbon, Quick Access Toolbar; Help, Feedback, What\'s New, About; version history', async ({ page }) => {
+    await sample(page);
+    await run(page, 'file.options');
+    await expect(page.locator('.opt-nav-item')).toHaveCount(8);
+    // Advanced ▸ measurement units: inches.
+    await page.locator('.opt-nav-item[data-section="advanced"]').click();
+    await page.locator('.opt-body select').first().selectOption('in');
+    // Customise Ribbon: hide Mailings.
+    await page.locator('.opt-nav-item[data-section="ribbon"]').click();
+    await page.locator('[data-tab-option="mailings"]').uncheck();
+    // Quick Access Toolbar: on, with Bold added.
+    await page.locator('.opt-nav-item[data-section="qat"]').click();
+    await page.locator('.opt-body .fm-check input').first().check();
+    await page.locator('.opt-qat select').first().selectOption('home.bold');
+    await page.locator('.opt-qat-buttons button').first().click();
+    await expect(page.locator('[data-qat-list] option')).toHaveCount(4);
+    await page.locator('.dlg button.primary').click();
+    await expect(page.locator('[role=tab][data-tab="mailings"]')).toBeHidden();
+    await expect(page.locator('.qat .qat-btn')).toHaveCount(4);
+    await expect(page.locator('.qat [data-command="file.save"]')).toBeVisible();
+    // The ruler counts inches and the indent box shows inches.
+    await expect(page.locator('.hruler-ticks .rt-num').first()).toHaveText('1');
+    const inchPx = await page.evaluate(() => { const n = [...document.querySelectorAll('.hruler-ticks .rt-num')]; return parseFloat(n[1].style.left) - parseFloat(n[0].style.left); });
+    expect(Math.round(inchPx)).toBe(96);
+    await page.locator('[role=tab][data-tab="layout"]').click();
+    await expect(page.locator('.rb-spin-input[data-command="layout.indentLeft"]')).toHaveValue('0.00 in');
+    await page.locator('.rb-spin-input[data-command="layout.indentLeft"]').fill('0.5');
+    await page.locator('.rb-spin-input[data-command="layout.indentLeft"]').press('Enter');
+    await expect.poll(() => page.evaluate(() => { const n = window.odtEditor.editor.view.state.selection.$from.parent; return n.attrs.auto?.props?.['style:paragraph-properties']?.a?.['fo:margin-left']; })).toMatch(/^1\.27\d*cm$/);
+    // The QAT button runs its command.
+    await body(page).click();
+    await page.keyboard.press('Control+a');
+    await page.locator('.qat [data-command="home.bold"]').click();
+    await expect.poll(() => page.evaluate(() => window.odtEditor.registry.isChecked('home.bold'))).toBe(true);
+    // Help: shortcuts sheet with Bold (Ctrl+B), filtering.
+    await page.keyboard.press('F1');
+    await expect(page.locator('.help-table').first()).toBeVisible();
+    await page.locator('.help-filter').fill('bold');
+    await expect(page.locator('.help-table tr', { hasText: 'Bold' }).first()).toContainText('Ctrl+B');
+    await page.keyboard.press('Escape');
+    await run(page, 'help.feedback');
+    await page.locator('.feedback-text').fill('Lovely app.');
+    await page.locator('.dlg button.primary').click();
+    expect(await page.evaluate(() => JSON.parse(localStorage.getItem('odt-editor:settings')).feedbackNote)).toBe('Lovely app.');
+    await run(page, 'help.whatsNew');
+    await expect(page.locator('.help-sheet section')).toHaveCount(10);
+    await page.keyboard.press('Escape');
+    await run(page, 'help.about');
+    await expect(page.locator('.about-page')).toContainText('UI inspired by the open-source WordCraft project (MIT/Apache-2.0).');
+    await expect(page.locator('.about-licences tr')).toHaveCount(14);
+    // Version history: autosaves keep earlier versions; one opens as a new document.
+    await page.evaluate(() => window.odtEditor.session.autosaveNow());
+    await run(page, 'file.infoPage');
+    await expect(page.locator('.bs-versions [data-version]')).toHaveCount(1);
+    await page.locator('.bs-versions [data-version]').click();
+    await page.locator('.dlg button', { hasText: 'Don’t Save' }).click();
+    await expect.poll(() => page.title()).toContain('version');
+    await expect.poll(() => docText(page)).toContain('Garden report');
   });
 });

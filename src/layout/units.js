@@ -42,3 +42,15 @@ export function formatLength(value, unit, decimals = 4) {
 export function pxToLength(px, unit = 'cm', decimals = 4) {
   return formatLength(convert(px, 'px', unit), unit, decimals);
 }
+
+/** How lengths are shown in the UI: File ▸ Options ▸ Advanced ▸ measurement units. */
+export const UNIT_DECIMALS = Object.freeze({ cm: 2, mm: 1, in: 2, pt: 1 });
+export const UNIT_STEP = Object.freeze({ cm: 0.1, mm: 1, in: 0.05, pt: 1 });
+
+/** "1.5 cm", "12pt", '2"' or a bare number (in `unit`) → value in `to`; null if not a length. */
+export function parseUserLength(text, unit, to) {
+  const m = String(text).trim().replace(',', '.').match(/^(-?\d*\.?\d+)\s*(cm|mm|pt|in|")?$/i);
+  if (!m) return null;
+  const u = m[2] === '"' ? 'in' : (m[2] || unit).toLowerCase();
+  return convert(parseFloat(m[1]), u, to);
+}

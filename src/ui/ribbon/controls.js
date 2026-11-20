@@ -16,6 +16,8 @@
  *   { t:'check', cmd }                                   checkbox
  *   { t:'gallery', id, cmd, menu? }                      in-ribbon gallery with ▲ ▼ ⋯
  */
+import { getSetting } from '../../core/settings.js';
+import { convert, parseUserLength, UNIT_STEP } from '../../layout/units.js';
 import { h } from '../dom.js';
 import { objectGalleryItems } from '../object-widgets.js';
 import { iconSvg } from '../icons.js';
@@ -166,7 +168,12 @@ export function createControlFactory(env) {
       h('div', { class: 'rb-spins-header' }, t(spec.header)),
       spec.items.map((it) => {
         const id = resolve(tab, it.cmd);
-        const fmt = (v) => `${(+v).toFixed(it.decimals)} ${it.unit}`;
+        // Lengths in cm are shown in the unit chosen in Options (the command still gets cm).
+        const unit = () => (it.unit === 'cm' ? (getSetting('units') || 'cm') : it.unit);
+        const shown = (v) => (it.unit === 'cm' ? convert(+v, 'cm', unit()) : +v);
+        const decimals = () => (it.unit === 'cm' ? { cm: it.decimals, mm: Math.max(0, it.decimals - 1), in: 2, pt: Math.max(0, it.decimals - 1) }[unit()] : it.decimals);
+        const fmt = (v) => `${shown(v).toFixed(decimals())} ${unit()}`;
+        const parse = (text) => (it.unit === 'cm' ? parseUserLength(text, unit(), 'cm') : parseFloat(text));
         const input = h('input', {
           class: 'rb-spin-input', type: 'text', inputmode: 'decimal', 'data-command': id, 'aria-label': registry.label(id),
           value: fmt(it.value), role: 'spinbutton', 'aria-valuenow': String(it.value),
@@ -177,12 +184,19 @@ export function createControlFactory(env) {
           registry.run(id, clamped);
           input.value = fmt(clamped);
         };
-        input.addEventListener('change', () => commit(parseFloat(input.value)));
+        input.addEventListener('change', () => commit(parse(input.value)));
         input.addEventListener('keydown', (e) => {
           if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
             e.preventDefault();
+            const dir = e.key === 'ArrowUp' ? 1 : -1;
+            if (it.unit === 'cm') {
+              const cur = parseUserLength(input.value, unit(), unit()) || 0;
+              const step = unit() === 'cm' ? it.step : UNIT_STEP[unit()];
+              commit(convert(Math.round((cur + dir * step) * 1000) / 1000, unit(), 'cm'));
+              return;
+            }
             const cur = parseFloat(input.value) || 0;
-            commit(Math.round((cur + (e.key === 'ArrowUp' ? 1 : -1) * it.step) * 100) / 100);
+            commit(Math.round((cur + dir * it.step) * 100) / 100);
           } else if (e.key === 'Enter') { e.preventDefault(); input.blur(); }
         });
         input._sync = () => {

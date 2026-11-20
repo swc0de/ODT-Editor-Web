@@ -236,6 +236,9 @@ export class CommandRegistry {
     return scored.slice(0, limit).map((s) => s[2]);
   }
 
+  /** Every registered command definition. */
+  list() { return [...this._commands.values()]; }
+
   /** Subscribe to state changes (commands registered or run). Returns unsubscribe. */
   onChange(fn) { this._listeners.add(fn); return () => this._listeners.delete(fn); }
 

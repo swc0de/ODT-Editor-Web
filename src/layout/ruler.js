@@ -12,29 +12,41 @@ import { h } from '../ui/dom.js';
 import { iconSvg } from '../ui/icons.js';
 import { t } from '../i18n/index.js';
 import { PX_PER_CM } from './units.js';
+import { getSetting } from '../core/settings.js';
 
 const TAB_TYPES = ['left', 'centre', 'right', 'decimal', 'firstLine', 'hanging'];
 const TAB_ICON = { left: 'tab-left', centre: 'tab-centre', right: 'tab-right', decimal: 'tab-decimal', firstLine: 'tab-first-line', hanging: 'tab-hanging' };
 const ODF_TYPE = { left: 'left', centre: 'center', right: 'right', decimal: 'char' };
 const TYPE_ICON = { left: 'tab-left', center: 'tab-centre', right: 'tab-right', char: 'tab-decimal' };
-const SNAP = PX_PER_CM / 4;
+/** Ruler divisions per measurement unit: major step (px), subdivisions, label of the n-th major tick. */
+const RULER_UNITS = {
+  cm: { major: PX_PER_CM, div: 4, label: (n) => n },
+  mm: { major: PX_PER_CM, div: 4, label: (n) => n * 10 },
+  in: { major: 96, div: 8, label: (n) => n },
+  pt: { major: 48, div: 4, label: (n) => n * 36 },
+};
+const rulerUnit = () => RULER_UNITS[getSetting('units')] || RULER_UNITS.cm;
+let SNAP = PX_PER_CM / 4;
 
 /**
  * Tick marks for a ruler of `lengthPx` (unzoomed) whose text area runs from
  * `startPx` to `endPx`. Whole centimetres are numbered inside the text area,
  * plain lines in the margins (as in the reference).
  */
-export function rulerTicks(lengthPx, startPx, endPx = lengthPx) {
+export function rulerTicks(lengthPx, startPx, endPx = lengthPx, u = rulerUnit()) {
   const out = [];
-  const first = -Math.floor(startPx / SNAP);
-  const last = Math.floor((lengthPx - startPx) / SNAP);
+  const step = u.major / u.div;
+  SNAP = step;
+  const first = -Math.floor(startPx / step);
+  const last = Math.floor((lengthPx - startPx) / step);
   for (let i = first; i <= last; i++) {
     if (i === 0) continue;
-    const pos = startPx + i * SNAP;
+    const pos = startPx + i * step;
     if (pos < 2 || pos > lengthPx - 2) continue;
-    const q = ((i % 4) + 4) % 4;
-    if (q === 0 && pos > startPx && pos < endPx - 1) out.push({ pos, kind: 'num', n: i / 4 });
-    else if (q === 0 || q === 2) out.push({ pos, kind: 'half' });
+    const q = ((i % u.div) + u.div) % u.div;
+    if (q === 0 && pos > startPx && pos < endPx - 1) out.push({ pos, kind: 'num', n: u.label(i / u.div) });
+    else if (q === 0 || q === u.div / 2) out.push({ pos, kind: 'half' });
+    else if (u.div === 8 && q % 2) continue;
     else out.push({ pos, kind: 'quarter' });
   }
   return out;
@@ -121,7 +133,7 @@ export function createRulers(o) {
     hBody.style.right = `${P.marginRight * s}px`;
     edgeL.style.left = `${P.marginLeft * s}px`;
     edgeR.style.left = `${(P.width - P.marginRight) * s}px`;
-    drawTicks(hTicks, rulerTicks(P.width, P.marginLeft, P.width - P.marginRight), false, `${P.width}|${P.marginLeft}|${P.marginRight}|${s}`, s);
+    drawTicks(hTicks, rulerTicks(P.width, P.marginLeft, P.width - P.marginRight), false, `${P.width}|${P.marginLeft}|${P.marginRight}|${s}|${getSetting('units')}`, s);
     const ind = g.indents || { left: 0, right: 0, firstLine: 0 };
     // Indents are measured from the text area: the page body, or the table cell.
     g.x0 = g.x0 ?? P.marginLeft;
@@ -159,7 +171,7 @@ export function createRulers(o) {
     vBody.style.bottom = `${(P.height - P.bodyBottom) * s}px`;
     edgeT.style.top = `${P.bodyTop * s}px`;
     edgeB.style.top = `${P.bodyBottom * s}px`;
-    drawTicks(vTicks, rulerTicks(P.height, P.bodyTop, P.bodyBottom), true, `${P.height}|${P.bodyTop}|${P.bodyBottom}|${s}`, s);
+    drawTicks(vTicks, rulerTicks(P.height, P.bodyTop, P.bodyBottom), true, `${P.height}|${P.bodyTop}|${P.bodyBottom}|${s}|${getSetting('units')}`, s);
   }
 
   // ------------------------------------------------------------ dragging

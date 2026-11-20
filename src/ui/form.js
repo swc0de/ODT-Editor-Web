@@ -2,6 +2,8 @@
  * Small form-building helpers for dialogs: labelled inputs, selects,
  * checkboxes, radio groups, colour inputs, length spinners and tabs.
  */
+import { getSetting } from '../core/settings.js';
+import { convert, parseUserLength, UNIT_DECIMALS } from '../layout/units.js';
 import { h, uid } from './dom.js';
 
 export function field(label, control, { wide = false } = {}) {
@@ -45,17 +47,14 @@ export function radios(name, options, value) {
 
 export const colour = (value = '#000000', attrs = {}) => h('input', { type: 'color', class: 'fm-colour', value, ...attrs });
 
-/** A length input in a unit (cm/pt) that accepts "1.5 cm", "12pt" or a bare number. */
+/**
+ * A length input that accepts "1.5 cm", "12pt", '2"' or a bare number. Lengths
+ * given in cm are shown in the measurement unit chosen in Options.
+ */
 export function length(valuePx, unit, attrs = {}) {
-  const factor = unit === 'pt' ? 96 / 72 : 96 / 2.54;
-  const el = h('input', { type: 'text', class: 'fm-input fm-len', value: `${+(valuePx / factor).toFixed(unit === 'pt' ? 1 : 2)} ${unit}`, ...attrs });
-  el.px = () => {
-    const m = String(el.value).trim().match(/^(-?[\d.]+)\s*(cm|mm|pt|in|")?$/);
-    if (!m) return null;
-    const n = parseFloat(m[1]);
-    const u = m[2] === '"' ? 'in' : (m[2] || unit);
-    return n * ({ cm: 96 / 2.54, mm: 96 / 25.4, pt: 96 / 72, in: 96 }[u]);
-  };
+  const u = unit === 'cm' ? (getSetting('units') || 'cm') : unit;
+  const el = h('input', { type: 'text', class: 'fm-input fm-len', value: `${+convert(valuePx, 'px', u).toFixed(UNIT_DECIMALS[u] ?? 2)} ${u}`, ...attrs });
+  el.px = () => parseUserLength(el.value, u, 'px');
   return el;
 }
 
