@@ -175,3 +175,16 @@ Definition of done: as in CLAUDE.md.
 - README: features, keyboard shortcuts, known limitations, licenses.
 Definition of done: as in CLAUDE.md, plus a v1.0.0 tag and a final report (what works, gaps, suggested next steps).
 ```
+
+## M14 — Word DOCX fidelity and exact interface match
+
+```
+Goal: a .docx opened in ODT Editor looks the same as in Microsoft Word on Windows (page size, margins, headers/footers, columns, line and paragraph spacing, tabs, list indents, table geometry, borders, object positions, page breaks), and exporting back to .docx gives a file Word renders the same way. The app's interface (tab bar, ribbon, backstage, status bar) matches the reference screenshots exactly.
+Reference: reference/docx/DOCX-Fidelity-Reference.docx (defects D1–D14 with Word's exact values, layout rules L1–L15, export checklist in section 5, interface measurements in section 6, Appendix A). Test document: tests/fixtures/word-fidelity/docx-editor-test.docx (8 pages in Word).
+- Part A: fix import and rendering D1–D14 at the root cause (even/odd and inherited headers/footers, per-section columns with separator, anchored pictures with wrap, docDefaults spacing, heading bold / Calibri Light, ptab and Word tab origin, paragraph border spacing and grouping, cell margins, cell text direction, double/thick borders and Word's border-conflict rule, list label properties and suffix, auto colour on dark shading, screen-only field shading, TOC generation). Follow the L1–L15 rules.
+- Part B: replace the docx-library export with a direct OOXML writer that mirrors docx-reader.js feature for feature (styles.xml with docDefaults, one sectPr per page-style change, headers/footers per section, full paragraph/run/list/table/picture properties incl. anchored pictures, notes, comments, tracked changes, bookmarks, internal links, complex fields with cached results, core properties).
+- Part C: model tests from the fixture's own XML, Playwright layout tests (tests/e2e/docx-fidelity.spec.js), LibreOffice side-by-side comparisons (reference/compare/m14-docx-p*.png), round trips (fixture and existing .docx fixtures), all existing tests and typing latency.
+- Part D: UI font (Segoe UI first, bundled Selawik fallback), group widths within ±2 px of table 6.1, control fixes from table 6.3, icon metaphors within the original-icon rule, divider/label position test, ribbon pixel-diff check with heat-maps.
+Constraints: keep the ODT model; no runtime network; never weaken tests; D-ids in commit messages and test names; decisions and unavoidable differences recorded in PROGRESS.md.
+Definition of done: as in CLAUDE.md.
+```

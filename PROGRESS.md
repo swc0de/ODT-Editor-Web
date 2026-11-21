@@ -17,7 +17,8 @@ The memory between sessions. Statuses: `todo`, `in progress`, `awaiting approval
 | M10 — Draw tab | approved |
 | M11 — Mailings and Developer | approved |
 | M12 — View tab and windows | approved |
-| M13 — Import/export, Options, polish and final audit | awaiting approval |
+| M13 — Import/export, Options, polish and final audit | approved |
+| M14 — Word DOCX fidelity and exact interface match | in progress |
 
 ## Environment
 
@@ -387,7 +388,7 @@ Known limitations:
 - Settings outside the document text and styles (Restrict Editing, document properties) are not synced between windows.
 - Macros stays "Coming soon".
 
-## M13 — Import/export, Options, polish and final audit (awaiting approval)
+## M13 — Import/export, Options, polish and final audit (approved)
 
 Built:
 - **Import** (as new, unsaved documents; saving writes ODT): DOCX — read natively by `src/core/convert/docx-reader.js` (added before sign-off at the user's request): document defaults, paragraph/character styles with fonts and colours (Word names mapped to ODF ones: Normal→Standard, Heading N, Title, Quote, Hyperlink…), theme and table fonts, numbering as `WWNum*` list styles with Word's indents (nested, continued), page size / orientation / margins / header and footer distance / columns per section (later sections get their own page style), default / first-page / even headers and footers with PAGE and NUMPAGES fields, direct paragraph and character formatting, tables (grid widths, merged cells both ways, borders from cell/table/table style, shading, header rows), pictures, text boxes, footnotes/endnotes, comments with ranges, tracked insertions/deletions, hyperlinks, bookmarks, content controls' content and document properties; mammoth stays as a fallback if the native reader fails, HTML (scripts and active content dropped), Markdown (marked, GFM tables), RTF (own parser: fonts, colours, paragraph alignment and indents, character formatting, Unicode, hyperlinks, tables, PNG/JPEG pictures, heading styles), TXT, OTT. Pictures in imported files become package pictures.
@@ -412,3 +413,10 @@ Decisions:
 
 Known limitations: see README ▸ Known limitations (v1.0).
 
+
+## M14 — Word DOCX fidelity and exact interface match (in progress)
+
+Instructions: the M14 block in MILESTONES.md; reference spec `reference/docx/DOCX-Fidelity-Reference.docx` (defects D1–D14, layout rules L1–L15, export checklist, UI measurements in section 6, Appendix A per-paragraph values).
+
+Notes:
+- The test document `tests/fixtures/word-fidelity/docx-editor-test.docx` was not supplied with the request (only the reference spec was). Each D-item is fixed generally and tested with small synthetic DOCX files built from the OOXML in the reference; the fixture-based tests (8 pages, Appendix A) run as soon as the file is in place and are skipped with a message until then.
