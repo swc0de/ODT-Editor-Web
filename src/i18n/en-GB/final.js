@@ -195,7 +195,7 @@ export default {
   'feedback.saved': 'Your note is saved in this browser.',
   'news.title': 'What’s New in ODT Editor {version}',
   'news.m13.title': 'Formats, printing and options',
-  'news.m13.text': 'Open DOCX, HTML, Markdown, RTF and text files; export to DOCX, PDF, HTML, Markdown, RTF, text and page pictures. Print with a preview and page ranges. File ▸ Info edits properties, inspects the document, shows earlier versions and encrypts it with a password. File ▸ Options, the Quick Access Toolbar, keyboard shortcuts and this page.',
+  'news.m13.text': 'Open Word documents with their styles, fonts, page setup, sections, headers and footers, lists, tables, notes, comments and tracked changes, and HTML, Markdown, RTF and text files; export to DOCX, PDF, HTML, Markdown, RTF, text and page pictures. Print with a preview and page ranges. File ▸ Info edits properties, inspects the document, shows earlier versions and encrypts it with a password. File ▸ Options, the Quick Access Toolbar, keyboard shortcuts and this page.',
   'news.m12.title': 'Views and windows',
   'news.m12.text': 'Read Mode, Web Layout, Outline and Draft, Focus, Immersive Reader, page thumbnails and drag-to-move headings in the Navigation pane, New Window kept in sync, Split, View Side by Side and templates.',
   'news.m11.title': 'Mailings and forms',

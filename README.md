@@ -109,7 +109,7 @@ reference/             UI reference screenshots; compare/ holds generated compar
 - Bundled fonts: Carlito, Caladea, Liberation Sans/Serif/Mono — SIL Open Font
   License 1.1 (see `assets/fonts/LICENSE.md`).
 - Libraries bundled into the HTML file: ProseMirror incl. prosemirror-tables and prosemirror-collab (MIT), fflate (MIT),
-  mammoth (BSD-2-Clause; DOCX import), docx (MIT; DOCX export), marked (MIT; Markdown import),
+  mammoth (BSD-2-Clause; fallback DOCX import), docx (MIT; DOCX export), marked (MIT; Markdown import),
   MathLive (MIT; the equation editor, with the KaTeX maths fonts, MIT),
   nspell (MIT) with the en-GB and en-US Hunspell dictionaries from
   wooorm/dictionaries (MIT AND BSD, from SCOWL),
@@ -346,9 +346,14 @@ Other limitations:
 - Draw: strokes can't be edited point by point; Ink to Math is unavailable.
 - Mailings: only the first sheet of a workbook is read; no database or
   contacts sources; no custom label sizes.
-- Import: DOCX keeps text, headings and named styles, emphasis, lists,
-  tables and pictures but not page setup, fonts, colours or headers; RTF
-  pictures are PNG / JPEG only. Export: DOCX headers and footers are plain
+- Import: DOCX is read directly (styles, fonts, page setup, sections,
+  headers/footers, lists, tables, pictures, notes, comments, tracked changes),
+  but floating pictures and text boxes are placed in line with the text,
+  table-style banding and theme colours/effects aren't applied, fields other
+  than page number / page count / hyperlink keep only their shown text, and
+  charts, SmartArt and embedded objects are left out; if a file can't be read
+  this way, a simpler import (text, styles, lists, tables, pictures) is used.
+  RTF pictures are PNG / JPEG only. Export: DOCX headers and footers are plain
   text; HTML and Markdown keep the content, not the page layout.
 - Printing uses the first page size for the browser's default and named page
   sizes for others; PDF bookmarks depend on the browser.

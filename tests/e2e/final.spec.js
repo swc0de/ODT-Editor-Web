@@ -107,6 +107,67 @@ test.describe('final', () => {
     expect(readZipText(new Uint8Array(bytes)).mimetype).toBe('application/vnd.oasis.opendocument.text');
   });
 
+  test('Word import reads styles, fonts, page setup, sections, headers, lists, tables, notes and changes', async ({ page }) => {
+    await openFile(page, 'word-features.docx', readFileSync(path.join(FIX, 'word-features.docx')));
+    await expect.poll(() => docText(page)).toContain('Imported from Word');
+    await expect.poll(() => page.evaluate(() => window.odtEditor.docArea.pages.length)).toBeGreaterThan(2);
+    const r = await page.evaluate(() => {
+      const { session, editor, docArea } = window.odtEditor;
+      const st = session.state;
+      const style = (name) => st.commonStyles.c.find((x) => x.n === 'style:style' && x.a['style:name'] === name);
+      const tp = (s) => s?.c?.find((x) => x.n === 'style:text-properties')?.a || {};
+      const def = st.commonStyles.c.find((x) => x.n === 'style:default-style' && x.a['style:family'] === 'paragraph');
+      const o = { blocks: [], lists: [], marks: new Set(), nodes: new Set(), merges: [] };
+      editor.view.state.doc.forEach((b) => o.blocks.push(b.type.name + ':' + (b.attrs.styleName || '')));
+      editor.view.state.doc.descendants((n) => {
+        if (n.type.name === 'list') o.lists.push(n.attrs.styleName);
+        if (n.type.name === 'table_cell' && (n.attrs.colspan > 1 || n.attrs.rowspan > 1)) o.merges.push(`${n.attrs.colspan}x${n.attrs.rowspan}`);
+        for (const m of n.marks || []) o.marks.add(m.type.name);
+        if (n.isInline && !n.isText) o.nodes.add(n.type.name);
+        return true;
+      });
+      const masters = st.masterStyles.c.filter((m) => m.n === 'style:master-page');
+      const xml = JSON.stringify(st.masterStyles);
+      const pages = docArea.pages.map((p) => { const m = docArea.model.masters.get(p.master) || docArea.model.first; return [p.master, Math.round(m.width), Math.round(m.height), m.columns?.count || 1]; });
+      return {
+        defaultFont: tp(def)['style:font-name'], h1: tp(style('Heading_20_1')), callout: !!style('Callout_20_Text'), term: !!st.commonStyles.c.find((x) => x.a?.['style:name'] === 'Highlighted_20_Term' && x.a['style:family'] === 'text'),
+        fonts: st.fontFaces.map((f) => f.a['style:name']), masters: masters.length, pageFields: (xml.match(/text:page-number/g) || []).length, pageCount: xml.includes('text:page-count'), firstHeader: xml.includes('First page header'),
+        pages, blocks: o.blocks, lists: o.lists, merges: o.merges, marks: [...o.marks], nodes: [...o.nodes], title: st.meta?.c?.find?.((x) => x.n === 'dc:title')?.t ?? JSON.stringify(st.meta).includes('Word Features Sample'),
+      };
+    });
+    // Styles and fonts come from the file.
+    expect(r.defaultFont).toBe('Georgia');
+    expect(r.h1['style:font-name']).toBe('Verdana');
+    expect(r.h1['fo:color']).toBe('#1f4e79');
+    expect(r.callout && r.term).toBe(true);
+    expect(r.fonts).toEqual(expect.arrayContaining(['Georgia', 'Verdana', 'Courier New', 'Arial']));
+    // Page setup: A5 portrait, then a landscape A4 section with two columns.
+    expect(r.pages[0].slice(1, 3)).toEqual([559, 794]);
+    const last = r.pages[r.pages.length - 1];
+    expect(last[0]).not.toBe(r.pages[0][0]);
+    expect(last.slice(1)).toEqual([1122, 794, 2]);
+    // Headers and footers with page fields, and a separate first-page header.
+    expect(r.pageFields).toBeGreaterThanOrEqual(2);
+    expect(r.pageCount && r.firstHeader).toBe(true);
+    // Structure: headings, lists, merged table cells, notes, comments, links, pictures, tracked changes.
+    expect(r.blocks.filter((b) => b.startsWith('heading')).length).toBe(4);
+    expect(r.blocks).toContain('paragraph:Callout_20_Text');
+    expect(r.lists.length).toBeGreaterThanOrEqual(2);
+    expect(r.merges).toEqual(expect.arrayContaining(['1x2', '2x1']));
+    expect(r.marks).toEqual(expect.arrayContaining(['textProps', 'charStyle', 'link', 'insertion', 'deletion']));
+    expect(r.nodes).toEqual(expect.arrayContaining(['note', 'annotation', 'annotation_end', 'frame']));
+    expect(r.title).toBeTruthy();
+    // It saves as an ODT that LibreOffice opens with the same text.
+    if (soffice) {
+      const bytes = await page.evaluate(async () => Array.from(await window.odtEditor.session.serialize()));
+      const file = path.join(OUT, 'word-features.odt');
+      writeFileSync(file, Buffer.from(bytes));
+      const text = loText(file);
+      expect(text).toContain('A paragraph in a custom style.');
+      expect(text).toContain('Text in a landscape section with two columns.');
+    }
+  });
+
   test('exports DOCX, HTML, Markdown, RTF, TXT and PNG; others open them', async ({ page }) => {
     await sample(page);
     const md = readFileSync(await exportFile(page, 'markdown'), 'utf8');
