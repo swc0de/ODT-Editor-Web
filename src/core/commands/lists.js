@@ -222,9 +222,10 @@ export const listLabelsKey = new PluginKey('listLabels');
 
 /**
  * Computes the label of every list item. getLists(name) → list style tree.
- * Returns DecorationSet with data-label on each list item.
+ * Returns DecorationSet with data-label on each list item (and, with
+ * `widgets`, the label drawn at the start of the item's first paragraph).
  */
-export function computeListLabels(doc, getListStyle) {
+export function computeListLabels(doc, getListStyle, { widgets = false } = {}) {
   const decos = [];
   const lastByStyle = new Map(); // style → counters at the end of the last list with that style
   const byId = new Map(); // xml:id → counters
@@ -252,7 +253,7 @@ export function computeListLabels(doc, getListStyle) {
         // as Word and LibreOffice do: at the level's label position, followed
         // by a tab to the text position (or a space, or nothing).
         const first = item.firstChild;
-        const widget = first?.isTextblock && lv.geo;
+        const widget = widgets && first?.isTextblock && lv.geo;
         decos.push(Decoration.node(itemPos, itemPos + item.nodeSize, widget ? { 'data-label': label, class: 'has-label' } : { 'data-label': label }));
         if (widget) decos.push(labelWidget(itemPos + 2, label, lv));
       }
@@ -327,9 +328,9 @@ export function listLabelsPlugin(getListStyle) {
   return new Plugin({
     key: listLabelsKey,
     state: {
-      init: (_, state) => computeListLabels(state.doc, getListStyle),
+      init: (_, state) => computeListLabels(state.doc, getListStyle, { widgets: true }),
       apply: (tr, old, _o, state) => {
-        if (tr.getMeta(listLabelsKey) || (tr.docChanged && changesBlocks(tr))) return computeListLabels(state.doc, getListStyle);
+        if (tr.getMeta(listLabelsKey) || (tr.docChanged && changesBlocks(tr))) return computeListLabels(state.doc, getListStyle, { widgets: true });
         return tr.docChanged ? old.map(tr.mapping, tr.doc) : old;
       },
     },

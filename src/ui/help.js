@@ -22,7 +22,6 @@ export const LICENCES = [
   ['hyphen, with the British English hyphenation patterns (hyph-en-gb, CTAN)', 'ISC / LPPL'],
   ['SheetJS Community Edition', 'Apache-2.0'],
   ['mammoth', 'BSD-2-Clause'],
-  ['docx', 'MIT'],
   ['marked', 'MIT'],
   ['Lucide icons', 'ISC'],
   ['Fonts: Carlito, Caladea, Liberation Sans, Liberation Serif, Liberation Mono', 'SIL Open Font License 1.1'],

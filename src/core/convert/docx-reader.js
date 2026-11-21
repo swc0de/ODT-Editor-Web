@@ -47,7 +47,7 @@ const wa = (el, name) => (el ? (el.getAttributeNS(W, name) ?? el.getAttribute(`w
 /** On/off properties: <w:b/>, <w:b w:val="0"/>, w:val="false"/"off". */
 const onOff = (el) => (el ? !['0', 'false', 'off', 'none'].includes(String(wa(el, 'val') ?? 'true').toLowerCase()) : null);
 const num = (v) => (v == null || v === '' ? null : Number(v));
-const twipsCm = (t) => `${+(Number(t) / 567).toFixed(3)}cm`;
+const twipsCm = (t) => `${+(Number(t) / (1440 / 2.54)).toFixed(3)}cm`;
 const ind_ = (pPr) => kid(pPr, 'ind');
 const twipsPt = (t) => `${+(Number(t) / 20).toFixed(2)}pt`;
 const emuPx = (e) => Number(e) / 9525;
@@ -196,7 +196,7 @@ export function docxToStateNative(bytes) {
     const sp = sec.sectPr;
     const type = wa(kid(sp, 'type'), 'val') || 'nextPage';
     const refs = partRefs(ctx, sp, inherited);
-    const geometry = pageGeometry(sp, showsParts(refs, sp, evenOdd));
+    const geometry = pageGeometry(sp, showsParts(ctx, refs, sp, evenOdd));
     const prevGeometry = i ? geometries[i - 1] : null;
     geometries.push(geometry);
     const sameParts = JSON.stringify(refs) === JSON.stringify(inherited);
@@ -231,6 +231,7 @@ export function docxToStateNative(bytes) {
     out.push(...sec.blocks);
   });
   if (!out.length) out.push({ type: 'paragraph', attrs: { styleName: 'Standard' } });
+  markContinuations(out);
   state.doc = schema.nodeFromJSON({ type: 'doc', content: out.map(fixBlock) });
   fillTocs(ctx, state, out);
   if (updateFields || ctx.emptyToc) state.updateFieldsOnOpen = true;
@@ -261,6 +262,30 @@ const changeParaProps = (auto, attrs) => {
   next.props['style:paragraph-properties'] = { ...pp, a: { ...pp.a, ...attrs } };
   return next;
 };
+
+/**
+ * A list whose numbering (numId) appeared earlier continues it. Decided in
+ * document order once everything is read (table cells are read before the
+ * lists around them are grouped).
+ */
+function markContinuations(blocks) {
+  const seen = new Set();
+  const walk = (nodes, inItem) => {
+    for (const n of nodes || []) {
+      if (!n || typeof n !== 'object' || n.type === 'text') continue;
+      if (n.type === 'list' && !inItem) {
+        const style = n.attrs?.styleName;
+        const extra = { ...(n.attrs.extra || {}) };
+        if (seen.has(style)) extra['text:continue-numbering'] = 'true'; else delete extra['text:continue-numbering'];
+        n.attrs = { ...n.attrs, extra: Object.keys(extra).length ? extra : null };
+        seen.add(style);
+      }
+      if (n.type === 'frame' || n.type === 'note' || n.type === 'annotation') continue;
+      walk(n.content, n.type === 'list_item' || (inItem && n.type === 'list'));
+    }
+  };
+  walk(blocks, false);
+}
 
 /** Blocks must contain valid content: empty sections / cells get a paragraph. */
 function fixBlock(b) {
@@ -357,16 +382,26 @@ function writeHeadersFooters(ctx, state, master, refs, { titlePg, evenOdd, geome
       const doc = schema.nodeFromJSON({ type: 'doc', content: (blocks.length ? blocks : [{ type: 'paragraph', attrs: { styleName: part === 'header' ? 'Header' : 'Footer' } }]).map(fixBlock) });
       writePart(state, master, part, kind, doc);
     };
+    // A default part that is empty (written so a section doesn't inherit
+    // an earlier one) is no header / footer at all when nothing else shows.
+    if (!(titlePg && r.first) && !(evenOdd && r.even) && r.default && isEmptyPart(ctx, r.default)) continue;
     write(null, r.default);
     if (evenOdd) write('left', r.even);
     if (titlePg) write('first', r.first);
   }
 }
 
+/** A header / footer part with no text, fields or objects. */
+function isEmptyPart(ctx, pathName) {
+  const xml = parse(ctx.files[pathName]);
+  if (!xml) return true;
+  return ![...xml.getElementsByTagName('*')].some((e) => ['t', 'fldSimple', 'fldChar', 'drawing', 'pict', 'object', 'tab', 'ptab', 'sym', 'tbl'].includes(e.localName) && (e.localName !== 't' || e.textContent));
+}
+
 /** Does a section show a header / footer (on any of its pages)? */
-const showsParts = (refs, sp, evenOdd) => {
+const showsParts = (ctx, refs, sp, evenOdd) => {
   const titlePg = !!onOff(kid(sp, 'titlePg'));
-  const any = (r) => !!(r.default || (titlePg && r.first) || (evenOdd && r.even));
+  const any = (r) => !!((r.default && !isEmptyPart(ctx, r.default)) || (titlePg && r.first) || (evenOdd && r.even));
   return { header: any(refs.header), footer: any(refs.footer) };
 };
 
@@ -1047,8 +1082,9 @@ function converter(ctx, rels, opts = {}) {
         case 'ptab': {
           // Positional tab: a tab to a stop at the margin / indent (added to the paragraph).
           if (fld && fld.phase !== 'result') break;
-          ptabs.push({ alignment: wa(el, 'alignment') || 'left', relativeTo: wa(el, 'relativeTo') || 'margin', leader: wa(el, 'leader') || 'none' });
-          push(segments, { type: 'tab' });
+          const pt = { alignment: wa(el, 'alignment') || 'left', relativeTo: wa(el, 'relativeTo') || 'margin', leader: wa(el, 'leader') || 'none' };
+          ptabs.push(pt);
+          push(segments, { type: 'tab', attrs: { ptab: pt } });
           break;
         }
         case 'br': {
@@ -1099,6 +1135,13 @@ function converter(ctx, rels, opts = {}) {
           break;
         }
         case 'drawing': { const node = drawing(el); if (node) push(segments, node); break; }
+        case 'AlternateContent': {
+          // Word writes text boxes and other new objects with a fallback: read the first choice we understand.
+          const choice = kids(el, 'Choice')[0] || kid(el, 'Fallback');
+          const d = choice && [...choice.getElementsByTagName('*')].find((x) => x.localName === 'drawing');
+          if (d) { const node = drawing(d); if (node) push(segments, node); }
+          break;
+        }
         case 'pict': case 'object': {
           // VML pictures (older files).
           const img = [...el.getElementsByTagName('*')].find((x) => x.localName === 'imagedata');
@@ -1301,6 +1344,12 @@ function tocOptionsOf(instr) {
 function tocIndex(ctx, t) {
   const o = tocOptionsOf(t.instr);
   ctx.tocCount = (ctx.tocCount || 0) + 1;
+  // Entry links in the index's link style (as the editor makes them).
+  const restyle = (n) => {
+    if (n.marks) n.marks = n.marks.map((m) => (m.type === 'link' ? { ...m, attrs: { ...m.attrs, extra: { 'text:style-name': 'Index_20_Link', 'text:visited-style-name': 'Index_20_Link' } } } : m));
+    (n.content || []).forEach(restyle);
+  };
+  t.blocks.forEach(restyle);
   const node = {
     type: 'index',
     attrs: { element: 'text:table-of-content', attrs: { 'text:protected': 'true', 'text:name': `Table of Contents${ctx.tocCount}` }, source: tocSource(o), titleCount: 0, titleAttrs: null },

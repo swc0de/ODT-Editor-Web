@@ -5,9 +5,10 @@
  */
 import { toText, toMarkdown, toRtf } from '../../core/convert/writers.js';
 import { toHtml } from '../../core/convert/html-export.js';
-import { stateToDocx } from '../../core/convert/docx-io.js';
+import { writeDocx } from '../../core/convert/docx-writer.js';
+import { partToDoc } from '../../core/hf-content.js';
+import { schema } from '../../core/schema.js';
 import { pageToPng } from '../../core/convert/png.js';
-import { convertLib } from '../../core/convert/index.js';
 import { pageLayout } from '../../core/odt/styles.js';
 import { toPx } from '../../layout/units.js';
 import { APP_NAME, APP_VERSION } from '../../config.js';
@@ -61,7 +62,7 @@ export async function exportData(c, id) {
   const index = c.ui.docArea.styleIndex;
   switch (id) {
     case 'odt': return c.session.serialize();
-    case 'docx': return stateToDocx(state, index, await convertLib());
+    case 'docx': return writeDocx(state, index, { nodeFromJSON: (j) => schema.nodeFromJSON(j), partDoc: (tree) => partToDoc(state, index, tree), generator: `${APP_NAME} ${APP_VERSION}` });
     case 'html': return documentHtml(c);
     case 'markdown': return toMarkdown(state, index);
     case 'rtf': return toRtf(state, index);

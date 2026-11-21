@@ -118,7 +118,9 @@ test.describe('final', () => {
       const tp = (s) => s?.c?.find((x) => x.n === 'style:text-properties')?.a || {};
       const def = st.commonStyles.c.find((x) => x.n === 'style:default-style' && x.a['style:family'] === 'paragraph');
       const o = { blocks: [], lists: [], marks: new Set(), nodes: new Set(), merges: [] };
-      editor.view.state.doc.forEach((b) => o.blocks.push(b.type.name + ':' + (b.attrs.styleName || '')));
+      // Top-level blocks; a section (M14: a Word section's columns) is looked into.
+      const top = (n) => n.forEach((b) => { if (b.type.name === 'section') top(b); else o.blocks.push(b.type.name + ':' + (b.attrs.styleName || '')); });
+      top(editor.view.state.doc);
       editor.view.state.doc.descendants((n) => {
         if (n.type.name === 'list') o.lists.push(n.attrs.styleName);
         if (n.type.name === 'table_cell' && (n.attrs.colspan > 1 || n.attrs.rowspan > 1)) o.merges.push(`${n.attrs.colspan}x${n.attrs.rowspan}`);
@@ -128,7 +130,20 @@ test.describe('final', () => {
       });
       const masters = st.masterStyles.c.filter((m) => m.n === 'style:master-page');
       const xml = JSON.stringify(st.masterStyles);
-      const pages = docArea.pages.map((p) => { const m = docArea.model.masters.get(p.master) || docArea.model.first; return [p.master, Math.round(m.width), Math.round(m.height), m.columns?.count || 1]; });
+      // Columns of a page: its page style's, or (M14) those of the section its text is in.
+      const sectionCols = (pos) => {
+        let n = 1;
+        const $p = editor.view.state.doc.resolve(Math.min(pos + 1, editor.view.state.doc.content.size));
+        for (let d = $p.depth; d > 0; d--) {
+          const node = $p.node(d);
+          if (node.type.name !== 'section') continue;
+          const t = docArea.styleIndex.autos.get(`section:${node.attrs.styleName}`);
+          const cols = t?.c?.find((x) => x.n === 'style:section-properties')?.c?.find((x) => x.n === 'style:columns');
+          n = Math.max(n, Number(cols?.a?.['fo:column-count'] || 1));
+        }
+        return n;
+      };
+      const pages = docArea.pages.map((p) => { const m = docArea.model.masters.get(p.master) || docArea.model.first; return [p.master, Math.round(m.width), Math.round(m.height), Math.max(m.columns?.count || 1, sectionCols(p.startPos))]; });
       return {
         defaultFont: tp(def)['style:font-name'], h1: tp(style('Heading_20_1')), callout: !!style('Callout_20_Text'), term: !!st.commonStyles.c.find((x) => x.a?.['style:name'] === 'Highlighted_20_Term' && x.a['style:family'] === 'text'),
         fonts: st.fontFaces.map((f) => f.a['style:name']), masters: masters.length, pageFields: (xml.match(/text:page-number/g) || []).length, pageCount: xml.includes('text:page-count'), firstHeader: xml.includes('First page header'),

@@ -239,8 +239,10 @@ export const nodes = {
 
   tab: {
     group: 'inline', inline: true, selectable: false,
-    parseDOM: [{ tag: 'span.odt-tab', priority: 60 }],
-    toDOM: () => ['span', { class: 'odt-tab' }, '\t'],
+    // ptab: a Word positional tab { alignment, relativeTo, leader }: it goes to the margin / indent position itself, whatever the tab stops.
+    attrs: { ptab: { default: null } },
+    parseDOM: [{ tag: 'span.odt-tab', priority: 60, getAttrs: (dom) => ({ ptab: parseJson(dom.getAttribute('data-ptab')) }) }],
+    toDOM: (node) => ['span', { class: 'odt-tab', 'data-ptab': node.attrs.ptab ? json(node.attrs.ptab) : null }, '\t'],
     leafText: () => '\t',
   },
 

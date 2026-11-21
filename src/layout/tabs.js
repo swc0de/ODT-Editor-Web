@@ -79,13 +79,16 @@ function textWidthAfter(span, stopAtChar) {
 }
 
 /** Left edge (viewport px) of the text area a paragraph sits in: its list / section / index ancestors are skipped. */
-function textAreaLeft(p, zoom) {
+function textArea(p, zoom) {
   let el = p.parentElement;
   while (el && (/^(LI|UL|OL|SECTION)$/.test(el.tagName) || el.classList.contains('odt-index'))) el = el.parentElement;
   if (!el) return null;
   const cs = getComputedStyle(el);
-  return el.getBoundingClientRect().left + (parseFloat(cs.paddingLeft) + parseFloat(cs.borderLeftWidth)) * zoom;
+  const r = el.getBoundingClientRect();
+  return { left: r.left + (parseFloat(cs.paddingLeft) + parseFloat(cs.borderLeftWidth)) * zoom, right: r.right - (parseFloat(cs.paddingRight) + parseFloat(cs.borderRightWidth)) * zoom };
 }
+
+const PTAB_LEADER = { dot: 'dotted', hyphen: 'dash', underscore: 'solid', middleDot: 'dotted' };
 
 export function sizeTabs(p, stops, interval, zoom, relativeToIndent = true) {
   const tabs = [...p.querySelectorAll(':scope > .odt-tab, :scope > * .odt-tab')];
@@ -94,12 +97,23 @@ export function sizeTabs(p, stops, interval, zoom, relativeToIndent = true) {
   const pr = p.getBoundingClientRect();
   const cs = getComputedStyle(p);
   const indentLeft = pr.left + (parseFloat(cs.paddingLeft) + parseFloat(cs.borderLeftWidth)) * zoom;
-  const originLeft = relativeToIndent ? indentLeft : (textAreaLeft(p, zoom) ?? indentLeft);
+  const area = textArea(p, zoom);
+  const originLeft = relativeToIndent ? indentLeft : (area?.left ?? indentLeft);
   const indent = (indentLeft - originLeft) / zoom;
   const right = (pr.right - (parseFloat(cs.paddingRight) + parseFloat(cs.borderRightWidth)) * zoom - originLeft) / zoom;
+  const areaRight = area ? (area.right - originLeft) / zoom : right;
+  const areaLeft = area ? (area.left - originLeft) / zoom : indent;
   for (const t of tabs) {
     const x = (t.getBoundingClientRect().left - originLeft) / zoom;
     let stop = stops.find((s) => s.pos > x + 0.5);
+    // A positional tab goes to its own place (the margin or indent), whatever the stops.
+    const pt = t.dataset.ptab ? JSON.parse(t.dataset.ptab) : null;
+    if (pt) {
+      const lo = pt.relativeTo === 'indent' ? indent : areaLeft;
+      const hi = pt.relativeTo === 'indent' ? right : areaRight;
+      const type = pt.alignment === 'right' ? 'right' : pt.alignment === 'center' ? 'center' : 'left';
+      stop = { pos: type === 'right' ? hi : type === 'center' ? (lo + hi) / 2 : lo, type, leader: PTAB_LEADER[pt.leader] || null };
+    }
     // In a hanging first line the left indent is a tab stop too.
     if (x < indent - 0.5 && (!stop || stop.pos > indent)) stop = { pos: indent, type: 'left', leader: null };
     if (!stop) stop = { pos: (Math.floor(x / interval) + 1) * interval, type: 'left', leader: null };

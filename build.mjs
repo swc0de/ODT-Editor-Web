@@ -152,7 +152,7 @@ async function buildSheetJs() {
 }
 let sheetChunk = null;
 
-/** mammoth (BSD-2-Clause), docx (MIT) and marked (MIT): DOCX/Markdown import and DOCX export, loaded on first use. */
+/** mammoth (BSD-2-Clause) and marked (MIT): the fallback DOCX reader and Markdown import, loaded on first use. */
 async function buildConvert() {
   const r = await esbuild.build({
     entryPoints: [path.join(root, 'src', 'vendor', 'convert-entry.js')],

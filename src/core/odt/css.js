@@ -113,8 +113,9 @@ export function textPropsCss(a = {}, out = []) {
   const pos = a['style:text-position'];
   if (pos) {
     const [p, size] = pos.split(/\s+/);
-    if (p === 'super' || parseFloat(p) > 0) out.push('vertical-align:super');
-    else if (p === 'sub' || parseFloat(p) < 0) out.push('vertical-align:sub');
+    // Raised / lowered text doesn't make its line taller (as in Word and LibreOffice).
+    if (p === 'super' || parseFloat(p) > 0) out.push('vertical-align:super', 'line-height:0');
+    else if (p === 'sub' || parseFloat(p) < 0) out.push('vertical-align:sub', 'line-height:0');
     if (size) out.push(`font-size:${parseFloat(size) / 100}em`);
   }
   if (a['fo:border'] && a['fo:border'] !== 'none') out.push(`border:${a['fo:border']}`, 'padding:0 1px');
