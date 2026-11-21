@@ -8,7 +8,8 @@ import { Plugin, PluginKey } from 'prosemirror-state';
 import { Decoration, DecorationSet } from 'prosemirror-view';
 import { wrapInList, liftListItem, sinkListItem, splitListItem } from 'prosemirror-schema-list';
 import { schema } from '../schema.js';
-import { stableStringify } from '../odt/styles.js';
+import { stableStringify, listLevelGeometry } from '../odt/styles.js';
+import { textPropsCss } from '../odt/css.js';
 import { treeToXml } from '../odt/xml.js';
 
 const { list: LIST, list_item: ITEM } = schema.nodes;
@@ -44,13 +45,17 @@ export function listLevels(tree) {
   for (const c of tree?.c || []) {
     if (typeof c === 'string' || !c.a?.['text:level']) continue;
     const i = Number(c.a['text:level']) - 1;
-    if (c.n === 'text:list-level-style-bullet') levels[i] = { kind: 'bullet', bullet: c.a['text:bullet-char'] || '•' };
+    // Where the label and text go, and the label's own character formatting.
+    const geo = listLevelGeometry(c);
+    const tp = (c.c || []).find((x) => typeof x !== 'string' && x.n === 'style:text-properties')?.a || null;
+    const extra = { geo, labelCss: tp ? textPropsCss(tp).join(';') : '' };
+    if (c.n === 'text:list-level-style-bullet') levels[i] = { kind: 'bullet', bullet: c.a['text:bullet-char'] || '•', ...extra };
     else if (c.n === 'text:list-level-style-number') {
       levels[i] = {
         kind: 'number', format: c.a['style:num-format'] ?? '1', prefix: c.a['style:num-prefix'] || '', suffix: c.a['style:num-suffix'] || '',
-        display: Number(c.a['text:display-levels'] || 1), start: Number(c.a['text:start-value'] || 1),
+        display: Number(c.a['text:display-levels'] || 1), start: Number(c.a['text:start-value'] || 1), ...extra,
       };
-    } else levels[i] = { kind: 'none' };
+    } else levels[i] = { kind: 'none', ...extra };
   }
   return levels;
 }
@@ -243,7 +248,13 @@ export function computeListLabels(doc, getListStyle) {
           for (let d = from; d <= depth; d++) parts.push(formatNumber(counters[d] || 1, (levels[d] || lv).format ?? '1'));
           label = lv.format === '' ? '' : `${lv.prefix || ''}${parts.join('.')}${lv.suffix || ''}`;
         } else label = '';
-        decos.push(Decoration.node(itemPos, itemPos + item.nodeSize, { 'data-label': label }));
+        // The label is drawn in the first line of the item's first paragraph,
+        // as Word and LibreOffice do: at the level's label position, followed
+        // by a tab to the text position (or a space, or nothing).
+        const first = item.firstChild;
+        const widget = first?.isTextblock && lv.geo;
+        decos.push(Decoration.node(itemPos, itemPos + item.nodeSize, widget ? { 'data-label': label, class: 'has-label' } : { 'data-label': label }));
+        if (widget) decos.push(labelWidget(itemPos + 2, label, lv));
       }
       let childOffset = itemPos + 1;
       item.forEach((child) => {
@@ -273,6 +284,23 @@ export function computeListLabels(doc, getListStyle) {
   let o = 0;
   doc.forEach((c) => { visitBlocks(c, o); o += c.nodeSize; });
   return DecorationSet.create(doc, decos);
+}
+
+/** The label of a list item as a widget at the start of its first paragraph. */
+function labelWidget(pos, label, lv) {
+  const g = lv.geo;
+  const text = g.follow === 'space' && label ? `${label}\u00a0` : label;
+  const width = g.follow === 'listtab' ? Math.max(0, (g.tab ?? g.margin) - (g.margin + g.indent)) : 0;
+  const css = `margin-left:${g.indent.toFixed(2)}px;min-width:${width.toFixed(2)}px${g.align === 'center' ? ';text-align:center' : g.align === 'end' || g.align === 'right' ? ';text-align:right' : ''}${lv.labelCss ? `;${lv.labelCss}` : ''}`;
+  return Decoration.widget(pos, () => {
+    const span = document.createElement('span');
+    span.className = 'odt-label';
+    span.contentEditable = 'false';
+    span.setAttribute('aria-hidden', 'true');
+    span.style.cssText = css;
+    span.textContent = text;
+    return span;
+  }, { side: -1, key: `lbl:${text}:${css}`, ignoreSelection: true, marks: [] });
 }
 
 /**

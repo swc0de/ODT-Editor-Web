@@ -143,3 +143,17 @@ export function setOutlineLevel(c, level) {
   if (level) useStyle(c, 'paragraph', `Heading_20_${level}`);
   else useStyle(c, 'paragraph', 'Standard');
 }
+
+/**
+ * After opening a document whose fields must be updated (a Word file with
+ * w:updateFields, or a TOC field without a cached result): rebuild every TOC
+ * once the pages are laid out, then again so the page numbers account for
+ * the TOC's own length. Not recorded in the undo history.
+ */
+export function updateTocsAfterOpen(c) {
+  const pass = (then) => whenLaidOut(c, () => {
+    for (const { pos } of findIndexes(c.mainEditor.view.state.doc, 'text:table-of-content').reverse()) updateToc(c, pos, { history: false });
+    then?.();
+  });
+  pass(() => pass());
+}

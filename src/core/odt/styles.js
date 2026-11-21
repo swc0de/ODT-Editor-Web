@@ -6,7 +6,9 @@
  *  - Document CSS generation (named paragraph/character/list/table styles).
  */
 import { findChild, findChildren, treeText } from './xml.js';
-import { textPropsCss, paragraphPropsCss, cellPropsCss, tablePropsCss, sectionPropsCss } from './css.js';
+import { textPropsCss, paragraphPropsCss, cellPropsCss, tablePropsCss, sectionPropsCss, fontAliasCss } from './css.js';
+import { getConfigItem } from '../doc-settings.js';
+import { toPx } from '../../layout/units.js';
 import { cssName } from '../schema.js';
 
 const STYLE_IDENTITY = new Set(['style:name', 'style:family', 'style:parent-style-name', 'style:display-name']);
@@ -121,7 +123,15 @@ export function buildStyleIndex(state) {
   }
 
   const displayName = (family, name) => families.get(family)?.get(name)?.a['style:display-name'] || String(name).replace(/_20_/g, ' ');
-  return { families, defaults, lists, fontFaces, autos, effective, displayName };
+  // Layout compatibility (settings.xml): Word's rules for documents read from Word.
+  const cfg = (name) => getConfigItem(state.settingsXml, name);
+  const compat = {
+    wordLayout: cfg('ODTEditorWordLayout') === 'true',
+    tabsRelativeToIndent: cfg('TabsRelativeToIndent') !== 'false',
+    // Spacing between paragraphs adds up (LibreOffice's and Word's default) unless turned off.
+    addSpacing: cfg('ParaSpaceMax') !== 'false',
+  };
+  return { families, defaults, lists, fontFaces, autos, effective, displayName, compat };
 }
 
 // ---------------------------------------------------------------- page
@@ -175,8 +185,20 @@ export function buildDocumentCss(state, index = buildStyleIndex(state)) {
   const scope = '.odt-doc';
   const defPara = index.defaults.has('paragraph') ? autoFromTree(index.defaults.get('paragraph')).auto : null;
   const base = [];
-  textPropsCss(defPara?.props?.['style:text-properties']?.a, base);
+  const defText = defPara?.props?.['style:text-properties']?.a || {};
+  textPropsCss(defText, base);
+  // Automatic text on a dark background is white; an explicit default colour stays.
+  base.push(`--odt-dark-ink:${defText['fo:color'] && defText['style:use-window-font-color'] !== 'true' ? defText['fo:color'] : '#fff'}`);
+  // Single-weight families ("Calibri Light") through their alias faces.
+  const fonts = [...index.fontFaces.keys(), ...(state.fontFaces || []).map((f) => f.a?.['style:name'])].filter(Boolean);
+  const alias = fontAliasCss(fonts);
+  if (alias) rules.push(alias);
   rules.push(`${scope} :is(.ProseMirror, .odt-mirror){${base.join(';')}}`);
+  // The default paragraph style's paragraph properties (spacing, alignment,
+  // line height…) apply to every paragraph; named styles override them (D4).
+  const defPP = [];
+  paragraphPropsCss(defPara?.props?.['style:paragraph-properties']?.a, defPP);
+  if (defPP.length) rules.push(`${scope} :is(.ProseMirror, .odt-mirror) :where(p, h1, h2, h3, h4, h5, h6){${defPP.join(';')}}`);
 
   for (const [name] of index.families.get('paragraph') || []) {
     const auto = index.effective('paragraph', name, { includeDefault: false });
@@ -201,21 +223,50 @@ export function buildDocumentCss(state, index = buildStyleIndex(state)) {
     else if (family === 'section') { cls = `ss-${cssName(name)}`; decls = sectionPropsCss(props['style:section-properties']?.a, props['style:section-properties']?.c); }
     if (cls && decls.length) rules.push(`${scope} .${cls}{${decls.join(';')}}`);
   }
-  // List markers per level.
+  // List levels: markers (where no label widget is drawn) and the text
+  // position of each level. ODF's level indents are measured from the
+  // container, CSS padding of nested lists adds up: each level gets the
+  // difference to the level above.
   for (const [name, t] of index.lists) {
     const cls = `ls-${cssName(name)}`;
-    for (const lvl of (t.c || []).filter((c) => typeof c !== 'string' && c.a?.['text:level'])) {
+    let prev = 0;
+    for (const lvl of (t.c || []).filter((c) => typeof c !== 'string' && c.a?.['text:level']).sort((a, b) => Number(a.a['text:level']) - Number(b.a['text:level']))) {
       const n = Number(lvl.a['text:level']);
       if (n > 10) continue;
-      const path = `.${cls}${' > li > :is(ul,ol)'.repeat(n - 1)} > li`;
-      const align = findChild(lvl, 'style:list-level-properties');
-      const lab = align && findChild(align, 'style:list-level-label-alignment');
-      const margin = lab?.a?.['fo:margin-left'];
-      rules.push(`${scope} ${path}::marker{${listLevelCss(lvl)}}`);
-      if (margin && n === 1) rules.push(`${scope} .${cls}{padding-left:${margin}}`);
+      const path = `.${cls}${' > li > :is(ul,ol)'.repeat(n - 1)}`;
+      rules.push(`${scope} ${path} > li::marker{${listLevelCss(lvl)}}`);
+      const g = listLevelGeometry(lvl);
+      if (g) {
+        rules.push(`${scope} ${path}{padding-left:${+(g.margin - prev).toFixed(2)}px}`);
+        prev = g.margin;
+      }
     }
   }
   return rules.join('\n');
+}
+
+/**
+ * Where a list level puts its label and text (px from the list's container):
+ * { margin: text position, indent: label offset from it (≤ 0), tab: tab
+ * stop after the label or null, follow: 'listtab' | 'space' | 'nothing',
+ * align: label alignment }. ODF's label-alignment mode (the one Word and
+ * current LibreOffice use) and the older label-width-and-position mode.
+ */
+export function listLevelGeometry(lvl) {
+  const lp = lvl && findChild(lvl, 'style:list-level-properties');
+  if (!lp) return null;
+  const align = lp.a['fo:text-align'] || 'start';
+  const lab = findChild(lp, 'style:list-level-label-alignment');
+  if (lp.a['text:list-level-position-and-space-mode'] === 'label-alignment' && lab) {
+    const margin = toPx(lab.a['fo:margin-left'] || '0cm') || 0;
+    const indent = toPx(lab.a['fo:text-indent'] || '0cm') || 0;
+    const follow = lab.a['text:label-followed-by'] || 'listtab';
+    const tab = follow === 'listtab' && lab.a['text:list-tab-stop-position'] ? toPx(lab.a['text:list-tab-stop-position']) : null;
+    return { margin, indent, tab, follow, align };
+  }
+  const before = toPx(lp.a['text:space-before'] || '0cm') || 0;
+  const width = toPx(lp.a['text:min-label-width'] || '0cm') || 0;
+  return { margin: before + width, indent: -width, tab: before + width, follow: 'listtab', align };
 }
 
 /** Plain text of a tree (used for opaque content previews). */

@@ -52,6 +52,8 @@ export async function pageToPng({ stack, pageEl, scale = 2 }) {
   // Spelling squiggles and search highlights aren't part of the page.
   for (const n of copy.querySelectorAll('.sp-err, .gr-err, .odt-find, .ra-word')) n.replaceWith(...n.childNodes);
   copy.classList.remove('with-comments');
+  // Screen-only aids (field shading) are not part of the exported page (D13).
+  copy.classList.add('png-export');
   await inlineImages(copy);
   // Fonts used on the page.
   const families = new Set();

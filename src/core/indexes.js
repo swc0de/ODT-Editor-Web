@@ -89,7 +89,8 @@ export function tocBody(doc, o, pageOf) {
     if (o.pageNumbers) {
       if (o.rightAlign) content.push({ type: 'tab' }); // ODF keeps no marks on tabs
       else content.push(T(' ', marks));
-      content.push(T(String(pageOf(h.pos) || ''), marks));
+      const page = String(pageOf(h.pos) || '');
+      if (page) content.push(T(page, marks)); // none until the document is laid out
     }
     // A leader other than the style's dots: the paragraph's own tab stop.
     let auto = null;

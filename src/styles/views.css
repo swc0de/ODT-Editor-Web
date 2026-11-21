@@ -121,8 +121,14 @@
   .print-segment + .print-segment { break-before: page; }
   #print-root .pg { box-shadow: none !important; }
   #print-root .page-stack { filter: none !important; }
+  /* Chrome drops what comes before a relatively positioned block that spans
+     a page in the (absolutely positioned) copy: keep such blocks static. */
+  #print-root .page-flow :is(.odt-index, section) { position: static; }
   * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 }
+/* Field shading is a screen aid (as in Word): never printed or exported (D13). */
+@media print { .odt-doc .odt-field { background: none !important; } }
+#print-root .odt-doc .odt-field, .png-export .odt-doc .odt-field { background: none !important; }
 
 /* Backstage ▸ Print */
 .bs-print { display: flex; gap: 40px; align-items: flex-start; flex-wrap: wrap; }

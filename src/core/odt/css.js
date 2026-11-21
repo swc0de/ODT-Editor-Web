@@ -6,20 +6,69 @@
 
 /** Open metric-compatible substitutes for common proprietary fonts. */
 export const FONT_SUBSTITUTES = {
-  calibri: 'Carlito', aptos: 'Carlito', 'aptos display': 'Carlito', cambria: 'Caladea',
+  calibri: 'Carlito', 'calibri light': 'Carlito', aptos: 'Carlito', 'aptos display': 'Carlito', cambria: 'Caladea',
   arial: 'Liberation Sans', helvetica: 'Liberation Sans', 'times new roman': 'Liberation Serif', times: 'Liberation Serif',
   'courier new': 'Liberation Mono', courier: 'Liberation Mono',
 };
 
+/**
+ * Word's single line height for a font, as a multiple of the font size
+ * (ascent + descent + line gap of the Windows metrics). Used for "1.5 lines"
+ * and the like in documents laid out by Word's rules.
+ */
+export const LINE_FACTORS = {
+  calibri: 1.2207, 'calibri light': 1.2207, carlito: 1.2207, cambria: 1.1719, caladea: 1.1719, arial: 1.1499, 'liberation sans': 1.1499, helvetica: 1.1499,
+  'times new roman': 1.1499, 'liberation serif': 1.1499, times: 1.1499, 'courier new': 1.1328, 'liberation mono': 1.1328, courier: 1.1328,
+  georgia: 1.1362, verdana: 1.2153, tahoma: 1.2075, 'trebuchet ms': 1.1611, 'segoe ui': 1.3301, consolas: 1.1709, 'century gothic': 1.2251, garamond: 1.1235,
+};
+
 const q = (s) => `"${String(s).replace(/^['"]|['"]$/g, '').replace(/"/g, '')}"`;
+
+/**
+ * Single-weight families named after their weight ("Calibri Light"). Word
+ * draws them in bold by emboldening the light face; a browser only does that
+ * when the family has no bold face of its own, which a system's font
+ * matching can't promise. Such a name is used through an alias face that
+ * declares just the one weight (see fontAliasCss), so bold is always
+ * synthesised from it, and the bundled substitute follows when the font
+ * isn't installed.
+ */
+const SINGLE_WEIGHT = /\b(light|semilight|thin|extralight|ultralight)$/i;
+export const aliasName = (name) => `ODT ${name}`;
 
 /** CSS font-family stack for an ODF font name, with a bundled fallback. */
 export function fontStack(name, generic = 'sans-serif') {
   if (!name) return '';
   const clean = String(name).replace(/^['"]|['"]$/g, '');
   const sub = FONT_SUBSTITUTES[clean.toLowerCase()];
-  return [q(clean), sub ? q(sub) : null, generic].filter(Boolean).join(', ');
+  return [SINGLE_WEIGHT.test(clean) ? q(aliasName(clean)) : null, q(clean), sub ? q(sub) : null, generic].filter(Boolean).join(', ');
 }
+
+/** @font-face rules for the single-weight families among `names`. */
+export function fontAliasCss(names) {
+  const out = [];
+  for (const n of new Set(names)) {
+    const clean = String(n).replace(/^['"]|['"]$/g, '');
+    if (!SINGLE_WEIGHT.test(clean)) continue;
+    const weight = /thin|extralight|ultralight/i.test(clean) ? 200 : /semilight/i.test(clean) ? 350 : 300;
+    const local = [clean, clean.replace(/\s+/g, ''), clean.replace(/\s+/g, '-')].map((x) => `local(${q(x)})`).join(', ');
+    out.push(`@font-face{font-family:${q(aliasName(clean))};src:${local};font-weight:${weight};font-style:normal}`);
+    out.push(`@font-face{font-family:${q(aliasName(clean))};src:${local};font-weight:${weight};font-style:italic}`);
+  }
+  return out.join('\n');
+}
+
+/** Is a CSS colour (#rgb / #rrggbb) dark enough for automatic text to turn white? */
+export function isDark(colour) {
+  const m = /^#?([0-9a-f]{3}|[0-9a-f]{6})$/i.exec(String(colour || '').trim());
+  if (!m) return false;
+  const h = m[1].length === 3 ? m[1].replace(/./g, '$&$&') : m[1];
+  const n = parseInt(h, 16);
+  return (299 * ((n >> 16) & 255) + 587 * ((n >> 8) & 255) + 114 * (n & 255)) / 1000 < 128;
+}
+
+/** Automatic text colour over a background: white on dark (--odt-dark-ink, see buildDocumentCss). */
+const autoInk = (bg, out) => { if (bg && bg !== 'transparent' && isDark(bg)) out.push('color:var(--odt-dark-ink, #fff)'); };
 
 const ALIGN = { start: 'left', left: 'left', end: 'right', right: 'right', center: 'center', justify: 'justify' };
 const UNDERLINE = { solid: 'solid', dotted: 'dotted', dash: 'dashed', 'long-dash': 'dashed', 'dot-dash': 'dashed', 'dot-dot-dash': 'dashed', wave: 'wavy' };
@@ -27,7 +76,13 @@ const UNDERLINE = { solid: 'solid', dotted: 'dotted', dash: 'dashed', 'long-dash
 /** style:text-properties attributes → CSS declarations. */
 export function textPropsCss(a = {}, out = []) {
   const font = a['style:font-name'] || a['fo:font-family'];
-  if (font) out.push(`font-family:${fontStack(font)}`);
+  if (font) {
+    out.push(`font-family:${fontStack(font)}`);
+    const f = LINE_FACTORS[String(font).replace(/^['"]|['"]$/g, '').toLowerCase()];
+    if (f) out.push(`--odt-lhw:${f}`);
+  }
+  // Automatic colour turns white on a dark highlight / shading (D12).
+  if (!a['fo:color']) autoInk(a['fo:background-color'], out);
   if (a['fo:font-size']) out.push(`font-size:${a['fo:font-size']}`);
   if (a['fo:font-weight']) out.push(`font-weight:${a['fo:font-weight']}`);
   if (a['fo:font-style']) out.push(`font-style:${a['fo:font-style']}`);
@@ -84,18 +139,23 @@ export function paragraphPropsCss(a = {}, out = []) {
   for (const side of ['top', 'bottom', 'left', 'right']) if (a[`fo:margin-${side}`]) out.push(`margin-${side}:${a[`fo:margin-${side}`]}`);
   if (a['fo:margin']) out.push(`margin:${a['fo:margin']}`);
   if (a['fo:text-indent']) out.push(`text-indent:${a['fo:text-indent']}`);
+  // Proportional spacing multiplies the single line height: 1.17 of the font
+  // size, or with Word's rules the font's own (--odt-lhk, see content.css).
   const lh = a['fo:line-height'];
-  if (lh && lh !== 'normal') out.push(`line-height:${/%$/.test(lh) ? (parseFloat(lh) / 100) * 1.17 : lh}`);
-  if (a['style:line-height-at-least']) out.push(`min-height:${a['style:line-height-at-least']}`);
+  if (lh && lh !== 'normal') out.push(`line-height:${/%$/.test(lh) ? `calc(${parseFloat(lh) / 100} * var(--odt-lhk, 1.17))` : lh}`);
+  // At least: every line is at least this tall.
+  if (a['style:line-height-at-least']) out.push(`line-height:max(${a['style:line-height-at-least']}, calc(var(--odt-lhk, 1.17) * 1em))`);
   if (a['style:line-spacing']) out.push(`line-height:calc(1.17em + ${a['style:line-spacing']})`);
   if (a['style:writing-mode'] === 'rl-tb') out.push('direction:rtl');
   if (a['style:writing-mode'] === 'lr-tb') out.push('direction:ltr');
   boxCss(a, out);
+  autoInk(a['fo:background-color'], out);
   return out;
 }
 
 export function cellPropsCss(a = {}, out = []) {
   boxCss(a, out);
+  autoInk(a['fo:background-color'], out);
   if (a['style:vertical-align']) out.push(`vertical-align:${a['style:vertical-align'] === 'automatic' ? 'top' : a['style:vertical-align']}`);
   // Rotated cell text (Layout ▸ Text Direction).
   if (a['style:writing-mode'] === 'tb-rl') out.push('writing-mode:vertical-rl');
@@ -119,6 +179,7 @@ export function rowPropsCss(a = {}, out = []) {
   if (a['style:row-height']) out.push(`height:${a['style:row-height']}`);
   else if (a['style:min-row-height']) out.push(`height:${a['style:min-row-height']}`);
   if (a['fo:background-color'] && a['fo:background-color'] !== 'transparent') out.push(`background-color:${a['fo:background-color']}`);
+  autoInk(a['fo:background-color'], out);
   return out;
 }
 

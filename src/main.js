@@ -54,6 +54,7 @@ import { createAccessibilityPane } from './ui/accessibility-pane.js';
 import { createReadAloud, readAloudPlugin } from './features/review/read-aloud.js';
 import { applyRestriction, savedRestriction } from './features/review/extras.js';
 import { refreshCitations } from './features/references/citations.js';
+import { updateTocsAfterOpen } from './features/references/toc.js';
 import { renderEquation } from './ui/equation-editor.js';
 import { renderChartFrame } from './ui/chart-dialog.js';
 import { createSelectionPane } from './ui/selection-pane.js';
@@ -513,6 +514,7 @@ function boot() {
       for (const url of pictureUrls.values()) URL.revokeObjectURL(url);
       pictureUrls = new Map();
       docArea.applyDocument(state);
+      if (state.updateFieldsOnOpen) queueMicrotask(() => updateTocsAfterOpen(ctx()));
       updateStyleSamples();
     },
     onChange(info) { store.set({ docTitle: info.name, dirty: info.dirty }); queueMicrotask(() => ui.windows?.hub.announce()); },

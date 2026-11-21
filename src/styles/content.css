@@ -182,3 +182,15 @@
 .cc-row { display: flex; gap: 4px; margin-top: 4px; }
 .cc-row input { flex: 1; min-width: 0; }
 .cc-dlg .src-list { width: 100%; }
+
+/* Word layout rules (documents read from Word: settings.xml ODTEditorWordLayout, M14).
+   Single line spacing is the font's own line height (ascent + descent + line gap);
+   proportional spacing multiplies it (--odt-lhw comes with each font, see css.js). */
+:is(.word-layout.odt-doc, .word-layout .odt-doc) :is(.ProseMirror, .odt-mirror) { line-height: normal; }
+:is(.word-layout.odt-doc, .word-layout .odt-doc) :is(p, h1, h2, h3, h4, h5, h6, li, td, th) { --odt-lhk: var(--odt-lhw, 1.2207); }
+
+/* List items: the list level places the text and the label (Word: the
+   numbering's indent wins over the paragraph style's; direct indents still apply). */
+.odt-doc :is(.ProseMirror, .odt-mirror) li > :is(p, h1, h2, h3, h4, h5, h6) { margin-left: 0; text-indent: 0; }
+.odt-doc .ProseMirror li.has-label[data-label]::marker { content: none; }
+.odt-doc .odt-label { display: inline-block; white-space: pre; text-indent: 0; text-decoration: none; vertical-align: baseline; }

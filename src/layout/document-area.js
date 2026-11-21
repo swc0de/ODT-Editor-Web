@@ -240,6 +240,7 @@ export function createDocumentArea({ store, getEditor, getSession, onPagesChange
   function applyDocument(state) {
     styleIndex = buildStyleIndex(state);
     docStyle.textContent = buildDocumentCss(state, styleIndex);
+    view.mount.classList.toggle('word-layout', !!styleIndex.compat?.wordLayout);
     model = buildPageModel(state, styleIndex);
     measureMasters(model, view.bgs);
     view.setModel(model);
@@ -248,6 +249,8 @@ export function createDocumentArea({ store, getEditor, getSession, onPagesChange
     const counts = new Set([...model.masters.values()].map((m) => m.columns.count));
     const pc = counts.size === 1 ? [...counts][0] : 1;
     view.mount.classList.toggle('page-cols', pc > 1);
+    // Word's layout rules for documents read from Word (line height, …).
+    view.mount.classList.toggle('word-layout', !!styleIndex.compat?.wordLayout);
     view.mount.style.setProperty('--page-cols', String(pc));
     view.mount.style.setProperty('--page-col-gap', `${model.first.columns.gap || 0}px`);
     const ed = getEditor();

@@ -3,8 +3,11 @@
  * computed after layout so the following text starts at the paragraph's next
  * tab stop (left, centre, right or decimal), with optional leader dots or
  * lines. Positions are relative to the paragraph's left indent, as in
- * LibreOffice; past the last explicit stop, default stops repeat at the
- * document's default interval.
+ * LibreOffice, or to the left edge of the text area (the margin, or the
+ * cell) when the document says so (settings.xml TabsRelativeToIndent=false,
+ * as for Word files); past the last explicit stop, default stops repeat at
+ * the document's default interval from the same origin. A hanging first
+ * line also stops at the indent.
  */
 import { toPx } from './units.js';
 import { mergeAuto } from '../core/odt/styles.js';
@@ -48,7 +51,7 @@ export function layoutTabs(view, index, zoom, fromPos = 0) {
     node.forEach((c) => { if (c.type.name === 'tab') hasTab = true; });
     if (!hasTab) return false;
     const dom = view.nodeDOM(pos);
-    if (dom?.nodeType === 1) { sizeTabs(dom, tabStopsOf(node, index), interval, zoom); n++; }
+    if (dom?.nodeType === 1) { sizeTabs(dom, tabStopsOf(node, index), interval, zoom, index?.compat?.tabsRelativeToIndent !== false); n++; }
     return false;
   });
   return n;
@@ -75,23 +78,37 @@ function textWidthAfter(span, stopAtChar) {
   return rects.length ? rects[0].width : 0;
 }
 
-function sizeTabs(p, stops, interval, zoom) {
+/** Left edge (viewport px) of the text area a paragraph sits in: its list / section / index ancestors are skipped. */
+function textAreaLeft(p, zoom) {
+  let el = p.parentElement;
+  while (el && (/^(LI|UL|OL|SECTION)$/.test(el.tagName) || el.classList.contains('odt-index'))) el = el.parentElement;
+  if (!el) return null;
+  const cs = getComputedStyle(el);
+  return el.getBoundingClientRect().left + (parseFloat(cs.paddingLeft) + parseFloat(cs.borderLeftWidth)) * zoom;
+}
+
+export function sizeTabs(p, stops, interval, zoom, relativeToIndent = true) {
   const tabs = [...p.querySelectorAll(':scope > .odt-tab, :scope > * .odt-tab')];
   if (!tabs.length) return;
   for (const t of tabs) { t.style.width = '0px'; t.removeAttribute('data-leader'); }
   const pr = p.getBoundingClientRect();
   const cs = getComputedStyle(p);
-  const originLeft = pr.left + (parseFloat(cs.paddingLeft) + parseFloat(cs.borderLeftWidth)) * zoom;
+  const indentLeft = pr.left + (parseFloat(cs.paddingLeft) + parseFloat(cs.borderLeftWidth)) * zoom;
+  const originLeft = relativeToIndent ? indentLeft : (textAreaLeft(p, zoom) ?? indentLeft);
+  const indent = (indentLeft - originLeft) / zoom;
+  const right = (pr.right - (parseFloat(cs.paddingRight) + parseFloat(cs.borderRightWidth)) * zoom - originLeft) / zoom;
   for (const t of tabs) {
     const x = (t.getBoundingClientRect().left - originLeft) / zoom;
     let stop = stops.find((s) => s.pos > x + 0.5);
     // In a hanging first line the left indent is a tab stop too.
-    if (x < -0.5 && (!stop || stop.pos > 0)) stop = { pos: 0, type: 'left', leader: null };
+    if (x < indent - 0.5 && (!stop || stop.pos > indent)) stop = { pos: indent, type: 'left', leader: null };
     if (!stop) stop = { pos: (Math.floor(x / interval) + 1) * interval, type: 'left', leader: null };
     let w = stop.pos - x;
     if (stop.type === 'right') w -= textWidthAfter(t) / zoom;
     else if (stop.type === 'center') w -= textWidthAfter(t) / zoom / 2;
     else if (stop.type === 'char') w -= textWidthAfter(t, stop.char) / zoom;
+    // Text aligned to a stop at the right edge must not wrap over rounding.
+    if (stop.type !== 'left' && stop.pos >= right - 1) w -= 0.5;
     if (w < 1) w = Math.max(1, stop.pos - x > 0 ? 1 : interval - (x % interval));
     t.style.width = `${w}px`;
     if (stop.leader) t.dataset.leader = stop.leader;

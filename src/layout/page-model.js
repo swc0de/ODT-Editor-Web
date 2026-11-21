@@ -12,6 +12,7 @@ import { findChild, findChildren, treeToXml, parseXml, createNsContext } from '.
 import { nsDeclarations } from '../core/odt/xml.js';
 import { ROOT_PREFIXES } from '../core/odt/namespaces.js';
 import { createConverter } from '../core/odt/import.js';
+import { sizeTabs, tabStopsOf, defaultTabInterval } from './tabs.js';
 
 const px = (v, d = 0) => (v == null ? d : toPx(v) || d);
 
@@ -77,14 +78,28 @@ function renderPart(tree, converter, nsExtra) {
   const el = parseXml(xml).documentElement;
   const blocks = converter.blocks(el);
   if (!blocks.length) return null;
-  const frag = DOMSerializer.fromSchema(schema).serializeFragment(schema.nodeFromJSON({ type: 'doc', content: blocks }).content);
+  const doc = schema.nodeFromJSON({ type: 'doc', content: blocks });
+  const frag = DOMSerializer.fromSchema(schema).serializeFragment(doc.content);
   const wrap = document.createElement('div');
   wrap.className = 'odt-doc pg-hf-content';
   const inner = document.createElement('div');
   inner.className = 'ProseMirror';
   inner.append(frag);
   wrap.append(inner);
+  // Top-level nodes with their DOM, for sizing tabs (measureMasters).
+  wrap.hfBlocks = [];
+  doc.forEach((node, _o, i) => { if (node.isTextblock && inner.children[i]) wrap.hfBlocks.push({ node, dom: inner.children[i] }); });
   return wrap;
+}
+
+/** Sizes the tabs of a rendered header / footer (while it is laid out). */
+function sizePartTabs(wrap, index) {
+  const interval = defaultTabInterval(index);
+  for (const { node, dom } of wrap.hfBlocks || []) {
+    let hasTab = false;
+    node.forEach((c) => { if (c.type.name === 'tab') hasTab = true; });
+    if (hasTab) sizeTabs(dom, tabStopsOf(node, index), interval, 1, index?.compat?.tabsRelativeToIndent !== false);
+  }
 }
 
 /**
@@ -152,7 +167,7 @@ export function buildPageModel(state, styleIndex) {
     increment: Number(ln.a['text:increment'] || 1), restartOnPage: ln.a['text:restart-on-page'] === 'true',
     offset: px(ln.a['text:offset'], 13), countEmpty: ln.a['text:count-empty-lines'] !== 'false', position: ln.a['text:number-position'] || 'left',
   } : null;
-  return { masters, first, width, marginLeft: first.marginLeft, marginRight: first.marginRight, lineNumbering };
+  return { masters, first, width, marginLeft: first.marginLeft, marginRight: first.marginRight, lineNumbering, styleIndex };
 }
 
 /** Measures header/footer heights by rendering them off-screen at the body width. */
@@ -165,8 +180,11 @@ export function measureMasters(model, host) {
       for (const [part, store] of [['header', 'headerH'], ['footer', 'footerH']]) {
         const el = m[part][kind];
         if (!el) { m[store][kind] = 0; continue; }
-        probe.replaceChildren(el.cloneNode(true));
-        m[store][kind] = probe.firstChild.getBoundingClientRect().height;
+        // The template itself is laid out here, so its tab widths are kept in the copies on the pages.
+        probe.replaceChildren(el);
+        sizePartTabs(el, model.styleIndex);
+        m[store][kind] = el.getBoundingClientRect().height;
+        el.remove();
       }
     }
   }
