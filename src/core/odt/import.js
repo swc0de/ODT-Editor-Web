@@ -466,7 +466,12 @@ export function createConverter({ ns, autoIndex, styleIndex, objectKind = null, 
         const a = attrsOf(node, ns);
         switch (name) {
           case 'text:s': pushText(' '.repeat(Math.max(1, Number(a['text:c']) || 1)), marks); st.lastSpace = true; break;
-          case 'text:tab': atom({ type: 'tab' }); break;
+          case 'text:tab': {
+            // A Word positional tab (odte:ptab="alignment relativeTo leader").
+            const pt = a['odte:ptab'] ? a['odte:ptab'].split(' ') : null;
+            atom(pt ? { type: 'tab', attrs: { ptab: { alignment: pt[0] || 'left', relativeTo: pt[1] || 'margin', leader: pt[2] || 'none' } } } : { type: 'tab' });
+            break;
+          }
           case 'text:line-break': atom(a['loext:clear'] ? { type: 'hard_break', attrs: { clear: a['loext:clear'] } } : { type: 'hard_break' }); break;
           case 'text:span': walk(node, spanMarks(a['text:style-name'], marks)); break;
           case 'loext:content-control': {

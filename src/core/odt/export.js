@@ -243,7 +243,7 @@ export function createBodyWriter(registry) {
     const a = node.attrs;
     switch (node.type.name) {
       case 'text': return encodeText(node.text, st);
-      case 'tab': st.prevSpace = false; return '<text:tab/>';
+      case 'tab': st.prevSpace = false; return a.ptab ? `<text:tab odte:ptab="${escAttr(`${a.ptab.alignment || 'left'} ${a.ptab.relativeTo || 'margin'} ${a.ptab.leader || 'none'}`)}"/>` : '<text:tab/>';
       case 'hard_break': st.prevSpace = false; return a.clear ? `<text:line-break loext:clear="${escAttr(a.clear)}"/>` : '<text:line-break/>';
       case 'field': st.prevSpace = false; return a.text ? `<${a.element}${attrsToXml(a.fieldAttrs)}>${escText(a.text)}</${a.element}>` : `<${a.element}${attrsToXml(a.fieldAttrs)}/>`;
       case 'frame': st.prevSpace = false; return drawObject(a);

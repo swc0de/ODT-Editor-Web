@@ -216,7 +216,7 @@ export function docxToStateNative(bytes) {
       updatePageLayouts(state, [master], () => ({ ...geometry.change, columns: null }));
       writeHeadersFooters(ctx, state, master, refs, { titlePg, evenOdd, geometry });
       const start = num(wa(kid(sp, 'pgNumType'), 'start'));
-      if (start != null && i > 0) {
+      if (start != null) {
         const firstText = findFirstTextblock(sec.blocks);
         if (firstText) firstText.attrs.auto = changeParaProps(firstText.attrs.auto, { 'style:page-number': String(start) });
       }
@@ -613,6 +613,19 @@ function styleChain(ctx, id) {
   return out;
 }
 
+/** Toggle run properties: element, ODF attribute, on value, off value. */
+const TOGGLES = [['b', 'fo:font-weight', 'bold', 'normal'], ['i', 'fo:font-style', 'italic', 'normal']];
+
+/** A toggle property's value at the end of a style chain (each style that sets it on flips it). */
+function toggled(ctx, id, el) {
+  let v = false;
+  for (const st of styleChain(ctx, id)) {
+    const e = kid(st.rPr, el);
+    if (e) v = onOff(e) ? !v : false;
+  }
+  return v;
+}
+
 /** Left / right indents (twips) a paragraph gets from a style chain. */
 function inheritedInd(ctx, id) {
   const out = { left: null, right: null };
@@ -727,7 +740,10 @@ function readStyles(ctx, xml) {
       // Tab stops add to the parent style's.
       if (kid(kid(s, 'pPr'), 'tabs')) { para.c = para.c.filter((x) => x.n !== 'style:tab-stops'); const t = mergedTabs(ctx, id, []); if (t.length) para.c.push(tabStopsTree(t)); }
     }
-    const auto = autoOf({ para, text: textProps(ctx, kid(s, 'rPr')) }) || { styleAttrs: {}, props: {} };
+    const text = textProps(ctx, kid(s, 'rPr'));
+    // Toggle properties flip along the style chain (L1): bold in a style based on a bold style is not bold.
+    for (const [el, attr, onV, offV] of TOGGLES) if (kid(kid(s, 'rPr'), el)) text[attr] = toggled(ctx, id, el) ? onV : offV;
+    const auto = autoOf({ para, text }) || { styleAttrs: {}, props: {} };
     const tree = treeFromAuto(info.odt, info.family, parent && parent !== info.odt ? parent : null, auto);
     tree.a['style:display-name'] = info.odt === 'Standard' ? 'Default Paragraph Style' : info.name.replace(/^heading (\d)$/, 'Heading $1').replace(/^\w/, (ch) => ch.toUpperCase());
     if (info.family === 'paragraph') {
@@ -896,6 +912,7 @@ function converter(ctx, rels, opts = {}) {
   const fieldStack = [];
   const openComments = new Set();
   let ptabs = []; // positional tabs of the paragraph being read
+  let currentParaStyle = null; // Word style id of that paragraph
   void opts;
 
   /**
@@ -955,6 +972,7 @@ function converter(ctx, rels, opts = {}) {
     if (numId) { delete props.a['fo:margin-left']; delete props.a['fo:text-indent']; }
     const segments = [[]];
     ptabs = [];
+    currentParaStyle = style.id || null;
     inlineContent(p, segments, {});
     // Direct tab stops add to the style's; positional tabs become stops at
     // their place (measured from the margin, as all of Word's stops are).
@@ -1009,7 +1027,11 @@ function converter(ctx, rels, opts = {}) {
       case 'fldSimple': {
         const instr = (wa(el, 'instr') || '').trim();
         const field = fieldNode(instr);
-        if (field) return push(segments, field);
+        if (field) {
+          const cached = [...el.getElementsByTagName('*')].filter((x) => x.localName === 't').map((x) => x.textContent).join('');
+          if (cached) field.attrs.text = cached;
+          return push(segments, field);
+        }
         const m = instr.match(/^HYPERLINK\s+"([^"]+)"/i);
         return inlineContent(el, segments, m ? { ...marks, link: m[1] } : marks);
       }
@@ -1053,7 +1075,7 @@ function converter(ctx, rels, opts = {}) {
     const conv = converter(ctx, ctx.pkg.rels(ctx.commentsPath), { inComment: true });
     const body = conv.blocksOf(c);
     ctx.comments.delete(id);
-    return { type: 'annotation', attrs: { name: `__Annotation__${id}`, creator: wa(c, 'author') || '', date: (wa(c, 'date') || '').replace(/Z$/, ''), initials: wa(c, 'initials') || '', body: body.length ? body : [{ type: 'paragraph' }] } };
+    return { type: 'annotation', attrs: { name: `__Annotation__${id}`, creator: wa(c, 'author') || '', date: (wa(c, 'date') || '').replace(/(\.\d+)?Z$/, ''), initials: wa(c, 'initials') || '', body: body.length ? body : [{ type: 'paragraph' }] } };
   }
 
   function fieldNode(instr) {
@@ -1068,13 +1090,23 @@ function converter(ctx, rels, opts = {}) {
     const rStyle = wa(kid(rPr, 'rStyle'), 'val');
     const charStyle = rStyle ? ctx.styles.get(rStyle)?.odt : null;
     const tp = textProps(ctx, rPr);
+    // A character style's toggle property flips the paragraph style's (L1), unless the run sets it itself.
+    if (rStyle && currentParaStyle) {
+      for (const [el, attr, onV, offV] of TOGGLES) {
+        if (kid(rPr, el)) continue;
+        const c = toggled(ctx, rStyle, el);
+        if (c && toggled(ctx, currentParaStyle, el)) tp[attr] = offV;
+        void onV;
+      }
+    }
     for (const el of kids(r)) {
       // The innermost field being read (a field can begin and end inside one run).
       const fld = fieldStack[fieldStack.length - 1];
       switch (el.localName) {
         case 't': case 'delText': {
           if (fld && fld.phase !== 'result') break;
-          if (fld?.result === 'skip') break;
+          // A field the editor shows itself keeps Word's current result as its text.
+          if (fld?.result === 'skip') { if (fld.node) { fld.node.attrs.text = fld.cached ? fld.node.attrs.text + el.textContent : el.textContent; fld.cached = true; } break; }
           push(segments, textNode(el.textContent, fld?.link ? { ...marks, link: fld.link } : marks, { tp, charStyle }));
           break;
         }
@@ -1108,7 +1140,7 @@ function converter(ctx, rels, opts = {}) {
             fld.phase = 'result';
             const instr = fld.instr.trim();
             const node = fieldNode(instr);
-            if (node) { push(segments, node); fld.result = 'skip'; }
+            if (node) { push(segments, node); fld.result = 'skip'; fld.node = node; }
             const m = instr.match(/^HYPERLINK\s+(?:\\l\s+)?"([^"]+)"/i);
             if (m) fld.link = /\\l/.test(instr) ? `#${m[1]}` : m[1];
           } else if (t === 'end') {
@@ -1160,7 +1192,7 @@ function converter(ctx, rels, opts = {}) {
     if (marks.link) m.push({ type: 'link', attrs: { href: marks.link } });
     if (f?.charStyle) m.push({ type: 'charStyle', attrs: { name: f.charStyle } });
     if (f?.tp && Object.keys(f.tp).length) m.push({ type: 'textProps', attrs: { auto: { styleAttrs: {}, props: { 'style:text-properties': { a: f.tp } } } } });
-    if (marks.change) m.push({ type: marks.change.type, attrs: { author: marks.change.author, date: marks.change.date.replace(/Z$/, ''), cid: `ct${marks.change.id ?? ++ctx.cid}` } });
+    if (marks.change) m.push({ type: marks.change.type, attrs: { author: marks.change.author, date: marks.change.date.replace(/(\.\d+)?Z$/, ''), cid: `ct${marks.change.id ?? ++ctx.cid}` } });
     return m.length ? { type: 'text', text, marks: m } : { type: 'text', text };
   }
 
@@ -1503,7 +1535,7 @@ function readProperties(state, files) {
   add('meta:initial-creator', get('creator'));
   add('dc:creator', get('lastModifiedBy'));
   for (const k of get('keywords').split(/\s*[,;]\s*/).filter(Boolean)) add('meta:keyword', k);
-  add('meta:creation-date', get('created').replace(/Z$/, ''));
-  add('dc:date', get('modified').replace(/Z$/, ''));
+  add('meta:creation-date', get('created').replace(/(\.\d+)?Z$/, ''));
+  add('dc:date', get('modified').replace(/(\.\d+)?Z$/, ''));
   state.meta = { ...state.meta, c };
 }

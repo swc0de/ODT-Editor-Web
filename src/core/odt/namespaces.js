@@ -45,6 +45,8 @@ export const NS = {
   field: 'urn:openoffice:names:experimental:ooo-ms-interop:xmlns:field:1.0',
   formx: 'urn:openoffice:names:experimental:ooxml-odf-interop:xmlns:form:1.0',
   css3t: 'http://www.w3.org/TR/css3-text/',
+  // ODT Editor's own extension attributes (foreign attributes, ignored by other ODF software).
+  odte: 'urn:odt-editor:xmlns:extension:1.0',
   manifest: 'urn:oasis:names:tc:opendocument:xmlns:manifest:1.0',
   xml: 'http://www.w3.org/XML/1998/namespace',
 };

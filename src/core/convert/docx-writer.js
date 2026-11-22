@@ -240,7 +240,9 @@ function createDocxWriter(state, index) {
     if (!pic) return null;
     if (!media.has(path)) {
       const ext = (path.split('.').pop() || 'png').toLowerCase();
-      const name = `image${media.size + 1}.${ext}`;
+      // The picture keeps its file name where it can.
+      const own = path.split('/').pop();
+      const name = /^[\w.-]+$/.test(own) && ![...media.values()].includes(own) ? own : `image${media.size + 1}.${ext}`;
       media.set(path, name);
       files[`word/media/${name}`] = pic.bytes;
     }
@@ -452,7 +454,53 @@ function createDocxWriter(state, index) {
   /** Blocks (JSON or nodes) → XML. */
   function blocksXml(st, blocks, opts = {}) {
     const nodes = Array.isArray(blocks) ? blocks.map((b) => (b?.type?.name ? b : schemaNode(b))).filter(Boolean) : [];
-    return nodes.map((n) => blockXml(st, n, opts)).join('');
+    return seqXml(st, nodes, opts);
+  }
+
+  /**
+   * Sibling blocks → XML. A paragraph that only differs from the one before
+   * it by starting on a new page is the rest of that paragraph after a page
+   * break (the reader splits paragraphs there): they are written back as one
+   * paragraph with <w:br w:type="page"/>.
+   */
+  function seqXml(st, nodes, opts = {}) {
+    const groups = [];
+    const sameBut = (a, b) => {
+      if (!a?.isTextblock || !b?.isTextblock || a.type !== b.type || a.attrs.styleName !== b.attrs.styleName) return false;
+      const pb = b.attrs.auto?.props?.['style:paragraph-properties']?.a || {};
+      if (pb['fo:break-before'] !== 'page' || b.attrs.auto?.styleAttrs?.['style:master-page-name']) return false;
+      const strip = (auto) => {
+        const x = structuredClone(auto || { styleAttrs: {}, props: {} });
+        x.styleAttrs ||= {};
+        x.props ||= {};
+        const pp = x.props['style:paragraph-properties'];
+        if (pp?.a) { delete pp.a['fo:break-before']; delete pp.a['style:page-number']; if (!Object.keys(pp.a).length && !pp.c?.length) delete x.props['style:paragraph-properties']; }
+        delete x.styleAttrs['style:master-page-name'];
+        return JSON.stringify(x);
+      };
+      return strip(a.attrs.auto) === strip(b.attrs.auto);
+    };
+    for (const n of nodes) {
+      const last = groups[groups.length - 1];
+      if (last && sameBut(last[last.length - 1], n)) last.push(n); else groups.push([n]);
+    }
+    return groups.map((g) => (g.length === 1 ? blockXml(st, g[0], opts) : paraGroupXml(st, g))).join('');
+  }
+
+  /** Paragraphs joined by page breaks, written as one. */
+  function paraGroupXml(st, nodes) {
+    const carrier = nodes.find((n) => pendingSect?.node === n);
+    const extra = carrier ? { sectPr: pendingSect.xml } : {};
+    if (carrier) pendingSect = null;
+    const first = paraXml(st, nodes[0], extra);
+    const rest = nodes.slice(1).map((n) => {
+      const saved = paraText;
+      paraText = n.attrs.auto?.props?.['style:text-properties']?.a || {};
+      const runs = inlineXml(st, n);
+      paraText = saved;
+      return `<w:r><w:br w:type="page"/></w:r>${runs}`;
+    }).join('');
+    return first.replace(/<\/w:p>$/, `${rest}</w:p>`);
   }
 
   function blockXml(st, node, opts = {}) {
@@ -460,7 +508,7 @@ function createDocxWriter(state, index) {
       case 'paragraph': case 'heading': return paraXml(st, node, opts.paraExtra?.(node) || {});
       case 'list': return listXml(st, node, 0, null, opts);
       case 'table': return tableXml(st, node);
-      case 'section': { let s = ''; node.forEach((c) => { s += blockXml(st, c, opts); }); return s; }
+      case 'section': return seqXml(st, childrenOf(node), opts);
       case 'index': return indexXml(st, node, opts);
       default: {
         // Unknown blocks: their paragraphs.
@@ -497,7 +545,14 @@ function createDocxWriter(state, index) {
     const total = widths.reduce((x, y) => x + y, 0) || tw(ta['style:width'] || '16cm');
     const jc = { center: 'center', right: 'right' }[ta['table:align']];
     const ind = ta['table:align'] === 'left' && isLen(ta['fo:margin-left']) ? tw(ta['fo:margin-left']) : 0;
-    const tblPr = `<w:tblPr><w:tblW w:w="${total}" w:type="dxa"/>${jc ? `<w:jc w:val="${jc}"/>` : ''}${ind ? `<w:tblInd w:w="${ind}" w:type="dxa"/>` : ''}<w:tblLayout w:type="fixed"/><w:tblCellMar><w:left w:w="0" w:type="dxa"/><w:right w:w="0" w:type="dxa"/></w:tblCellMar><w:tblLook w:val="04A0" w:firstRow="1" w:lastRow="0" w:firstColumn="1" w:lastColumn="0" w:noHBand="0" w:noVBand="1"/></w:tblPr>`;
+    // Table borders (the cells' own borders, written on every cell, win): outer edges and inside lines from the corner cells.
+    const ca = (cell) => cell?.attrs.auto?.props?.['style:table-cell-properties']?.a || {};
+    const side = (cell, s) => ca(cell)[`fo:border-${s}`] ?? ca(cell)['fo:border'];
+    const r0 = table.firstChild;
+    const rN = table.lastChild;
+    const tb = [['top', side(r0?.firstChild, 'top')], ['left', side(r0?.firstChild, 'left')], ['bottom', side(rN?.firstChild, 'bottom')], ['right', side(r0?.lastChild, 'right')],
+      ['insideH', table.childCount > 1 ? side(r0?.firstChild, 'bottom') : null], ['insideV', r0?.childCount > 1 ? side(r0?.firstChild, 'right') : null]].map(([k, v]) => borderEl(k, v)).join('');
+    const tblPr = `<w:tblPr><w:tblW w:w="${total}" w:type="dxa"/>${jc ? `<w:jc w:val="${jc}"/>` : ''}${ind ? `<w:tblInd w:w="${ind}" w:type="dxa"/>` : ''}${tb ? `<w:tblBorders>${tb}</w:tblBorders>` : ''}<w:tblLayout w:type="fixed"/><w:tblCellMar><w:left w:w="0" w:type="dxa"/><w:right w:w="0" w:type="dxa"/></w:tblCellMar><w:tblLook w:val="04A0" w:firstRow="1" w:lastRow="0" w:firstColumn="1" w:lastColumn="0" w:noHBand="0" w:noVBand="1"/></w:tblPr>`;
     const grid = `<w:tblGrid>${(widths.length ? widths : [total]).map((w) => `<w:gridCol w:w="${w}"/>`).join('')}</w:tblGrid>`;
     // Merged cells: a cell spanning rows is continued (w:vMerge) in the rows below.
     const spans = []; // column → remaining rows of a vertical merge { left, cell }
@@ -552,7 +607,7 @@ function createDocxWriter(state, index) {
     if (va) tcPr.push(`<w:vAlign w:val="${va}"/>`);
     let body = empty ? '<w:p/>' : '';
     if (!empty) {
-      cell.forEach((c) => { body += blockXml(st, c); });
+      body += seqXml(st, childrenOf(cell));
       // A cell ends with a paragraph.
       if (!cell.lastChild || cell.lastChild.type.name === 'table') body += '<w:p/>';
     }
@@ -726,8 +781,7 @@ function createDocxWriter(state, index) {
         // The section break goes in the section's last paragraph (not one inside a table).
         const carrier = last ? null : lastParagraph(sec.blocks);
         pendingSect = carrier ? { node: carrier, xml: sp } : null;
-        let xml = '';
-        sec.blocks.forEach((b) => { xml += blockXml(docStory, b); });
+        let xml = seqXml(docStory, sec.blocks);
         // No paragraph to carry it: one of its own.
         if (!last && pendingSect) xml += `<w:p><w:pPr>${sp}</w:pPr></w:p>`;
         if (!last && !carrier) xml += `<w:p><w:pPr>${sp}</w:pPr></w:p>`;
@@ -807,7 +861,9 @@ function createNumbering(index) {
       while (!want && (taken.has(id) || reserved.has(id))) id++;
       if (want && taken.has(id)) { id = 1; while (taken.has(id) || reserved.has(id)) id++; }
       const start = Number(a.levels[0]?.a?.['text:start-value'] || 1);
-      nums.push({ id, abstractId: a.id, override: restart ? start : null });
+      // A new list starts its numbering again (even the first of its kind says so).
+      void restart;
+      nums.push({ id, abstractId: a.id, override: start });
       lastNum.set(styleName, id);
       return id;
     },
