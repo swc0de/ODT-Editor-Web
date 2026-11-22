@@ -466,6 +466,20 @@ function groupChild(p, gp, paint, env) {
   }
   void env;
   node.dataset.name = a['draw:name'] || '';
+  // A shape's own text (text:p children), centred in it.
+  const lines = (p.c || []).filter((c) => typeof c !== 'string' && c.n === 'text:p').map((c) => (c.c || []).map((x) => (typeof x === 'string' ? x : (x.c || []).filter((y) => typeof y === 'string').join(''))).join(''));
+  if (lines.length && p.n !== 'draw:line') {
+    const g = svgEl('g', {});
+    g.append(node);
+    const lh = 15;
+    lines.forEach((line, i) => {
+      const t = svgEl('text', { x: x + w / 2, y: y + h / 2 + (i - (lines.length - 1) / 2) * lh, 'text-anchor': 'middle', 'dominant-baseline': 'central', 'font-family': 'Carlito, Calibri, sans-serif', 'font-size': '14.67px', fill: gp['fo:color'] || '#000000' });
+      t.textContent = line;
+      g.append(t);
+    });
+    g.dataset.name = node.dataset.name;
+    return g;
+  }
   return node;
 }
 

@@ -6,9 +6,11 @@ import { insertDateTime } from '../headerfooter/index.js';
 import { pageNumberDialog } from '../../ui/layout-dialogs.js';
 import { insertNewTable, convertSelectionToTable, insertQuickTable } from '../table/insert.js';
 import { insertTableDialog } from '../../ui/table-dialogs.js';
-import { startDraw, insertTextBox, insertWordArt, dropCapOf, setDropCap, insertEquation, insertChart } from './objects.js';
+import { startDraw, insertTextBox, insertWordArt, dropCapOf, setDropCap, insertEquation, insertChart, insertObject } from './objects.js';
+import { uniqueName, maxZ } from '../../core/objects.js';
 import { EQUATION_PRESETS } from '../../core/equations.js';
-import { dropCapDialog } from '../../ui/object-dialogs.js';
+import { dropCapDialog, smartArtDialog } from '../../ui/object-dialogs.js';
+import { smartArtAttrs } from '../../core/smartart.js';
 import { iconsDialog, iconSvgText } from '../../ui/icons-dialog.js';
 import { symbolDialog, rememberSymbol } from '../../ui/symbol-dialog.js';
 import { TextSelection } from 'prosemirror-state';
@@ -38,7 +40,7 @@ export const commands = defineCommands('insert', {
   insertShape: { label: 'cmd.insert.shapes', isEnabled: canEdit, isChecked: (c) => !!c.state.objectDraw && c.state.objectDraw !== 'textBox', run: (c, id) => { if (typeof id === 'string') startDraw(c, { shape: id }); } },
   newDrawingCanvas: {},
   icons: { icon: 'icons', isEnabled: canEdit, run: insertIcons },
-  smartArt: { icon: 'smartart' },
+  smartArt: { icon: 'smartart', isEnabled: canEdit, run: (c) => insertSmartArt(c) },
   chart: { icon: 'chart', isEnabled: canEdit, run: (c) => insertChart(c, { edit: isKind(c, 'chart') }) },
   editChart: { icon: 'chart', isEnabled: (c) => canEdit(c) && isKind(c, 'chart'), run: (c) => insertChart(c, { edit: true }) },
   link: { icon: 'link', shortcut: 'Mod-k', isEnabled: canEdit, run: editLink },
@@ -78,7 +80,8 @@ export const commands = defineCommands('insert', {
   field: { isEnabled: canEdit, run: fieldDialogRun },
   wordArt: { icon: 'wordart', isEnabled: canEdit, menuOnly: true },
   insertWordArt: { label: 'cmd.insert.wordArt', isEnabled: canEdit, run: (c, id) => insertWordArt(c, typeof id === 'string' ? id : 'blackShadow') },
-  dropCap: { icon: 'drop-cap', isEnabled: canEdit, menuOnly: true },
+  // As in Word: a drop cap needs a paragraph with text (dimmed in an empty one).
+  dropCap: { icon: 'drop-cap', isEnabled: (c) => canEdit(c) && !!c.editor?.view.state.selection.$from.parent.textContent.trim(), menuOnly: true },
   dropCapNone: { isEnabled: canEdit, isChecked: (c) => !dropCapOf(c.editor.view.state).lines, run: (c) => setDropCap(c, { lines: 0 }) },
   dropCapDropped: { isEnabled: canEdit, isChecked: (c) => dropCapOf(c.editor.view.state).lines > 1, run: (c) => setDropCap(c, { lines: 3, length: 1 }) },
   dropCapInMargin: {},
@@ -108,7 +111,8 @@ export const ribbon = {
     {
       id: 'illustrations', icon: 'pictures',
       controls: [
-        { t: 'large', cmd: 'pictures', menu: ['picturesFromDevice', 'stockImages', 'onlinePictures'] },
+        // As in the reference: Pictures inserts pictures from this device (no ▾).
+        { t: 'large', cmd: 'pictures' },
         { t: 'large', cmd: 'shapes', menu: [{ custom: 'shapesGallery' }, '-', 'newDrawingCanvas'] },
         { t: 'col', items: [{ cmd: 'icons' }, { cmd: 'smartArt' }, { cmd: 'chart' }] },
       ],
@@ -126,13 +130,13 @@ export const ribbon = {
     {
       id: 'text', icon: 'text-box',
       controls: [
-        { t: 'large', cmd: 'textBox', label: 'label.insert.textBox', menu: [{ custom: 'textBoxGallery' }, '-', 'drawTextBox'] },
+        { t: 'large', cmd: 'textBox', label: 'label.insert.textBox', noCaret: true, menu: [{ custom: 'textBoxGallery' }, '-', 'drawTextBox'] },
         { t: 'col', items: [
           { cmd: 'quickParts', menu: [{ cmd: 'autoText', sub: [{ custom: 'autoTextGallery' }, '-', 'saveAutoText'] }, { cmd: 'documentProperty', sub: Object.keys(DOC_PROPERTIES).map((k) => `docProp${k[0].toUpperCase()}${k.slice(1)}`) }, 'field', '-', 'saveAutoText'] },
           { cmd: 'wordArt', menu: [{ custom: 'wordArtGallery' }] },
           { cmd: 'dropCap', menu: ['dropCapNone', 'dropCapDropped', 'dropCapInMargin', '-', 'dropCapOptions'] },
         ] },
-        { t: 'col', items: [{ cmd: 'signatureLine', iconOnly: true }, { cmd: 'dateTime', iconOnly: true }, { cmd: 'object', iconOnly: true, menu: ['objectEmbed', 'textFromFile'] }] },
+        { t: 'col', items: [{ cmd: 'signatureLine', iconOnly: true }, { cmd: 'dateTime', iconOnly: true }, { cmd: 'object', iconOnly: true, noCaret: true, menu: ['objectEmbed', 'textFromFile'] }] },
       ],
     },
     {
@@ -200,3 +204,12 @@ async function insertPictureFiles(c) {
 }
 
 export function register(registry) { registry.register(commands); }
+
+/** Insert ▸ SmartArt: a diagram (process, list or cycle) from a list of items. */
+async function insertSmartArt(c) {
+  const r = await smartArtDialog();
+  if (!r) return;
+  const doc = c.editor.view.state.doc;
+  const width = c.ui.docArea.model?.first?.bodyWidth || 576;
+  insertObject(c, smartArtAttrs(r.layout, r.items, { width: Math.min(width, 600), name: uniqueName(doc, 'SmartArt'), z: maxZ(doc) + 1 }));
+}

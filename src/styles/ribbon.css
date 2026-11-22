@@ -11,7 +11,8 @@
 
 .group { display: flex; flex: none; position: relative; padding: 1px 0 0; }
 .group::after { content: ""; position: absolute; right: 0; top: 4px; bottom: 5px; width: 1px; background: var(--divider); }
-.group-full { display: flex; flex-direction: column; }
+.group-full { display: flex; flex-direction: column; min-width: var(--group-min, 0px); }
+.group-full > .group-body { flex: 1; }
 .group-body { display: flex; align-items: flex-start; gap: 1px; height: 68px; padding: 0 3px; }
 .group-label {
   position: relative; display: flex; align-items: center; justify-content: center;
@@ -60,6 +61,7 @@
 /* Small: icon + label rows (3 high) */
 .rb-col { display: flex; flex-direction: column; gap: 0; padding-top: 0; }
 .rb-small { height: 22px; padding: 0 4px 0 3px; gap: 4px; }
+.rb-small .rb-text { font-size: 12.5px; }
 .rb-text { white-space: nowrap; }
 .rb-icon16 { display: flex; }
 .rb-small.has-menu .caret { margin-left: 2px; }
@@ -70,7 +72,7 @@
 .rb-icon { height: 22px; min-width: 23px; justify-content: center; padding: 0 3px; }
 .rb-icon.has-menu { padding-right: 4px; }
 .rb-icon.has-menu .caret { margin-left: 3px; }
-.gap { margin-left: 7px; }
+.gap { margin-left: 5.5px; }
 .rb-splitpair { display: flex; align-items: center; border: 1px solid transparent; border-radius: 3px; }
 .rb-splitpair:hover { border-color: var(--control-border-soft); }
 .rb-splitpair > .rb { border: 0; }
@@ -119,7 +121,7 @@
 /* Galleries */
 .gal { display: flex; height: 62px; margin: 2px 2px 0; background: var(--gallery-bg); border: 1px solid var(--divider); border-radius: 4px; }
 .gal-tiles { display: flex; flex-wrap: wrap; overflow: hidden; height: 100%; padding: 1px 0 1px 1px; }
-.gal.styles .gal-tiles { width: calc(77px * 6 + 2px); }
+.gal.styles .gal-tiles { width: calc(76.2px * 6 + 2px); }
 .gal.sets .gal-tiles { width: calc(64px * 5 + 2px); }
 .gal-tile { flex: none; display: block; width: 77px; height: 58px; padding: 2px 3px; border: 1px solid transparent; border-radius: 3px; background: transparent; color: var(--text); }
 .gal-tile:hover { border-color: var(--control-border-soft); }
@@ -153,3 +155,17 @@
 .gal.objects.shapesMini .gal-tiles { max-width: 232px; }
 .gal-tile.obj-tile.shape-cell { width: 23px; height: 23px; padding: 0; color: var(--text); }
 .gal-tiles.obj-tiles.is-disabled .gal-tile { opacity: 0.4; }
+
+/* Draw ▸ Drawing Tools as in the reference: 24 px tool icons on a 46 px pitch
+   from the group's left edge; the pen colour's ▾ under its "A", then the
+   thickness with its ▾. */
+.ribbon-panel[data-tab="draw"] [data-group="drawingTools"] .group-body { padding-left: 0; }
+.ribbon-panel[data-tab="draw"] [data-group="drawingTools"] .rb-large { min-width: 46px; padding-left: 3.5px; padding-right: 3.5px; }
+.ribbon-panel[data-tab="draw"] [data-group="drawingTools"] .rb-icon32 svg { width: 24px; height: 24px; }
+.rb-icon.caret-below { flex-direction: column; justify-content: flex-start; height: 45px; padding-top: 3px; }
+.rb-icon.caret-below .caret { margin: 9px 0 0; }
+/* Layout and View spacing read from the reference screenshots (M14 table 6.1). */
+.rb-spins { padding: 0 2px; }
+.ribbon-panel[data-tab="layout"] [data-group="paragraph"] .rb-spins:first-child { column-gap: 3px; }
+.ribbon-panel[data-tab="layout"] [data-group="pageSetup"] .rb-large { padding-left: 5.3px; padding-right: 5.3px; }
+.ribbon-panel[data-tab="view"] [data-group="views"] .rb-large { padding-left: 5.3px; padding-right: 5.3px; }

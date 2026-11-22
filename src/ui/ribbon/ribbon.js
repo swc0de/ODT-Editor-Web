@@ -5,6 +5,7 @@
  * collapsed) and responsive group collapsing (right-most groups first fold
  * into a single dropdown button when the window is narrow).
  */
+import { GROUP_WIDTHS } from './geometry.js';
 import { h } from '../dom.js';
 import { iconSvg } from '../icons.js';
 import { t } from '../../i18n/index.js';
@@ -80,7 +81,8 @@ export function createRibbon({ registry, store, tabs, toast }) {
       const collapsedBtn = h('button', { type: 'button', class: 'rb rb-large group-collapsed-btn two-line', 'aria-haspopup': 'true', 'aria-expanded': 'false', 'data-tip': t(`group.${def.id}.${g.id}`) },
         h('span', { class: 'rb-icon32', html: iconSvg(g.icon || 'file', { size: 32, strokeWidth: 1.25 }) }),
         h('span', { class: 'rb-label' }, h('span', { class: 'rb-line' }, t(`group.${def.id}.${g.id}`), h('span', { class: 'caret' }))));
-      const groupEl = h('div', { class: 'group', role: 'group', 'aria-labelledby': labelId, 'data-group': g.id }, full, collapsedBtn);
+      const refWidth = GROUP_WIDTHS[def.id]?.[g.id];
+      const groupEl = h('div', { class: 'group', role: 'group', 'aria-labelledby': labelId, 'data-group': g.id, ...(refWidth ? { style: `--group-min:${refWidth}px` } : {}) }, full, collapsedBtn);
       collapsedBtn.addEventListener('click', () => openCollapsedGroup(groupEl, full, collapsedBtn));
       groups.push({ el: groupEl, full, def: g, fullWidth: 0 });
       el.append(groupEl);

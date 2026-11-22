@@ -20,3 +20,10 @@ for f in /usr/share/fonts/truetype/crosextra/{Carlito,Caladea}-*.ttf /usr/share/
   "$FONTTOOLS" ttLib.woff2 compress -o "$OUT/$name.woff2" "$f"
 done
 ls -la "$OUT"
+
+# Selawik (UI font, metric-compatible with Segoe UI): Microsoft publishes only
+# the UFO sources, built here unmodified (needs Python with fontmake and brotli):
+#   git clone --depth 1 https://github.com/microsoft/Selawik /tmp/selawik
+#   for w in Regular Bold; do fontmake -u "/tmp/selawik/Source files/UFO/Selawik-$w.ufo" -o ttf --output-dir /tmp/selawik/out; done
+#   python3 -c "from fontTools.ttLib import TTFont
+#   for w in ('Regular','Bold'): f=TTFont(f'/tmp/selawik/out/Selawik-{w}.ttf'); f.flavor='woff2'; f.save(f'assets/fonts/Selawik-{w}.woff2')"

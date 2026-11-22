@@ -415,7 +415,7 @@ for (const fx of FIXTURES) {
         const orig = path.join(dir, fx.name);
         writeFileSync(orig, bytes);
         const lo = (f) => {
-          execFileSync('soffice', [`-env:UserInstallation=file://${OUT}/lo-profile`, '--headless', '--norestore', '--convert-to', 'pdf', '--outdir', dir, f], { stdio: 'pipe', timeout: 180_000 });
+          execFileSync('soffice', [`-env:UserInstallation=file://${OUT}/lo-profile-${fx.name}`, '--headless', '--norestore', '--convert-to', 'pdf', '--outdir', dir, f], { stdio: 'pipe', timeout: 180_000 });
           const pdf = path.join(dir, `${path.basename(f, '.docx')}.pdf`);
           const n = Number(execFileSync('pdfinfo', [pdf]).toString().match(/Pages:\s+(\d+)/)[1]);
           const starts = Array.from({ length: n }, (_, i) => execFileSync('pdftotext', ['-f', String(i + 1), '-l', String(i + 1), pdf, '-']).toString().split('\n').map((l) => l.trim()).filter(Boolean).slice(1, 3).join(' '));
@@ -454,7 +454,7 @@ test.describe('docx round trip: existing fixtures', () => {
       if (soffice) {
         const dir = path.join(OUT, 'lo-existing');
         mkdirSync(dir, { recursive: true });
-        execFileSync('soffice', [`-env:UserInstallation=file://${OUT}/lo-profile`, '--headless', '--norestore', '--convert-to', 'txt:Text (encoded):UTF8', '--outdir', dir, out], { stdio: 'pipe', timeout: 120_000 });
+        execFileSync('soffice', [`-env:UserInstallation=file://${OUT}/lo-profile-${name}`, '--headless', '--norestore', '--convert-to', 'txt:Text (encoded):UTF8', '--outdir', dir, out], { stdio: 'pipe', timeout: 120_000 });
         expect(readFileSync(path.join(dir, path.basename(out).replace('.docx', '.txt')), 'utf8').length).toBeGreaterThan(20);
       }
     });

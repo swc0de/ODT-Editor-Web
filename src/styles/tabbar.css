@@ -9,8 +9,9 @@
 .tabs::-webkit-scrollbar { display: none; }
 .tab {
   position: relative; display: flex; align-items: center;
-  padding: 0 10px; border: 0; background: transparent; color: var(--text);
-  font-size: 12.7px; white-space: nowrap;
+  padding: 0 9.7px; border: 0; background: transparent; color: var(--text);
+  /* Sizes read from the reference screenshots with Segoe UI's metrics (Selawik off Windows). */
+  font-size: 13.9px; white-space: nowrap;
 }
 .tab:hover { background: var(--hover-bg); }
 .tab.is-active { color: var(--accent-text); }

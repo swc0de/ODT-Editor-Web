@@ -83,3 +83,13 @@ export async function wordArtTextDialog(cur) {
 }
 
 export { select };
+
+/** Insert ▸ SmartArt: the layout and the items (one per line). */
+export async function smartArtDialog() {
+  const layout = radios('sa-layout', [['process', t('obj.smartArtProcess')], ['list', t('obj.smartArtList')], ['cycle', t('obj.smartArtCycle')]], 'process');
+  const items = h('textarea', { class: 'fm-input fm-textarea', rows: '5' }, [t('obj.smartArtSample1'), t('obj.smartArtSample2'), t('obj.smartArtSample3')].join('\n'));
+  const body = h('div', {}, group(t('obj.smartArtLayout'), layout), field(t('obj.smartArtItems'), items, { wide: true }));
+  const ok = await showDialog({ title: t('obj.smartArtTitle'), message: body, buttons: okCancel(), cancelValue: false });
+  if (!ok) return null;
+  return { layout: layout.value(), items: items.value.split('\n').map((x) => x.trim()).filter(Boolean) };
+}

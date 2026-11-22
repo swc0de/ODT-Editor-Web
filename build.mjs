@@ -35,7 +35,14 @@ const FONT_FAMILY_BY_PREFIX = {
   LiberationSans: 'Liberation Sans',
   LiberationSerif: 'Liberation Serif',
   LiberationMono: 'Liberation Mono',
+  Selawik: 'Selawik',
 };
+/**
+ * Selawik is the UI font's metric-compatible stand-in for Segoe UI: its
+ * vertical metrics are set to Segoe UI's (ascent 2210, descent 514, no line
+ * gap, of 2048) so lines and controls are as tall as on Windows.
+ */
+const FONT_OVERRIDES = { Selawik: 'ascent-override:107.91%;descent-override:25.1%;line-gap-override:0%;' };
 
 /** Generates @font-face rules with base64 WOFF2 data URIs from assets/fonts. */
 async function buildFontsCss() {
@@ -50,7 +57,7 @@ async function buildFontsCss() {
     const style = /Italic/.test(variant) ? 'italic' : 'normal';
     const b64 = (await readFile(path.join(dir, file))).toString('base64');
     rules.push(
-      `@font-face{font-family:"${family}";font-style:${style};font-weight:${weight};font-display:block;` +
+      `@font-face{font-family:"${family}";font-style:${style};font-weight:${weight};font-display:block;${FONT_OVERRIDES[prefix] || ''}` +
         `src:url(data:font/woff2;base64,${b64}) format("woff2")}`,
     );
   }

@@ -24,7 +24,7 @@ export const LICENCES = [
   ['mammoth', 'BSD-2-Clause'],
   ['marked', 'MIT'],
   ['Lucide icons', 'ISC'],
-  ['Fonts: Carlito, Caladea, Liberation Sans, Liberation Serif, Liberation Mono', 'SIL Open Font License 1.1'],
+  ['Fonts: Carlito, Caladea, Liberation Sans, Liberation Serif, Liberation Mono, Selawik', 'SIL Open Font License 1.1'],
 ];
 
 /** The About page (File ▸ About, Help ▸ About). */

@@ -118,7 +118,7 @@ export const ribbon = {
         { t: 'large', cmd: 'pencil', oneLine: true },
         { t: 'large', cmd: 'highlighter', oneLine: true },
         { t: 'large', cmd: 'addPen', label: 'label.draw.addPen', menu: [{ custom: 'savedPens' }, 'addPenPen', 'addPenPencil', 'addPenHighlighter'] },
-        { t: 'col', items: [{ cmd: 'penColour', iconOnly: true, menu: [{ custom: 'colourPalette', cmd: 'penColour' }] }, { cmd: 'penThickness', iconOnly: true, menu: [{ custom: 'thicknessList', cmd: 'penThickness' }] }] },
+        { t: 'col', items: [{ cmd: 'penColour', iconOnly: true, caretBelow: true, menu: [{ custom: 'colourPalette', cmd: 'penColour' }] }, { cmd: 'penThickness', iconOnly: true, menu: [{ custom: 'thicknessList', cmd: 'penThickness' }] }] },
       ],
     },
     { id: 'convert', icon: 'ink-to-shape', controls: [{ t: 'large', cmd: 'inkToShape', label: 'label.draw.inkToShape' }, { t: 'large', cmd: 'inkToMath', label: 'label.draw.inkToMath' }] },

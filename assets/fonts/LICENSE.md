@@ -8,6 +8,7 @@ on every machine. They are metric-compatible with common proprietary fonts.
 |---|---|---|---|
 | Carlito | Carlito-*.woff2 | Copyright (c) 2010-2013 by tyPoland Lukasz Dziedzic with Reserved Font Name "Carlito". | SIL OFL 1.1 |
 | Caladea | Caladea-*.woff2 | Copyright 2012 The Caladea Project Authors (https://github.com/huertatipografica/Caladea) | SIL OFL 1.1 |
+| Selawik (the UI font's stand-in for Segoe UI) | Selawik-Regular.woff2, Selawik-Bold.woff2 | Copyright 2015, Microsoft Corporation (www.microsoft.com), with Reserved Font Name Selawik. Built unmodified from the UFO sources at github.com/microsoft/Selawik with fontmake, then converted to WOFF2. | SIL OFL 1.1 |
 | Liberation Sans / Serif / Mono | Liberation*-*.woff2 | Digitized data copyright (c) 2010 Google Corporation with Reserved Font Arimo, Tinos and Cousine. Copyright (c) 2012 Red Hat, Inc. with Reserved Font Name Liberation. | SIL OFL 1.1 |
 
 Regenerate with `scripts/prepare-fonts.sh`.

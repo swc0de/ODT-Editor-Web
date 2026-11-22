@@ -233,13 +233,14 @@ export const arrangeCommands = {
 export const arrangeGroup = (prefix = '') => ({
   id: 'arrange', icon: 'bring-forward',
   controls: [
-    { t: 'large', cmd: `${prefix}position`, menu: [{ custom: 'positionGallery', cmd: `${prefix || 'layout.'}position` }, '-', `${prefix}moreLayoutOptions`] },
+    // As in the reference: Position without ▾, Rotate as an icon alone.
+    { t: 'large', cmd: `${prefix}position`, noCaret: true, menu: [{ custom: 'positionGallery', cmd: `${prefix || 'layout.'}position` }, '-', `${prefix}moreLayoutOptions`] },
     { t: 'large', cmd: `${prefix}wrapText`, label: 'label.layout.wrapText', menu: [`${prefix}wrapInline`, '-', `${prefix}wrapSquare`, `${prefix}wrapTight`, `${prefix}wrapThrough`, `${prefix}wrapTopBottom`, '-', `${prefix}wrapBehind`, `${prefix}wrapInFront`, '-', `${prefix}editWrapPoints`, `${prefix}wrapMoreOptions`] },
     { t: 'col', items: [{ cmd: `${prefix}bringForward`, split: true, menu: [`${prefix}bringForward`, `${prefix}bringToFront`, `${prefix}bringInFrontOfText`] }, { cmd: `${prefix}sendBackward`, split: true, menu: [`${prefix}sendBackward`, `${prefix}sendToBack`, `${prefix}sendBehindText`] }, { cmd: `${prefix}selectionPane` }] },
     { t: 'col', items: [
       { cmd: `${prefix}align`, iconOnly: true, menu: [`${prefix}alignLeft`, `${prefix}alignCentre`, `${prefix}alignRight`, '-', `${prefix}alignTop`, `${prefix}alignMiddle`, `${prefix}alignBottom`] },
       { cmd: `${prefix}group`, iconOnly: true, menu: [`${prefix}groupObjects`, `${prefix}ungroup`] },
-      { cmd: `${prefix}rotate`, iconOnly: true, menu: [`${prefix}rotateRight`, `${prefix}rotateLeft`, `${prefix}flipVertical`, `${prefix}flipHorizontal`, '-', `${prefix}rotationOptions`] },
+      { cmd: `${prefix}rotate`, iconOnly: true, noCaret: true, menu: [`${prefix}rotateRight`, `${prefix}rotateLeft`, `${prefix}flipVertical`, `${prefix}flipHorizontal`, '-', `${prefix}rotationOptions`] },
     ] },
   ],
 });

@@ -19,6 +19,7 @@
 .fm-label { color: var(--text-muted); font-size: 12px; }
 .fm-input, .fm-select { height: 26px; padding: 0 6px; border: 1px solid var(--control-border); border-radius: 4px; background: var(--control-bg); color: var(--text); font: inherit; user-select: text; }
 .fm-input:focus, .fm-select:focus { outline: 2px solid var(--focus-ring); outline-offset: -1px; }
+.fm-input.fm-textarea { height: auto; min-width: 280px; padding: 4px 6px; resize: vertical; }
 .fm-input[aria-invalid="true"] { border-color: var(--icon-red); }
 .fm-num { width: 72px; }
 .fm-len { width: 90px; }

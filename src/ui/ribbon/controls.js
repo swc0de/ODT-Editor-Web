@@ -63,7 +63,7 @@ export function createControlFactory(env) {
     const id = resolve(tab, spec.cmd);
     const cmd = registry.get(id);
     const lines = labelOf(spec, id).split('\n');
-    const labelEl = h('span', { class: 'rb-label' }, lines.map((line, i) => h('span', { class: 'rb-line' }, line, i === lines.length - 1 && spec.menu ? CARET() : null)));
+    const labelEl = h('span', { class: 'rb-label' }, lines.map((line, i) => h('span', { class: 'rb-line' }, line, i === lines.length - 1 && spec.menu && !spec.noCaret ? CARET() : null)));
     const icon = h('span', { class: 'rb-icon32', html: iconSvg(cmd.icon || 'file', { size: 32, strokeWidth: 1.25 }) });
     if (spec.menu && spec.split) {
       const top = baseButton(id, 'rb-split-top', [icon], { onclick: () => activate(id, top, spec, tab) });
@@ -92,8 +92,8 @@ export function createControlFactory(env) {
       arrow.addEventListener('click', menuOpener(spec, tab, arrow));
       return h('div', { class: `rb-splitpair${spec.gap ? ' gap' : ''}`, role: 'group' }, main, arrow);
     }
-    if (spec.menu) content.push(CARET());
-    const btn = baseButton(id, `${cls}${spec.menu ? ' has-menu' : ''}${spec.gap ? ' gap' : ''}`, content, spec.menu ? { 'aria-haspopup': 'menu', 'aria-expanded': 'false', 'data-menu-button': '' } : {});
+    if (spec.menu && !spec.noCaret) content.push(CARET());
+    const btn = baseButton(id, `${cls}${spec.menu ? ' has-menu' : ''}${spec.gap ? ' gap' : ''}${spec.caretBelow ? ' caret-below' : ''}`, content, spec.menu ? { 'aria-haspopup': 'menu', 'aria-expanded': 'false', 'data-menu-button': '' } : {});
     btn.addEventListener('click', spec.menu ? menuOpener(spec, tab, btn) : () => activate(id, btn, spec, tab));
     return btn;
   }

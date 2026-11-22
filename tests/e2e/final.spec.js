@@ -160,7 +160,8 @@ test.describe('final', () => {
     expect(r.pages[0].slice(1, 3)).toEqual([559, 794]);
     const last = r.pages[r.pages.length - 1];
     expect(last[0]).not.toBe(r.pages[0][0]);
-    expect(last.slice(1)).toEqual([1122, 794, 2]);
+    // A4 landscape: 29.7 cm = 1122.5 px (M14: twips are converted exactly, no longer at 567 per cm).
+    expect(last.slice(1)).toEqual([1123, 794, 2]);
     // Headers and footers with page fields, and a separate first-page header.
     expect(r.pageFields).toBeGreaterThanOrEqual(2);
     expect(r.pageCount && r.firstHeader).toBe(true);
@@ -338,7 +339,8 @@ test.describe('final', () => {
     await page.keyboard.press('Escape');
     await run(page, 'help.about');
     await expect(page.locator('.about-page')).toContainText('UI inspired by the open-source WordCraft project (MIT/Apache-2.0).');
-    await expect(page.locator('.about-licences tr')).toHaveCount(14);
+    // M14: the docx library is no longer bundled (DOCX is written by the editor's own writer); Selawik joined the font row.
+    await expect(page.locator('.about-licences tr')).toHaveCount(13);
     // Version history: autosaves keep earlier versions; one opens as a new document.
     await page.evaluate(() => window.odtEditor.session.autosaveNow());
     await run(page, 'file.infoPage');
