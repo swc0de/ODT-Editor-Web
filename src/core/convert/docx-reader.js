@@ -226,6 +226,11 @@ export function docxToStateNative(bytes) {
     // section's first page.
     if (geometry.columns > 1) {
       const name = setSectionStyle(state, null, { count: geometry.columns, gap: geometry.gap, separator: geometry.separator });
+      // Word balances columns only before a continuous section break; otherwise column 1 fills first.
+      const nextType = i + 1 < sections.length ? wa(kid(sections[i + 1].sectPr, 'type'), 'val') || 'nextPage' : null;
+      if (nextType !== 'continuous') {
+        state.contentAutoStyles = state.contentAutoStyles.map((t) => (t.a?.['style:name'] === name && t.a['style:family'] === 'section' ? { ...t, c: t.c.map((c) => (c.n === 'style:section-properties' ? { ...c, a: { ...c.a, 'text:dont-balance-text-columns': 'true' } } : c)) } : t));
+      }
       sec.blocks = [{ type: 'section', attrs: { name: `Section${i + 1}`, styleName: name }, content: sec.blocks.length ? sec.blocks : [{ type: 'paragraph' }] }];
     }
     out.push(...sec.blocks);
@@ -1092,11 +1097,9 @@ function converter(ctx, rels, opts = {}) {
     const tp = textProps(ctx, rPr);
     // A character style's toggle property flips the paragraph style's (L1), unless the run sets it itself.
     if (rStyle && currentParaStyle) {
-      for (const [el, attr, onV, offV] of TOGGLES) {
+      for (const [el, attr, , offV] of TOGGLES) {
         if (kid(rPr, el)) continue;
-        const c = toggled(ctx, rStyle, el);
-        if (c && toggled(ctx, currentParaStyle, el)) tp[attr] = offV;
-        void onV;
+        if (toggled(ctx, rStyle, el) && toggled(ctx, currentParaStyle, el)) tp[attr] = offV;
       }
     }
     for (const el of kids(r)) {
@@ -1239,8 +1242,6 @@ function converter(ctx, rels, opts = {}) {
   function table(tbl) {
     const tblPr = kid(tbl, 'tblPr');
     const styleId = wa(kid(tblPr, 'tblStyle'), 'val');
-    const styleEl = styleId ? tableStyleEl(styleId) : null;
-    void styleEl;
     const borders = kid(tblPr, 'tblBorders') || tableStyleChain(styleId).map((st) => path(st, 'tblPr', 'tblBorders')).filter(Boolean).pop() || null;
     const grid = kids(kid(tbl, 'tblGrid'), 'gridCol').map((g) => (num(wa(g, 'w')) || 1440) / 15);
     const gridCount = grid.length || 1;

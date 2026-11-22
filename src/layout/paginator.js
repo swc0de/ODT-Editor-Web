@@ -46,7 +46,11 @@ export function gapDecorations(doc, gaps) {
   for (const g of gaps) {
     if (g.type === 'block') decos.push(Decoration.widget(g.pos, () => gapWidget(g.h, false), { side: -1, key: `b:${g.h.toFixed(2)}`, ignoreSelection: true }));
     else if (g.type === 'inline') decos.push(Decoration.widget(g.pos, () => gapWidget(g.h, true), { side: -1, key: `i:${g.h.toFixed(2)}`, ignoreSelection: true, marks: [] }));
-    else if (g.type === 'span') decos.push(Decoration.widget(g.pos, () => gapWidget(g.h, g.inline, g.pos), { side: -1, key: `s:${g.inline ? 1 : 0}:${g.pos}:${g.h.toFixed(2)}`, ignoreSelection: true, marks: [] }));
+    else if (g.type === 'fill') {
+      // An unbalanced column section ending on this page: as tall as the room left, filled column by column.
+      const node = doc.nodeAt(g.pos);
+      if (node) decos.push(Decoration.node(g.pos, g.pos + node.nodeSize, { style: `height:${g.fill.toFixed(2)}px;column-fill:auto` }));
+    } else if (g.type === 'span') decos.push(Decoration.widget(g.pos, () => gapWidget(g.h, g.inline, g.pos), { side: -1, key: `s:${g.inline ? 1 : 0}:${g.pos}:${g.h.toFixed(2)}`, ignoreSelection: true, marks: [] }));
     else {
       for (const [rowPos, s] of g.shifts) {
         const row = doc.nodeAt(rowPos);
@@ -428,8 +432,10 @@ export function createPaginator(o) {
       const own = gaps.filter((g) => g.type === 'span' && (u.whole || (g.pos > u.pos && g.pos < u.pos + u.node.nodeSize)));
       const regionTopVis = u.whole ? (rr.top - top0) / k + (parseFloat(getComputedStyle(dom).paddingTop) || 0) : m.top + page.D;
       const visBottom = (rr.bottom - top0) / k;
-      // Fits as it is: nothing to split.
+      // Fits as it is: nothing to split. Columns that aren't balanced fill
+      // the rest of the page column by column when a page break follows.
       if (!own.length && visBottom <= bodyBottom(page) + 0.5) {
+        if (!u.whole && !balanced(u.node) && endsPage(u)) newGaps.push({ type: 'fill', pos: u.pos, h: 0, fill: Math.max(0, bodyBottom(page) - regionTopVis) });
         return null;
       }
       // Single-column pieces in order: lines of paragraphs, other blocks whole.
@@ -567,6 +573,22 @@ export function createPaginator(o) {
       page.D = newGaps.reduce((sum, g) => sum + (g.h || 0), 0);
       return null;
     }
+
+    /** Does a column section balance its columns (text:dont-balance-text-columns)? */
+    const balanced = (node) => {
+      const t = node.attrs.styleName && o.getIndex()?.autos.get(`section:${node.attrs.styleName}`);
+      const sp = t && (t.c || []).find((c) => c.n === 'style:section-properties');
+      return sp?.a?.['text:dont-balance-text-columns'] !== 'true';
+    };
+    /** Is a unit followed by a page break (or the end of the document)? */
+    const endsPage = (u) => {
+      const parent = u.path[u.path.length - 1].parent;
+      const index = u.path[u.path.length - 1].index;
+      if (index + 1 >= parent.childCount) return u.path.length === 1;
+      let next = parent.child(index + 1);
+      while (next && !next.isTextblock && next.firstChild) next = next.firstChild;
+      return !!(next?.isTextblock && props(next).breakBefore);
+    };
 
     for (const u of units(view.state.doc, o.getIndex, props, restartPos, pageColumns())) {
       if (++count % 30 === 0) yield;

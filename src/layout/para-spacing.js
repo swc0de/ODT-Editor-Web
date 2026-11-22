@@ -34,7 +34,10 @@ function propsCache(getIndex) {
     const pp = auto?.props?.['style:paragraph-properties']?.a || {};
     const px = (x) => (x ? toPx(x) || 0 : 0);
     const pad = (side) => px(pp[`fo:padding-${side}`] ?? pp['fo:padding']);
+    const own = node.attrs.auto?.props?.['style:paragraph-properties']?.a || {};
     v = {
+      // Spacing set by the paragraph's own (automatic) style: the style sheet's pair rules don't know it.
+      direct: ['fo:margin-top', 'fo:margin-bottom', 'fo:margin', 'style:contextual-spacing'].some((k) => own[k] != null),
       before: px(pp['fo:margin-top'] ?? pp['fo:margin']), after: px(pp['fo:margin-bottom'] ?? pp['fo:margin']),
       contextual: pp['style:contextual-spacing'] === 'true', style: node.attrs.styleName,
       box: hasBorder(pp) ? JSON.stringify(BOX.map((k) => pp[k] || '')) : null, padTop: pad('top'), padBottom: pad('bottom'),
@@ -53,6 +56,7 @@ export function spacingDecorations(doc, getIndex, props = propsCache(getIndex)) 
   const style = new Map(); // pos → { size, css: [] }
   const css = (pos, size, decl) => { let e = style.get(pos); if (!e) { e = { size, css: [] }; style.set(pos, e); } e.css.push(decl); };
   let prev = null;
+  let parentNode = doc;
   const visit = (node, pos) => {
     if (node.isTextblock) {
       if (node.type.name !== 'paragraph' && node.type.name !== 'heading') { prev = null; return; }
@@ -63,16 +67,23 @@ export function spacingDecorations(doc, getIndex, props = propsCache(getIndex)) 
         const after = a.contextual && same ? 0 : a.after;
         const before = b.contextual && same ? 0 : b.before;
         const gap = add ? after + before : Math.max(after, before);
+        // Siblings styled only by their paragraph styles: the style sheet adds their spacing (styles.js).
+        const bySheet = add && prev.parent === parentNode && !a.direct && !b.direct;
+        const sheetGap = bySheet ? (a.after > 0.01 && b.before > 0.01 && !((a.contextual || b.contextual) && same) ? a.after + b.before : Math.max(a.after, b.before)) : Math.max(a.after, b.before);
         if (group && a.box && a.box === b.box) {
           // One box: no border or padding between, the space between inside it.
           css(prev.pos, prev.size, 'border-bottom:none;padding-bottom:0;margin-bottom:0');
           css(pos, node.nodeSize, `border-top:none;padding-top:${gap.toFixed(2)}px;margin-top:0`);
-        } else if (Math.abs(gap - Math.max(a.after, b.before)) > 0.01) {
+        } else if (gap >= a.after && Math.abs(gap - sheetGap) > 0.01) {
+          // Margins collapse to the larger one, so a top margin of the whole gap
+          // is enough (one decoration: they are scanned per top-level node).
+          css(pos, node.nodeSize, `margin-top:${gap.toFixed(2)}px`);
+        } else if (Math.abs(gap - sheetGap) > 0.01) {
           css(prev.pos, prev.size, 'margin-bottom:0');
           css(pos, node.nodeSize, `margin-top:${gap.toFixed(2)}px`);
         }
       }
-      prev = { pos, size: node.nodeSize, p: b };
+      prev = { pos, size: node.nodeSize, p: b, parent: parentNode };
       return;
     }
     if (node.type.name === 'table' || node.isAtom || node.isLeaf) {
@@ -87,11 +98,12 @@ export function spacingDecorations(doc, getIndex, props = propsCache(getIndex)) 
     // Cells start a chain of their own.
     if (node.type.spec.tableRole === 'cell' || node.type.spec.tableRole === 'header_cell') prev = null;
     node.forEach((child, offset) => {
+      parentNode = node;
       visit(child, pos + 1 + offset);
       if (child.type.spec.tableRole === 'cell' || child.type.spec.tableRole === 'header_cell') prev = null;
     });
   };
-  doc.forEach((child, offset) => visit(child, offset));
+  doc.forEach((child, offset) => { parentNode = doc; visit(child, offset); });
   const decos = [];
   for (const [pos, e] of style) decos.push(Decoration.node(pos, pos + e.size, { style: e.css.join(';') }));
   return DecorationSet.create(doc, decos);

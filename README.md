@@ -106,10 +106,11 @@ reference/             UI reference screenshots; compare/ holds generated compar
 ## Licences
 
 - App code: MIT.
-- Bundled fonts: Carlito, Caladea, Liberation Sans/Serif/Mono — SIL Open Font
+- Bundled fonts: Carlito, Caladea, Liberation Sans/Serif/Mono, and Selawik
+  (the interface font where Segoe UI isn't installed) — SIL Open Font
   License 1.1 (see `assets/fonts/LICENSE.md`).
 - Libraries bundled into the HTML file: ProseMirror incl. prosemirror-tables and prosemirror-collab (MIT), fflate (MIT),
-  mammoth (BSD-2-Clause; fallback DOCX import), docx (MIT; DOCX export), marked (MIT; Markdown import),
+  mammoth (BSD-2-Clause; fallback DOCX import), marked (MIT; Markdown import),
   MathLive (MIT; the equation editor, with the KaTeX maths fonts, MIT),
   nspell (MIT) with the en-GB and en-US Hunspell dictionaries from
   wooorm/dictionaries (MIT AND BSD, from SCOWL),
@@ -208,6 +209,9 @@ shortcut, searchable.
   handles to resize (corners keep the proportions) or rotate; Wrap Text and
   Position make it float, then drag it or nudge it with the arrow keys.
   Crop shows crop handles (Esc to finish).
+- Insert ▸ SmartArt: a basic process, vertical list or cycle diagram made
+  from the items you type (one per line), as a drawing group of rounded
+  boxes with their text and arrows (LibreOffice shows and edits it).
 - Insert ▸ Shapes: pick a shape, then drag on the page (or click for a
   2.54 cm shape). Double-click a shape to type in it; **Shape Format** sets
   fill, outline, shadow and style. Text Box and WordArt work the same way.
@@ -346,15 +350,23 @@ Other limitations:
 - Draw: strokes can't be edited point by point; Ink to Math is unavailable.
 - Mailings: only the first sheet of a workbook is read; no database or
   contacts sources; no custom label sizes.
-- Import: DOCX is read directly (styles, fonts, page setup, sections,
-  headers/footers, lists, tables, pictures, notes, comments, tracked changes),
-  but floating pictures and text boxes are placed in line with the text,
-  table-style banding and theme colours/effects aren't applied, fields other
-  than page number / page count / hyperlink keep only their shown text, and
-  charts, SmartArt and embedded objects are left out; if a file can't be read
-  this way, a simpler import (text, styles, lists, tables, pictures) is used.
-  RTF pictures are PNG / JPEG only. Export: DOCX headers and footers are plain
-  text; HTML and Markdown keep the content, not the page layout.
+- Import: DOCX is read directly and laid out by Word's rules (styles with
+  docDefaults and toggle properties, fonts, page setup and sections with
+  inherited / first-page / even headers and footers, per-section columns with
+  separators, positional tabs and tab stops measured from the margin, natural
+  line height, added paragraph spacing, border spacing and grouping, lists
+  with their label formatting, tables with cell margins, vertical text and
+  Word's border-conflict rule, floating pictures and text boxes, notes,
+  comments, tracked changes, TOC fields). Still not matched: text wraps on one
+  side of a floating picture (Word can wrap on both sides); a picture placed
+  relative to the page vertically is placed relative to its paragraph;
+  table-style banding and theme colours/effects aren't applied; fields other
+  than page number / page count / TOC / hyperlink keep only their shown text;
+  charts and embedded objects are left out. If a file can't be read this
+  way, a simpler import (text, styles, lists, tables, pictures) is used.
+  RTF pictures are PNG / JPEG only. Export: DOCX is written directly, with
+  everything the importer reads (see PROGRESS.md, M14); HTML and Markdown
+  keep the content, not the page layout.
 - Printing uses the first page size for the browser's default and named page
   sizes for others; PDF bookmarks depend on the browser.
 - Windows: Arrange All and Side by Side can only move windows the app opened

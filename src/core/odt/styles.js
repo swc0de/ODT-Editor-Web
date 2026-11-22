@@ -212,6 +212,27 @@ export function buildDocumentCss(state, index = buildStyleIndex(state)) {
     const decls = textPropsCss(auto?.props?.['style:text-properties']?.a);
     if (decls.length) rules.push(`${scope} .cs-${cssName(name)}{${decls.join(';')}}`);
   }
+  // Spacing between sibling paragraphs adds up (rule L2): the next one's top
+  // margin is the sum, which wins when CSS collapses the two margins. Pairs
+  // across containers or with direct formatting are left to the
+  // para-spacing plugin.
+  if (index.compat?.addSpacing !== false) {
+    const sp = [];
+    for (const [name] of index.families.get('paragraph') || []) {
+      const pp = index.effective('paragraph', name)?.props?.['style:paragraph-properties']?.a || {};
+      const before = toPx(pp['fo:margin-top'] ?? pp['fo:margin'] ?? '0cm') || 0;
+      const after = toPx(pp['fo:margin-bottom'] ?? pp['fo:margin'] ?? '0cm') || 0;
+      sp.push({ cls: `ps-${cssName(name)}`, before, after, contextual: pp['style:contextual-spacing'] === 'true' });
+    }
+    for (const a of sp) {
+      if (a.after <= 0.01) continue;
+      for (const b of sp) {
+        if (b.before <= 0.01 || ((a.contextual || b.contextual) && a.cls === b.cls)) continue;
+        rules.push(`${scope} :is(.ProseMirror, .odt-mirror) .${a.cls} + .${b.cls}{margin-top:${+(a.after + b.before).toFixed(2)}px}`);
+      }
+    }
+  }
+
   // Automatic table / cell / section styles (kept verbatim in the model).
   for (const [key, t] of index.autos) {
     const [family, name] = key.split(/:(.*)/s);

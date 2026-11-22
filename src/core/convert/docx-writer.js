@@ -789,7 +789,7 @@ function createDocxWriter(state, index) {
         body += xml;
         if (last) body += sp;
       });
-      return { body, anyEven, hasToc: /TOC \\o/.test(body) };
+      return { body, anyEven };
     },
     docStory, story, blocksXml, inlineXml,
   };
@@ -799,7 +799,7 @@ function createDocxWriter(state, index) {
 
 const NUM_FMT = { '1': 'decimal', a: 'lowerLetter', A: 'upperLetter', i: 'lowerRoman', I: 'upperRoman', '': 'none' };
 
-/** numbering.xml: one abstractNum per list style, one w:num per list (restarts get a start override). */
+/** numbering.xml: one abstractNum per list style, one w:num per list (with a start override; a continued list reuses its num). */
 function createNumbering(index) {
   const abstracts = new Map(); // style name → { id, xml }
   const nums = []; // { id, abstractId, override }
@@ -853,7 +853,6 @@ function createNumbering(index) {
       const ex = list.attrs.extra || {};
       if (parentNum && !list.attrs.styleName) return parentNum;
       if ((ex['text:continue-numbering'] === 'true' || ex['text:continue-list']) && lastNum.has(styleName)) return lastNum.get(styleName);
-      const restart = [...nums].some((n) => n.abstractId === a.id);
       // Lists read from Word keep their numbers (WWNum<n> ↔ numId n).
       const want = /^WWNum(\d+)$/.exec(styleName);
       const taken = new Set(nums.map((n) => n.id));
@@ -862,7 +861,6 @@ function createNumbering(index) {
       if (want && taken.has(id)) { id = 1; while (taken.has(id) || reserved.has(id)) id++; }
       const start = Number(a.levels[0]?.a?.['text:start-value'] || 1);
       // A new list starts its numbering again (even the first of its kind says so).
-      void restart;
       nums.push({ id, abstractId: a.id, override: start });
       lastNum.set(styleName, id);
       return id;
@@ -931,7 +929,7 @@ export function writeDocx(state, index, helpers) {
   w.setSchemaNode(helpers.nodeFromJSON);
   w.setPartDoc(helpers.partDoc);
   const { files, overrides } = w;
-  const { body, anyEven, hasToc } = w.build(state.doc);
+  const { body, anyEven } = w.build(state.doc);
   files['word/document.xml'] = strToU8(`${DECL}<w:document ${NS}><w:body>${body}</w:body></w:document>`);
   overrides.push(['/word/document.xml', `${CT}.document.main+xml`]);
   const ds = w.docStory;
@@ -976,7 +974,7 @@ export function writeDocx(state, index, helpers) {
   // Settings: the default tab interval, even / odd headers.
   const defTree = (state.commonStyles?.c || []).find((t) => typeof t !== 'string' && t.n === 'style:default-style' && t.a['style:family'] === 'paragraph');
   const tabDist = defTree && findChild(defTree, 'style:paragraph-properties')?.a?.['style:tab-stop-distance'];
-  files['word/settings.xml'] = strToU8(`${DECL}<w:settings ${NS}>${anyEven ? '<w:evenAndOddHeaders/>' : ''}<w:defaultTabStop w:val="${tabDist ? tw(tabDist) : 720}"/>${hasToc ? '' : ''}<w:characterSpacingControl w:val="doNotCompress"/><w:compat><w:compatSetting w:name="compatibilityMode" w:uri="http://schemas.microsoft.com/office/word" w:val="15"/></w:compat></w:settings>`);
+  files['word/settings.xml'] = strToU8(`${DECL}<w:settings ${NS}>${anyEven ? '<w:evenAndOddHeaders/>' : ''}<w:defaultTabStop w:val="${tabDist ? tw(tabDist) : 720}"/><w:characterSpacingControl w:val="doNotCompress"/><w:compat><w:compatSetting w:name="compatibilityMode" w:uri="http://schemas.microsoft.com/office/word" w:val="15"/></w:compat></w:settings>`);
   overrides.push(['/word/settings.xml', `${CT}.settings+xml`]);
   ds.rel('settings', 'settings.xml');
   // Relationships of every story.
