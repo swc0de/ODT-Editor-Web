@@ -72,7 +72,7 @@ export function createControlFactory(env) {
       bottom.addEventListener('click', menuOpener(spec, tab, bottom));
       return h('div', { class: `rb rb-large rb-split${lines.length > 1 ? ' two-line' : ''}`, role: 'group' }, top, bottom);
     }
-    const btn = baseButton(id, `rb rb-large${lines.length > 1 ? ' two-line' : ''}`, [icon, labelEl], spec.menu ? { 'aria-haspopup': 'menu', 'aria-expanded': 'false', 'data-menu-button': '' } : {});
+    const btn = baseButton(id, `rb rb-large${lines.length > 1 ? ' two-line' : ''}`, [icon, labelEl], { ...(spec.menu ? { 'aria-haspopup': 'menu', 'aria-expanded': 'false', 'data-menu-button': '' } : {}), ...(spec.quietChecked ? { 'data-quiet-checked': '' } : {}) });
     btn.addEventListener('click', spec.menu ? menuOpener(spec, tab, btn) : () => activate(id, btn, spec, tab));
     return btn;
   }

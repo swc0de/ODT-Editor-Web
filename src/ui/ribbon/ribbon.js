@@ -179,7 +179,8 @@ export function createRibbon({ registry, store, tabs, toast }) {
         }
         if (cmd.isChecked && !el.matches('.rb-check, .gal-tile, input')) {
           const on = registry.isChecked(id);
-          el.classList.toggle('is-checked', on);
+          // A quiet toggle (the default view) says it's on (aria-pressed) without looking pressed.
+          el.classList.toggle('is-checked', on && !el.hasAttribute('data-quiet-checked'));
           if (!opensMenu) el.setAttribute('aria-pressed', String(on));
         }
       }

@@ -173,7 +173,7 @@ const CUSTOM = {
   'one-page': [PAGE, FOLD],
   'multiple-pages': [R(2, 5, 9, 14, 1), R(13, 5, 9, 14, 1)],
   'page-width': [R(5, 3, 14, 18, 1), P('M2 12h20M5 9l-3 3 3 3M19 9l3 3-3 3', 'a')],
-  'switch-modes': [C(12, 12, 9, 'f')],
+  'switch-modes': [C(9.5, 12, 6.5), C(14.5, 12, 6.5, 'f')],
   'interface-theme': [R(3, 3, 18, 18, 1.5), R(3, 3, 18, 5, 1.5, 'f'), R(6, 11, 8, 7, 0, 'f')],
   'new-window': [R(7, 3, 14, 12, 1.5), R(3, 8, 14, 12, 1.5, 'a')],
   'arrange-all': [R(3, 3, 18, 8, 1.5), R(3, 13, 18, 8, 1.5)],

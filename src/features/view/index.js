@@ -29,8 +29,8 @@ export const commands = defineCommands('view', {
   },
   zoomDialog: { icon: 'zoom-in', run: (ctx) => ctx.ui.openZoomDialog() },
   zoom100: { icon: 'zoom-100', run: (ctx) => ctx.ui.docArea.setZoom(100) },
-  zoomIn: { icon: 'circle-plus', run: (ctx) => ctx.ui.docArea.zoomIn(), isEnabled: (ctx) => ctx.state.zoom < 500 },
-  zoomOut: { icon: 'circle-minus', run: (ctx) => ctx.ui.docArea.zoomOut(), isEnabled: (ctx) => ctx.state.zoom > 10 },
+  zoomIn: { icon: 'zoom-in', run: (ctx) => ctx.ui.docArea.zoomIn(), isEnabled: (ctx) => ctx.state.zoom < 500 },
+  zoomOut: { icon: 'zoom-out', run: (ctx) => ctx.ui.docArea.zoomOut(), isEnabled: (ctx) => ctx.state.zoom > 10 },
   onePage: { icon: 'one-page', run: (ctx) => ctx.ui.docArea.onePage(), isEnabled: (ctx) => ctx.state.view === 'print' },
   multiplePages: { icon: 'multiple-pages', run: (ctx) => ctx.ui.docArea.multiplePages(), isEnabled: (ctx) => ctx.state.view === 'print' },
   pageWidth: { icon: 'page-width', run: (ctx) => ctx.ui.docArea.pageWidth() },
@@ -61,13 +61,14 @@ export const ribbon = {
       id: 'views', icon: 'print-layout',
       controls: [
         { t: 'large', cmd: 'readMode', label: 'label.view.readMode' },
-        { t: 'large', cmd: 'printLayout', label: 'label.view.printLayout' },
+        // As in the reference, the default view and page movement don't look pressed.
+        { t: 'large', cmd: 'printLayout', label: 'label.view.printLayout', quietChecked: true },
         { t: 'large', cmd: 'webLayout', label: 'label.view.webLayout' },
         { t: 'col', items: [{ cmd: 'outline' }, { cmd: 'draft' }] },
       ],
     },
     { id: 'immersive', icon: 'focus', controls: [{ t: 'large', cmd: 'focus' }, { t: 'large', cmd: 'immersiveReader', label: 'label.view.immersiveReader' }] },
-    { id: 'pageMovement', icon: 'vertical', controls: [{ t: 'large', cmd: 'vertical' }, { t: 'large', cmd: 'sideToSide', label: 'label.view.sideToSide' }] },
+    { id: 'pageMovement', icon: 'vertical', controls: [{ t: 'large', cmd: 'vertical', quietChecked: true }, { t: 'large', cmd: 'sideToSide', label: 'label.view.sideToSide' }] },
     {
       id: 'show', icon: 'ruler',
       controls: [

@@ -14,6 +14,11 @@ import { EXPORTS } from '../features/file/export.js';
 import { renderInfo } from './info-page.js';
 import { renderAbout } from './help.js';
 
+/** Was the last input from the keyboard (so focus moved for it shows its ring)? */
+let lastInputKeyboard = false;
+addEventListener('keydown', () => { lastInputKeyboard = true; }, true);
+addEventListener('pointerdown', () => { lastInputKeyboard = false; }, true);
+
 const NAV = [
   { id: 'home', icon: 'home', label: 'backstage.home' },
   { id: 'new', icon: 'new', label: 'backstage.new' },
@@ -280,7 +285,8 @@ export function createBackstage({ registry, store, toast, session }) {
       if (on) btn.setAttribute('aria-current', 'page'); else btn.removeAttribute('aria-current');
     }
     renderPage(state.backstagePage);
-    if (!wasOpen) requestAnimationFrame(() => navButtons.get(state.backstagePage)?.focus({ preventScroll: true }));
+    // The ring shows only for keyboard users (as in the reference, opened with the mouse).
+    if (!wasOpen) requestAnimationFrame(() => navButtons.get(state.backstagePage)?.focus({ preventScroll: true, focusVisible: lastInputKeyboard }));
   }
   store.subscribe(apply);
   apply(store.get());

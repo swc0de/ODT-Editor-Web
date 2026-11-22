@@ -564,8 +564,8 @@ export const ribbon = {
       controls: [{
         t: 'rows', rows: [
           [
-            { t: 'combo', cmd: 'fontName', kind: 'font', width: 145 },
-            { t: 'combo', cmd: 'fontSize', kind: 'size', width: 48 },
+            { t: 'combo', cmd: 'fontName', kind: 'font', width: 150 },
+            { t: 'combo', cmd: 'fontSize', kind: 'size', width: 52 },
             { cmd: 'growFont' }, { cmd: 'shrinkFont' },
             { cmd: 'changeCase', menu: ['caseSentence', 'caseLower', 'caseUpper', 'caseCapitalize', 'caseToggle'] },
             { cmd: 'clearFormatting' }, { cmd: 'phoneticGuide' },

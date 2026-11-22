@@ -13,12 +13,13 @@
 .sb-group { display: inline-flex; align-items: center; gap: 2px; }
 .sb-icon { width: 26px; justify-content: center; padding: 0; }
 .sb-icon.is-checked { background: var(--checked-bg); }
-.sb-zoom { margin-left: 26px; gap: 6px; }
+.sb-zoom { margin-left: 12px; gap: 6px; }
 .sb-zoomstep { width: 20px; }
-.sb-slider { position: relative; display: inline-block; width: 104px; height: 20px; margin: 0 4px; }
-.sb-slider-track { position: absolute; left: 0; right: 0; top: 9px; height: 1px; background: var(--chrome-line); }
+/* Measured from the reference: − and + 135 px apart, the thumb (at 100 %) 8 px right of their midpoint. */
+.sb-slider { position: relative; display: inline-block; width: 79px; height: 20px; margin: 0 4px 0 21px; }
+.sb-slider-track { position: absolute; left: 0; right: 0; top: 9px; height: 1px; background: var(--divider); }
 .sb-slider-thumb {
-  position: absolute; top: 3px; left: calc(var(--pos, 0.5) * 100% - 6px); width: 12px; height: 15px;
+  position: absolute; top: 2px; left: calc(var(--pos, 0.5) * 100% - 6.5px); width: 13px; height: 16px;
   border: 1.5px solid var(--text-soft); border-radius: 5px; background: var(--app-bg);
 }
-.sb-pct { min-width: 44px; justify-content: flex-end; padding-right: 6px; }
+.sb-pct { min-width: 44px; justify-content: flex-end; padding-right: 10.6px; }
