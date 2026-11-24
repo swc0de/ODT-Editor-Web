@@ -56,7 +56,8 @@ export function formatEnv(c) {
 export async function documentHtml(c, o = {}) {
   const st = c.session.state;
   const pl = pageLayout(st);
-  const pictures = st.pictures || {};
+  const isImage = ([p, f]) => /^image\//.test(f.mediaType || '') || /\.(png|jpe?g|gif|svg|webp|bmp)$/i.test(p);
+  const pictures = { ...Object.fromEntries(Object.entries(st.extraFiles || {}).filter(isImage)), ...(st.pictures || {}) };
   const byUrl = new Map(Object.keys(pictures).map((p) => [c.ui.pictureUrl(p), p]));
   return toHtml({
     dom: c.mainEditor.view.dom,

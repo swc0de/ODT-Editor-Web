@@ -53,7 +53,15 @@ export async function toHtml(o) {
       let uri = '';
       if (pic) uri = `data:${pic.mediaType || 'image/png'};base64,${bytesToBase64(pic.bytes)}`;
       else {
-        try { const b = new Uint8Array(await (await fetch(src)).arrayBuffer()); uri = `data:image/png;base64,${bytesToBase64(b)}`; } catch { uri = ''; }
+        // Not a package picture: the loaded image, drawn (fetching blob: URLs isn't allowed from file://).
+        const live = [...o.dom.querySelectorAll('img')].find((x) => x.getAttribute('src') === src && x.complete && x.naturalWidth);
+        if (live) {
+          try {
+            const c = Object.assign(document.createElement('canvas'), { width: live.naturalWidth, height: live.naturalHeight });
+            c.getContext('2d').drawImage(live, 0, 0);
+            uri = c.toDataURL('image/png');
+          } catch { uri = ''; }
+        }
       }
       cache.set(src, uri);
     }
