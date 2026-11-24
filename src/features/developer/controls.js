@@ -11,7 +11,7 @@
  * Restrict Editing ▸ Filling in forms allows changes only inside controls.
  */
 import { Plugin, PluginKey, TextSelection, NodeSelection } from 'prosemirror-state';
-import { ReplaceStep, AddMarkStep, RemoveMarkStep, Mapping } from 'prosemirror-transform';
+import { ReplaceStep, AddMarkStep, RemoveMarkStep } from 'prosemirror-transform';
 import { schema } from '../../core/schema.js';
 
 export const ccKey = new PluginKey('contentControls');
@@ -33,16 +33,23 @@ export function controlsOf(doc) {
   const out = [];
   doc.descendants((n, pos) => {
     if (!n.inlineContent) return true;
-    let cur = null;
-    n.forEach((ch, off) => {
-      const m = ch.marks.find((x) => x.type.name === 'contentControl');
-      const a = pos + 1 + off;
-      if (m && cur && cur.mark.eq(m) && cur.to === a) cur.to = a + ch.nodeSize;
-      else { if (cur) out.push(cur); cur = m ? { from: a, to: a + ch.nodeSize, mark: m } : null; }
-    });
-    if (cur) out.push(cur);
+    out.push(...controlsIn(n, pos));
     return false;
   });
+  return out;
+}
+
+/** The controls in one textblock at `pos`. */
+export function controlsIn(n, pos) {
+  const out = [];
+  let cur = null;
+  n.forEach((ch, off) => {
+    const m = ch.marks.find((x) => x.type.name === 'contentControl');
+    const a = pos + 1 + off;
+    if (m && cur && cur.mark.eq(m) && cur.to === a) cur.to = a + ch.nodeSize;
+    else { if (cur) out.push(cur); cur = m ? { from: a, to: a + ch.nodeSize, mark: m } : null; }
+  });
+  if (cur) out.push(cur);
   return out;
 }
 
@@ -149,13 +156,30 @@ export function controlsPlugin(o) {
       // Typing into a placeholder ends it.
       if (!trs.some((t) => t.docChanged && !t.getMeta('ccInternal') && !t.getMeta('load'))) return null;
       let out = null;
-      // Only placeholders whose text this change touched (a document's own placeholder text may differ from ours).
-      const mapping = new Mapping(trs.flatMap((t) => t.mapping.maps));
-      const before = new Map(controlsOf(oldState.doc).map((c) => [mapping.map(c.from, 1), oldState.doc.textBetween(c.from, c.to)]));
-      for (const c of controlsOf(state.doc)) {
-        if (c.mark.attrs.attrs['loext:showing-place-holder'] !== 'true') continue;
+      // Only placeholders whose text this change touched (a document's own placeholder text may differ
+      // from ours): the controls in the paragraphs the change reached, not a walk of the whole document.
+      let ranges = [];
+      for (const t of trs) {
+        for (const m of t.mapping.maps) {
+          ranges = ranges.map(([a, b]) => [m.map(a, -1), m.map(b, 1)]);
+          m.forEach((os, oe, ns, ne) => ranges.push([ns, ne]));
+        }
+      }
+      if (!ranges.length) return null;
+      const touched = [];
+      const size = state.doc.content.size;
+      for (const [a, b] of ranges) {
+        state.doc.nodesBetween(Math.max(0, a - 1), Math.min(size, b + 1), (n, pos) => {
+          if (!n.inlineContent) return true;
+          for (const c of controlsIn(n, pos)) {
+            if (c.to >= a && c.from <= b && c.mark.attrs.attrs['loext:showing-place-holder'] === 'true' && !touched.some((x) => x.from === c.from)) touched.push(c);
+          }
+          return false;
+        });
+      }
+      const placeholders = touched;
+      for (const c of placeholders) {
         const text = state.doc.textBetween(c.from, c.to);
-        if (before.get(c.from) === text) continue;
         const kind = kindOf(c.mark.attrs.attrs);
         if (text !== PLACEHOLDER[kind] && !(c.mark.attrs.items || []).some((i) => i.display === text && kind === 'none')) {
           out = out || state.tr;

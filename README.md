@@ -1,41 +1,65 @@
 # ODT Editor
 
-A full word processor for **OpenDocument Text (.odt)** that runs entirely in your
-browser from **one self-contained HTML file**: `dist/odt-editor.html`.
+A full word processor whose **default format is Word's `.docx`**, running
+entirely in your browser from **one self-contained HTML file**:
+`dist/odt-editor.html`. OpenDocument Text (`.odt`) is fully supported too.
 No server, no uploads, no analytics — open the file (even from `file://`, even
 offline) and everything happens locally.
 
 > **Version 1.0.0.** A complete Word-style editor: every ribbon tab (Home,
 > Insert, Draw, Design, Layout, References, Mailings, Review, View,
-> Developer, Help) with real pages, rulers and zoom; it opens and saves ODT
-> (and opens DOCX, HTML, Markdown, RTF and text; exports DOCX, PDF, HTML,
-> Markdown, RTF, text and page pictures), autosaves, keeps a version history
-> and can encrypt documents with a password. The few controls that aren't
-> built are dimmed with a "Coming soon" tooltip and listed under
+> Developer, Help) with real pages, rulers and zoom; it opens and saves Word
+> documents, OpenDocument text, Word XML, web pages and plain text (and opens
+> RTF and Markdown; exports Markdown, RTF and page pictures), autosaves, keeps
+> a version history and encrypts documents with a password. The few controls
+> that aren't built are dimmed with a "Coming soon" tooltip and listed under
 > [Known limitations](#known-limitations-v10).
 
 ## Working with files
 
+- **Formats** (File ▸ Save As ▸ Save as type, the same list as Word for
+  Windows): Word Document (*.docx, the default), OpenDocument Text (*.odt),
+  Word XML Document (*.xml, Flat OPC), Web Page (*.htm; *.html), Plain Text
+  (*.txt), PDF (*.pdf) and XPS Document (*.xps). PDF and XPS are listed but
+  dimmed until their writers arrive (the next milestone); File ▸ Print makes
+  a PDF meanwhile. Options ▸ Save ▸ "Save files in this format" makes new
+  documents save as `.odt` instead.
 - **Open**: Ctrl+O, drag a file onto the window, or File ▸ Open / Recent.
-  Opening a template (`.ott`) starts a new document from it. Word (`.docx`),
-  web pages, Markdown, RTF and text files open as new documents (saving them
-  writes ODT). Password-protected ODT files ask for their password.
-- **Save**: Ctrl+S. In Chromium-based browsers (Chrome, Edge) the file you
-  opened is updated in place; elsewhere the document is downloaded.
-  Save As: F12 or File ▸ Save As.
+  `.docx`, `.odt`, Word XML / flat ODT `.xml`, web pages and text files open
+  *as that file*: Save writes back to it in the same format (through the
+  file itself in Chromium-based browsers). RTF and Markdown open as new
+  documents. Templates (`.dotx`, `.ott`) start new documents.
+  Password-protected Word (Agile and Standard encryption) and ODT files ask
+  for their password.
+- **Save**: Ctrl+S or Shift+F12. A new document goes to Save As. **Save As**:
+  F12, Alt+F, A or File ▸ Save As — a file name, the "Save as type" list,
+  More options… and Save; in Chromium the save picker opens, elsewhere the
+  file is downloaded. Saving as Web Page or Plain Text first lists what will
+  be lost (Keep current format / Save as Word Document / Cancel, Don't ask
+  again). Plain Text asks for an encoding (UTF-8, UTF-8 with BOM, UTF-16
+  LE/BE, Windows-1252, ISO-8859-1, US-ASCII), line endings and character
+  substitution, with a preview that marks characters the encoding can't hold.
+  A web page keeps the whole document inside it, so this app reopens it
+  without loss (More options… can turn that off).
+- **Word documents you didn't create keep everything**: parts the editor
+  doesn't use (themes, fonts, custom XML, building blocks, embedded files,
+  charts, comment extensions…), content it doesn't model (it is kept and
+  written back in place) and the original XML of everything you didn't edit.
+  File ▸ Info ▸ Check for Issues ▸ Check Compatibility lists what another
+  format can't keep.
 - **Never lose work**: the document is autosaved in this browser every 30
   seconds and whenever you switch away; File ▸ Recover brings back anything
   that wasn't saved. You are asked before unsaved changes are discarded.
-- **Export**: File ▸ Export saves a copy as ODT, PDF (through the print
-  dialog), Word, web page, Markdown, RTF or text, or the current page as a
-  PNG picture. Share offers the system share sheet where the browser has one,
-  Download, Export PDF and Copy as HTML.
+- **Export**: File ▸ Export saves a copy in any of the formats above, as
+  Markdown or RTF, or the current page as a PNG picture. Share offers the
+  system share sheet where the browser has one, Download a copy, Export PDF
+  and Copy as HTML.
 - **Print**: Ctrl+P opens File ▸ Print with a preview and page ranges; the
   browser's print dialog does the rest (choose "Save as PDF" for a PDF).
 - **Protect**: File ▸ Info ▸ Protect Document encrypts the file with a
-  password (AES-256, the way LibreOffice does it).
-- **Fidelity**: anything the editor doesn't understand is kept and written
-  back unchanged.
+  password: Word documents with AES-256 (as Word does, readable by Word and
+  LibreOffice), ODT the way LibreOffice does it. Web pages, text and Word XML
+  can't hold a password: you are offered DOCX or ODT.
 
 ## Using it
 
@@ -360,13 +384,17 @@ Other limitations:
   comments, tracked changes, TOC fields). Still not matched: text wraps on one
   side of a floating picture (Word can wrap on both sides); a picture placed
   relative to the page vertically is placed relative to its paragraph;
-  table-style banding and theme colours/effects aren't applied; fields other
-  than page number / page count / TOC / hyperlink keep only their shown text;
-  charts and embedded objects are left out. If a file can't be read this
-  way, a simpler import (text, styles, lists, tables, pictures) is used.
-  RTF pictures are PNG / JPEG only. Export: DOCX is written directly, with
-  everything the importer reads (see PROGRESS.md, M14); HTML and Markdown
-  keep the content, not the page layout.
+  table-style banding and theme colours/effects aren't applied; equations,
+  charts, SmartArt and Word shapes made in Word are kept and written back
+  unchanged but shown as a placeholder, not edited. RTF pictures are PNG /
+  JPEG only.
+- DOCX export (see PROGRESS.md, M15): equations are written as Word
+  equations (OMML); charts, shapes, WordArt, ink, drawing canvases and
+  SmartArt are written as pictures Word shows, with the objects themselves
+  kept in the file so this app reopens them editable; image watermarks aren't
+  written for Word (text watermarks are). HTML and Markdown keep the content,
+  not the page layout.
+- PDF and XPS in Save As are dimmed until their writers exist (M16).
 - Printing uses the first page size for the browser's default and named page
   sizes for others; PDF bookmarks depend on the browser.
 - Windows: Arrange All and Side by Side can only move windows the app opened

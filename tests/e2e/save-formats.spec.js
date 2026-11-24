@@ -233,6 +233,28 @@ test.describe('save formats', () => {
       expect(opts).toEqual([['Word Document (*.docx)', false], ['OpenDocument Text (*.odt)', false], ['Word XML Document (*.xml)', false], ['Web Page (*.htm; *.html)', false], ['Plain Text (*.txt)', false], ['PDF (*.pdf)', true], ['XPS Document (*.xps)', true]]);
     });
 
+    test('keyboard: Alt+F, A opens Save As; the status bar names Web Page / Plain Text / Word XML; Recent shows format icons', async ({ page }) => {
+      await page.locator('.ProseMirror').first().click();
+      await page.keyboard.press('Alt');
+      await page.keyboard.press('f');
+      await expect(page.locator('.backstage')).toBeVisible();
+      await page.keyboard.press('a');
+      await expect(page.locator('[data-saveas-type]')).toBeVisible();
+      await expect(page.locator('[data-saveas-type]')).toHaveValue('docx');
+      await page.keyboard.press('Escape');
+      for (const [name, label] of [['a.txt', 'Plain Text'], ['b.html', 'Web Page'], ['c.docx', '']]) {
+        const bytes = name.endsWith('.docx') ? readFileSync('tests/fixtures/word-features.docx') : Buffer.from(name.endsWith('.html') ? '<p>x</p>' : 'x');
+        await openBytes(page, name, bytes);
+        await expect.poll(() => page.locator('[data-status-format]').textContent()).toBe(label);
+      }
+      await expect.poll(async () => (await page.evaluate(async () => (await window.odtEditor.session.listRecent()).map((e) => e.name))).sort()).toEqual(['a.txt', 'b.html', 'c.docx']);
+      await page.evaluate(() => window.odtEditor.registry.run('file.openPage'));
+      // Each with its format's icon (an original page with the format's name) and its extension.
+      const row = page.locator('.bs-recent-row', { hasText: 'c.docx' });
+      await expect(row.locator('.bs-recent-icon svg text')).toHaveText('DOCX');
+      await expect(page.locator('.bs-recent-row', { hasText: 'a.txt' }).locator('.bs-recent-icon svg text')).toHaveText('TXT');
+    });
+
     test('Options ▸ Save "Save files in this format": OpenDocument Text → new documents save as .odt', async ({ page }) => {
       await page.evaluate(() => { window.odtEditor.registry.run('file.options'); });
       await page.locator('.opt-nav-item[data-section="save"]').click();
