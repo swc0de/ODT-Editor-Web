@@ -52,6 +52,20 @@ const ind_ = (pPr) => kid(pPr, 'ind');
 const twipsPt = (t) => `${+(Number(t) / 20).toFixed(2)}pt`;
 const emuPx = (e) => Number(e) / 9525;
 const parse = (bytes) => (bytes ? new DOMParser().parseFromString(strFromU8(bytes), 'application/xml') : null);
+const serialize = (el) => new XMLSerializer().serializeToString(el);
+
+/**
+ * Children of w:pPr / w:rPr the reader maps (ECMA-376 names). Other children,
+ * and mapped ones carrying attributes beyond w:val, are kept as raw XML on
+ * the model (auto.ooxml) so the writer can put them back.
+ */
+const PPR_MAPPED = new Set(['pStyle', 'keepNext', 'keepLines', 'pageBreakBefore', 'widowControl', 'numPr', 'pBdr', 'shd', 'tabs', 'bidi', 'spacing', 'ind', 'contextualSpacing', 'jc', 'outlineLvl', 'sectPr', 'rPr']);
+const RPR_MAPPED = new Set(['rStyle', 'rFonts', 'b', 'i', 'caps', 'smallCaps', 'strike', 'dstrike', 'outline', 'shadow', 'vanish', 'color', 'spacing', 'sz', 'szCs', 'highlight', 'u', 'shd', 'vertAlign', 'lang']);
+/** Raw XML of a property element's children when some aren't fully mapped (null otherwise). */
+function propExtras(pr, mapped) {
+  if (!pr) return null;
+  return [...pr.children].map(serialize);
+}
 
 const HIGHLIGHT = {
   yellow: '#ffff00', green: '#00ff00', cyan: '#00ffff', magenta: '#ff00ff', blue: '#0000ff', red: '#ff0000', darkBlue: '#000080', darkCyan: '#008080',
@@ -159,6 +173,8 @@ export function docxToStateNative(bytes) {
     noteCount: { footnote: 0, endnote: 0 },
     pictures: 0,
     cid: 0,
+    dropped: new Map(), // elements the reader drops (logged; the corpus tests require none)
+    hfParts: [], // header / footer trees with their original parts
   };
   readFontTable(ctx, partXml('fontTable')?.xml);
   readStyles(ctx, partXml('styles')?.xml);
@@ -181,9 +197,13 @@ export function docxToStateNative(bytes) {
   const conv = converter(ctx, mainRels);
   ctx.geometry = pageGeometry(sectPrs[0]);
   ctx.firstGeometry = ctx.geometry;
-  for (const el of kids(body)) {
+  const bodyEls = kids(body);
+  const srcOf = new Map(); // block JSON object → index of the body element it came from
+  for (const [ei, el] of bodyEls.entries()) {
     if (el.localName === 'sectPr') continue;
-    current.push(...conv.items(el));
+    const got = conv.items(el);
+    for (const it of got) srcOf.set(it.block, ei);
+    current.push(...got);
     const sp = el.localName === 'p' ? path(el, 'pPr', 'sectPr') : null;
     if (sp) { sections.push({ blocks: buildLists(ctx, current), sectPr: sp }); current = []; ctx.geometry = pageGeometry(sectPrs[sections.length]); }
   }
@@ -245,7 +265,86 @@ export function docxToStateNative(bytes) {
   if (updateFields || ctx.emptyToc) state.updateFieldsOnOpen = true;
   state.fontFaces = [...(state.fontFaces || []), ...fontFaces(ctx, state)];
   readProperties(state, files);
-  return { state, warnings: ctx.warnings };
+  state.docxSource = sourceOf(ctx, state, { docXml, bodyEls, out, srcOf, sectPrs });
+  if (ctx.dropped.size) console.debug('DOCX reader dropped:', Object.fromEntries(ctx.dropped));
+  return { state, warnings: ctx.warnings, dropped: Object.fromEntries(ctx.dropped) };
+}
+
+/**
+ * The original package and how its body maps to the model (see
+ * docx-preserve.js): the writer reuses the XML of every group of body
+ * elements whose blocks are unchanged when the document is saved.
+ */
+function sourceOf(ctx, state, { docXml, bodyEls, out, srcOf, sectPrs }) {
+  const root = docXml.documentElement;
+  const rootStart = serialize(root.cloneNode(false)).replace(/<\/[^>]+>$/, '').replace(/\/>$/, '>');
+  const decls = {};
+  for (const a of root.attributes) if (a.name === 'xmlns' || a.name.startsWith('xmlns:')) decls[a.name === 'xmlns' ? '' : a.name.slice(6)] = a.value;
+  const clean = (xml) => xml.replace(/^<[\w:.-]+(?:[^>"']|"[^"]*"|'[^']*')*?\/?>/, (tag) => tag.replace(/\sxmlns(?::([\w.-]+))?="([^"]*)"/g, (m, p, uri) => (decls[p || ''] === uri ? '' : m)));
+  // Body element indexes of each top-level block.
+  const srcs = out.map((b) => {
+    const set = new Set();
+    const walk = (n) => { if (!n || typeof n !== 'object') return; if (srcOf.has(n)) set.add(srcOf.get(n)); for (const c of n.content || []) walk(c); };
+    walk(b);
+    return set;
+  });
+  const groups = [];
+  let cur = null;
+  let pendingEmpty = 0;
+  let ok = true;
+  srcs.forEach((set, j) => {
+    if (!set.size) { if (cur && !pendingEmpty && j > 0 && groups.length && cur === groups[groups.length - 1] && false) cur.blocks.push(j); else pendingEmpty++; return; }
+    const a = Math.min(...set);
+    const b = Math.max(...set);
+    if (cur && a <= cur.hi) { cur.hi = Math.max(cur.hi, b); cur.count += 1 + pendingEmpty; pendingEmpty = 0; return; }
+    if (cur && a < cur.hi) ok = false;
+    cur = { first: j - pendingEmpty, count: 1 + pendingEmpty, lo: a, hi: b };
+    pendingEmpty = 0;
+    groups.push(cur);
+  });
+  if (pendingEmpty && cur) cur.count += pendingEmpty;
+  if (!groups.length) ok = false;
+  // Elements between groups belong to the next group (the first group takes those before it).
+  groups.forEach((g, i) => { g.from = i ? groups[i - 1].hi + 1 : 0; });
+  if (groups.length) groups[groups.length - 1].to = bodyEls.length - 1;
+  groups.forEach((g, i) => { if (i < groups.length - 1) g.to = g.hi; });
+  const sectIndex = new Map(sectPrs.slice(0, -1).map((sp, i) => [sp?.parentNode?.parentNode, i]));
+  const docChildren = [];
+  state.doc.forEach((n) => docChildren.push(n));
+  const result = ok && docChildren.length === out.length ? groups.map((g) => {
+    const xml = [];
+    let sect = null;
+    let mid = false;
+    for (let e = g.from; e <= g.to; e++) {
+      const el = bodyEls[e];
+      if (el.localName === 'sectPr') continue;
+      if (sect != null) mid = true; // a section break before the group's end: not reusable as one piece
+      if (sectIndex.has(el)) {
+        sect = sectIndex.get(el);
+        const copy = el.cloneNode(true);
+        const sp = [...(kid(copy, 'pPr')?.children || [])].find((c) => c.localName === 'sectPr');
+        sp?.parentNode.removeChild(sp);
+        xml.push(clean(serialize(copy)));
+      } else xml.push(clean(serialize(el)));
+    }
+    const json = docChildren.slice(g.first, g.first + g.count).map((n) => JSON.stringify(n.toJSON())).join('\n');
+    return { xml, json, count: g.count, sect: mid ? -1 : sect };
+  }) : null;
+  const snap = (x) => JSON.stringify(x ?? null);
+  return {
+    files: ctx.files,
+    mainPath: ctx.pkg.mainPath,
+    rootStart,
+    groups: result,
+    sectPrs: sectPrs.map((sp) => (sp ? serialize(sp) : null)),
+    hfParts: ctx.hfParts,
+    snap: {
+      doc: snap(state.doc.toJSON()),
+      styles: snap([state.commonStyles, state.fontFaces]),
+      pages: snap([state.masterStyles, state.stylesAutoStyles, state.contentAutoStyles]),
+      meta: snap(state.meta),
+    },
+  };
 }
 
 /**
@@ -384,11 +483,15 @@ function writeHeadersFooters(ctx, state, master, refs, { titlePg, evenOdd, geome
         const xml = parse(ctx.files[pathName]);
         const saved = ctx.geometry;
         ctx.geometry = geometry;
-        blocks = converter(ctx, ctx.pkg.rels(pathName), { part }).blocksOf(xml.documentElement);
+        blocks = converter(ctx, ctx.pkg.rels(pathName), { part, partPath: pathName }).blocksOf(xml.documentElement);
         ctx.geometry = saved;
       }
       const doc = schema.nodeFromJSON({ type: 'doc', content: (blocks.length ? blocks : [{ type: 'paragraph', attrs: { styleName: part === 'header' ? 'Header' : 'Footer' } }]).map(fixBlock) });
       writePart(state, master, part, kind, doc);
+      // The part as written in the model, with the original it came from: unchanged, it is written back as it was.
+      const m = (state.masterStyles?.c || []).find((x) => typeof x !== 'string' && x.n === 'style:master-page' && x.a['style:name'] === master);
+      const tree = (m?.c || []).find((x) => typeof x !== 'string' && x.n === `style:${part}${kind ? `-${kind}` : ''}`);
+      if (tree && pathName) ctx.hfParts.push({ tree: JSON.stringify(tree), path: pathName });
     };
     // A default part that is empty (written so a section doesn't inherit
     // an earlier one) is no header / footer at all when nothing else shows.
@@ -918,6 +1021,11 @@ function readComments(xml) {
  */
 function converter(ctx, rels, opts = {}) {
   const fieldStack = [];
+  const partPath = opts.partPath || ctx.pkg.mainPath;
+  /** Content the editor doesn't model: kept as raw OOXML and written back in place. */
+  const opaqueInline = (xml, text = '') => ({ type: 'opaque_inline', attrs: { xml, text: text.replace(/\s+/g, ' ').trim().slice(0, 200), dialect: 'ooxml', part: partPath } });
+  const opaqueBlock = (el) => ({ type: 'opaque_block', attrs: { xml: serialize(el), label: el.tagName, text: (el.textContent || '').replace(/\s+/g, ' ').trim().slice(0, 4000), dialect: 'ooxml', part: partPath } });
+  const drop = (el) => { ctx.dropped.set(el.tagName, (ctx.dropped.get(el.tagName) || 0) + 1); };
   const openComments = new Set();
   let ptabs = []; // positional tabs of the paragraph being read
   let currentParaStyle = null; // Word style id of that paragraph
@@ -929,6 +1037,7 @@ function converter(ctx, rels, opts = {}) {
    * its cached result. Those paragraphs become a text:table-of-content.
    */
   let toc = null;
+  const sdtStack = [];
 
   /** One block-level element → [{ block, list? }] (lists are grouped by the caller). */
   function items(el) {
@@ -936,14 +1045,17 @@ function converter(ctx, rels, opts = {}) {
       case 'p': {
         if (!toc && !opts.part) {
           const instr = tocInstr(el);
-          if (instr) toc = { instr, depth: 0, started: false, blocks: [] };
+          if (instr) toc = { instr, depth: 0, started: false, blocks: [], sdtPr: sdtStack[sdtStack.length - 1] || null };
         }
         if (!toc) return paragraph(el);
         const got = paragraph(el);
         for (const fc of [...el.getElementsByTagName('*')].filter((x) => x.localName === 'fldChar' || x.localName === 'fldSimple')) {
           if (fc.localName === 'fldSimple') continue;
           const t = wa(fc, 'fldCharType');
-          if (t === 'begin') { toc.depth++; toc.started = true; } else if (t === 'end') toc.depth--;
+          if (t === 'begin') {
+            if (!toc.started) toc.begin = [...fc.attributes].filter((x) => !x.name.startsWith('xmlns') && x.name !== 'w:fldCharType').map((x) => ` ${x.name}="${x.value}"`).join('');
+            toc.depth++; toc.started = true;
+          } else if (t === 'end') toc.depth--;
         }
         toc.blocks.push(...got.map((g) => g.block).filter((b) => (b.content || []).some((x) => x.type !== 'text' || x.text.trim())));
         if (toc.started && toc.depth > 0) return [];
@@ -952,9 +1064,18 @@ function converter(ctx, rels, opts = {}) {
         return [{ block: node }];
       }
       case 'tbl': return [{ block: table(el) }];
-      case 'sdt': return kids(kid(el, 'sdtContent')).flatMap(items);
+      case 'sdt': {
+        // A block content control: its content; a TOC inside keeps the control's properties.
+        sdtStack.push(kid(el, 'sdtPr') ? serialize(kid(el, 'sdtPr')) : null);
+        try { return kids(kid(el, 'sdtContent')).flatMap(items); } finally { sdtStack.pop(); }
+      }
       case 'customXml': return kids(el).flatMap(items);
-      default: return [];
+      // Properties and markers that aren't content at the body level.
+      case 'sectPr': case 'proofErr': case 'bookmarkStart': case 'bookmarkEnd': case 'permStart': case 'permEnd': case 'commentRangeStart': case 'commentRangeEnd':
+      case 'moveFromRangeStart': case 'moveFromRangeEnd': case 'moveToRangeStart': case 'moveToRangeEnd': case 'tblPr': case 'tblGrid': case 'trPr': case 'tcPr':
+        if (!['sectPr', 'proofErr', 'tblPr', 'tblGrid', 'trPr', 'tcPr'].includes(el.localName)) drop(el);
+        return [];
+      default: return [{ block: opaqueBlock(el) }];
     }
   }
   /** The blocks of a container (body of a cell, note, comment, header…). */
@@ -1002,7 +1123,11 @@ function converter(ctx, rels, opts = {}) {
       const a = { ...props.a };
       // A page break inside the paragraph starts a new paragraph on a new page.
       if (i > 0) a['fo:break-before'] = 'page';
-      const auto = autoOf({ para: { a, c: props.c } });
+      let auto = autoOf({ para: { a, c: props.c } });
+      const extras = propExtras(pPr, PPR_MAPPED);
+      // The paragraph's own attributes (w14:paraId, w14:textId…; rsids are noise).
+      const pAttrs = [...p.attributes].filter((x) => !x.name.startsWith('xmlns') && !/^w:rsid/.test(x.name)).map((x) => ` ${x.name}="${x.value.replace(/&/g, '&amp;').replace(/"/g, '&quot;')}"`).join('');
+      if (extras || pAttrs) auto = { ...(auto || { styleAttrs: {}, props: {} }), ooxml: { ...(extras ? { pPr: extras } : {}), ...(pAttrs && i === 0 ? { pAttrs } : {}) } };
       const attrs = { styleName: style.odt, auto };
       if (style.level) attrs.level = style.level;
       return { block: { type: style.level ? 'heading' : 'paragraph', attrs, content: hoistFloats(mergeText(content)) }, list: numId ? { numId, level } : null };
@@ -1024,7 +1149,9 @@ function converter(ctx, rels, opts = {}) {
         const rel = id ? rels.get(id) : null;
         const anchor = wa(el, 'anchor');
         const href = rel?.external ? rel.target : anchor ? `#${anchor}` : rel?.target || '';
-        return inlineContent(el, segments, href ? { ...marks, link: href } : marks);
+        // Other attributes (history, tooltip, target frame…) go back with the link.
+        const linkAttrs = [...el.attributes].filter((x) => !x.name.startsWith('xmlns') && !['r:id', 'w:anchor'].includes(x.name) && !/^w:rsid/.test(x.name)).map((x) => ` ${x.name}="${x.value.replace(/&/g, '&amp;').replace(/"/g, '&quot;')}"`).join('');
+        return inlineContent(el, segments, href ? { ...marks, link: href, linkAttrs } : marks);
       }
       case 'ins': return inlineContent(el, segments, { ...marks, change: { type: 'insertion', author: wa(el, 'author') || '', date: wa(el, 'date') || '', id: wa(el, 'id') } });
       case 'del': return inlineContent(el, segments, { ...marks, change: { type: 'deletion', author: wa(el, 'author') || '', date: wa(el, 'date') || '', id: wa(el, 'id') } });
@@ -1066,12 +1193,12 @@ function converter(ctx, rels, opts = {}) {
         return;
       }
       case 'oMath': case 'oMathPara': {
-        // Equations: their text (Word's OMML isn't converted to MathML).
+        // Equations: kept as Word wrote them (OMML), showing their text.
         const text = [...el.getElementsByTagName('*')].filter((x) => x.localName === 't').map((x) => x.textContent).join('');
-        if (text) push(segments, textNode(text, marks, null));
-        return;
+        return push(segments, opaqueInline(serialize(el), text));
       }
-      default: return undefined;
+      case 'pPr': case 'proofErr': case 'rPr': return undefined;
+      default: return push(segments, opaqueInline(serialize(el), el.textContent || ''));
     }
   }
 
@@ -1080,7 +1207,7 @@ function converter(ctx, rels, opts = {}) {
   function annotation(id) {
     const c = ctx.comments.get(id);
     if (!c) return null;
-    const conv = converter(ctx, ctx.pkg.rels(ctx.commentsPath), { inComment: true });
+    const conv = converter(ctx, ctx.pkg.rels(ctx.commentsPath), { inComment: true, partPath: ctx.commentsPath });
     const body = conv.blocksOf(c);
     ctx.comments.delete(id);
     return { type: 'annotation', attrs: { name: `__Annotation__${id}`, creator: wa(c, 'author') || '', date: (wa(c, 'date') || '').replace(/(\.\d+)?Z$/, ''), initials: wa(c, 'initials') || '', body: body.length ? body : [{ type: 'paragraph' }] } };
@@ -1098,6 +1225,10 @@ function converter(ctx, rels, opts = {}) {
     const rStyle = wa(kid(rPr, 'rStyle'), 'val');
     const charStyle = rStyle ? ctx.styles.get(rStyle)?.odt : null;
     const tp = textProps(ctx, rPr);
+    const rExtras = propExtras(rPr, RPR_MAPPED);
+    const rPrXml = rPr ? serialize(rPr) : '';
+    /** A run child the editor doesn't model, in a run of its own with the run's properties. */
+    const opaqueRun = (child, text = '') => opaqueInline(`<w:r xmlns:w="${W}">${rPrXml}${serialize(child)}</w:r>`, text);
     // A character style's toggle property flips the paragraph style's (L1), unless the run sets it itself.
     if (rStyle && currentParaStyle) {
       for (const [el, attr, , offV] of TOGGLES) {
@@ -1113,7 +1244,7 @@ function converter(ctx, rels, opts = {}) {
           if (fld && fld.phase !== 'result') break;
           // A field the editor shows itself keeps Word's current result as its text.
           if (fld?.result === 'skip') { if (fld.node) { fld.node.attrs.text = fld.cached ? fld.node.attrs.text + el.textContent : el.textContent; fld.cached = true; } break; }
-          push(segments, textNode(el.textContent, fld?.link ? { ...marks, link: fld.link } : marks, { tp, charStyle }));
+          push(segments, textNode(el.textContent, fld?.link ? { ...marks, link: fld.link } : marks, { tp, charStyle, rExtras, space: el.getAttribute('xml:space') === 'preserve' }));
           break;
         }
         case 'tab': if (!fld || fld.phase === 'result') push(segments, { type: 'tab' }); break;
@@ -1160,7 +1291,7 @@ function converter(ctx, rels, opts = {}) {
           const cls = el.localName === 'footnoteReference' ? 'footnote' : 'endnote';
           const n = ctx.notes[cls].get(wa(el, 'id'));
           if (!n) break;
-          const conv = converter(ctx, ctx.pkg.rels(n.path), { inNote: true });
+          const conv = converter(ctx, ctx.pkg.rels(n.path), { inNote: true, partPath: n.path });
           const body = conv.blocksOf(n.el);
           const count = ++ctx.noteCount[cls];
           push(segments, { type: 'note', attrs: { noteClass: cls, citation: String(count), body: body.length ? body : [{ type: 'paragraph', attrs: { styleName: cls === 'footnote' ? 'Footnote' : 'Endnote' } }], extra: { 'text:id': `${cls === 'footnote' ? 'ftn' : 'edn'}${count}` } } });
@@ -1172,32 +1303,39 @@ function converter(ctx, rels, opts = {}) {
           if (!openComments.has(id)) { const ann = annotation(id); if (ann) push(segments, ann); }
           break;
         }
-        case 'drawing': { const node = drawing(el); if (node) push(segments, node); break; }
+        case 'drawing': { const node = drawing(el); if (node) push(segments, node); else push(segments, opaqueRun(el)); break; }
         case 'AlternateContent': {
           // Word writes text boxes and other new objects with a fallback: read the first choice we understand.
           const choice = kids(el, 'Choice')[0] || kid(el, 'Fallback');
           const d = choice && [...choice.getElementsByTagName('*')].find((x) => x.localName === 'drawing');
-          if (d) { const node = drawing(d); if (node) push(segments, node); }
+          const node = d ? drawing(d) : null;
+          if (node) push(segments, node); else if (!fld || fld.phase === 'result') push(segments, opaqueRun(el));
           break;
         }
-        case 'pict': case 'object': {
-          // VML pictures (older files).
-          const img = [...el.getElementsByTagName('*')].find((x) => x.localName === 'imagedata');
-          const id = img && (img.getAttributeNS(R, 'id') ?? img.getAttribute('r:id'));
+        case 'pict': {
+          // VML pictures (older files); other VML (shapes, OLE objects) is kept as it is.
+          const all = [...el.getElementsByTagName('*')];
+          const img = all.find((x) => x.localName === 'imagedata');
+          const id = img && !all.some((x) => x.localName === 'OLEObject' || x.localName === 'textbox') && (img.getAttributeNS(R, 'id') ?? img.getAttribute('r:id'));
           const node = id ? picture(id, 200, 150, '') : null;
-          if (node) push(segments, node);
+          if (node) push(segments, node); else if (!fld || fld.phase === 'result') push(segments, opaqueRun(el));
           break;
         }
-        default: break;
+        case 'rPr': case 'lastRenderedPageBreak': case 'separator': case 'continuationSeparator': case 'annotationRef': break;
+        default:
+          // Embedded objects (OLE), ruby text, date / page marks and anything else: kept in place.
+          if (!fld || fld.phase === 'result') push(segments, opaqueRun(el, el.textContent || ''));
+          break;
       }
     }
   }
 
   function textNode(text, marks, f) {
     const m = [];
-    if (marks.link) m.push({ type: 'link', attrs: { href: marks.link } });
+    if (marks.link) m.push({ type: 'link', attrs: { href: marks.link, ...(marks.linkAttrs != null ? { extra: { ooxml: marks.linkAttrs } } : {}) } });
     if (f?.charStyle) m.push({ type: 'charStyle', attrs: { name: f.charStyle } });
-    if (f?.tp && Object.keys(f.tp).length) m.push({ type: 'textProps', attrs: { auto: { styleAttrs: {}, props: { 'style:text-properties': { a: f.tp } } } } });
+    const ox = f?.rExtras || f?.space ? { ...(f.rExtras ? { rPr: f.rExtras } : {}), ...(f.space ? { space: true } : {}) } : null;
+    if ((f?.tp && Object.keys(f.tp).length) || ox) m.push({ type: 'textProps', attrs: { auto: { styleAttrs: {}, props: { 'style:text-properties': { a: f.tp || {} } }, ...(ox ? { ooxml: ox } : {}) } } });
     if (marks.change) m.push({ type: marks.change.type, attrs: { author: marks.change.author, date: marks.change.date.replace(/(\.\d+)?Z$/, ''), cid: `ct${marks.change.id ?? ++ctx.cid}` } });
     return m.length ? { type: 'text', text, marks: m } : { type: 'text', text };
   }
@@ -1219,7 +1357,7 @@ function converter(ctx, rels, opts = {}) {
       // A text box: its paragraphs become the box's text.
       const txbx = all.find((x) => x.localName === 'txbxContent');
       if (txbx) {
-        const conv = converter(ctx, rels, { inBox: true });
+        const conv = converter(ctx, rels, { inBox: true, partPath });
         const body = conv.blocksOf(txbx);
         node = { type: 'frame', attrs: textBoxAttrs({ w, h, name: `Text Box ${++ctx.pictures}`, z: ctx.pictures, body }) };
       }
@@ -1388,7 +1526,7 @@ function tocIndex(ctx, t) {
   t.blocks.forEach(restyle);
   const node = {
     type: 'index',
-    attrs: { element: 'text:table-of-content', attrs: { 'text:protected': 'true', 'text:name': `Table of Contents${ctx.tocCount}` }, source: tocSource(o), titleCount: 0, titleAttrs: null },
+    attrs: { element: 'text:table-of-content', attrs: { 'text:protected': 'true', 'text:name': `Table of Contents${ctx.tocCount}` }, source: tocSource(o), titleCount: 0, titleAttrs: null, ooxml: { sdtPr: t.sdtPr || null, instr: t.instr, begin: t.begin || '', source: JSON.stringify(tocSource(o)) } },
     content: t.blocks.length ? t.blocks : [{ type: 'paragraph', attrs: { styleName: 'Contents_20_1' } }],
   };
   (ctx.tocs ||= []).push({ node, o, empty: !t.blocks.length });

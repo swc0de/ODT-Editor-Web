@@ -212,7 +212,8 @@ export const nodes = {
     group: 'block',
     content: `(${BLOCK})+`,
     isolating: true,
-    attrs: { element: { default: 'text:table-of-content' }, attrs: { default: {} }, source: { default: null }, titleCount: { default: 0 }, titleAttrs: { default: null } },
+    // ooxml: a TOC read from Word ({ sdtPr, instr, begin, source }): its content control and field are written back as they were.
+    attrs: { element: { default: 'text:table-of-content' }, attrs: { default: {} }, source: { default: null }, titleCount: { default: 0 }, titleAttrs: { default: null }, ooxml: { default: null } },
     parseDOM: [{ tag: 'div[data-odt-index]', priority: 60, getAttrs: (dom) => parseJson(dom.getAttribute('data-index')) || {} }],
     toDOM: (node) => ['div', { 'data-odt-index': '', 'data-index': json(node.attrs), class: `odt-index ${node.attrs.element.replace(':', '-')}` }, 0],
   },
@@ -222,9 +223,10 @@ export const nodes = {
     group: 'block',
     atom: true,
     selectable: true,
-    attrs: { xml: { default: '' }, label: { default: '' }, text: { default: '' } },
-    parseDOM: [{ tag: 'div[data-odt-opaque]', priority: 60, getAttrs: (dom) => ({ xml: dom.getAttribute('data-xml') || '', label: dom.getAttribute('data-label') || '', text: dom.textContent }) }],
-    toDOM: (node) => ['div', { 'data-odt-opaque': '', 'data-xml': node.attrs.xml, 'data-label': node.attrs.label, class: 'odt-opaque', contenteditable: 'false', title: node.attrs.label }, node.attrs.text || ' '],
+    // dialect: 'odf' (from an ODT) or 'ooxml' (from a .docx; part: the package part it came from, for its relationships).
+    attrs: { xml: { default: '' }, label: { default: '' }, text: { default: '' }, dialect: { default: 'odf' }, part: { default: null } },
+    parseDOM: [{ tag: 'div[data-odt-opaque]', priority: 60, getAttrs: (dom) => ({ xml: dom.getAttribute('data-xml') || '', label: dom.getAttribute('data-label') || '', text: dom.textContent, dialect: dom.getAttribute('data-dialect') || 'odf', part: dom.getAttribute('data-part') || null }) }],
+    toDOM: (node) => ['div', { 'data-odt-opaque': '', 'data-xml': node.attrs.xml, 'data-label': node.attrs.label, 'data-dialect': node.attrs.dialect, 'data-part': node.attrs.part, class: 'odt-opaque', contenteditable: 'false', title: node.attrs.label }, node.attrs.text || ' '],
   },
 
   text: { group: 'inline' },
@@ -326,9 +328,9 @@ export const nodes = {
   /** Inline XML the editor doesn't model (ruby, shapes, index marks…). */
   opaque_inline: {
     group: 'inline', inline: true, atom: true,
-    attrs: { xml: { default: '' }, text: { default: '' } },
-    parseDOM: [{ tag: 'span[data-odt-opaque]', priority: 60, getAttrs: (dom) => ({ xml: dom.getAttribute('data-xml') || '', text: dom.textContent }) }],
-    toDOM: (node) => ['span', { 'data-odt-opaque': '', 'data-xml': node.attrs.xml, class: 'odt-opaque-inline' }, node.attrs.text || '□'],
+    attrs: { xml: { default: '' }, text: { default: '' }, dialect: { default: 'odf' }, part: { default: null } },
+    parseDOM: [{ tag: 'span[data-odt-opaque]', priority: 60, getAttrs: (dom) => ({ xml: dom.getAttribute('data-xml') || '', text: dom.textContent, dialect: dom.getAttribute('data-dialect') || 'odf', part: dom.getAttribute('data-part') || null }) }],
+    toDOM: (node) => ['span', { 'data-odt-opaque': '', 'data-xml': node.attrs.xml, 'data-dialect': node.attrs.dialect, 'data-part': node.attrs.part, class: 'odt-opaque-inline' }, node.attrs.text || '□'],
     leafText: (node) => node.attrs.text,
   },
 };

@@ -94,7 +94,8 @@ export function createBodyWriter(registry) {
         if (a.titleCount && i < a.titleCount) s += '</text:index-title>';
         return `${s}</text:index-body></${a.element}>`;
       }
-      case 'opaque_block': return node.attrs.xml;
+      // Word content (from a .docx) can't go into ODF: its text is kept (Check Compatibility lists it).
+      case 'opaque_block': return node.attrs.dialect === 'ooxml' ? (node.attrs.text ? `<text:p>${escText(node.attrs.text)}</text:p>` : '') : node.attrs.xml;
       default: return '';
     }
   }
@@ -247,7 +248,7 @@ export function createBodyWriter(registry) {
       case 'hard_break': st.prevSpace = false; return a.clear ? `<text:line-break loext:clear="${escAttr(a.clear)}"/>` : '<text:line-break/>';
       case 'field': st.prevSpace = false; return a.text ? `<${a.element}${attrsToXml(a.fieldAttrs)}>${escText(a.text)}</${a.element}>` : `<${a.element}${attrsToXml(a.fieldAttrs)}/>`;
       case 'frame': st.prevSpace = false; return drawObject(a);
-      case 'opaque_inline': st.prevSpace = false; return a.xml;
+      case 'opaque_inline': st.prevSpace = false; return a.dialect === 'ooxml' ? escText(a.text || '') : a.xml;
       case 'bookmark': return `<${a.element} text:name="${escAttr(a.name)}"${attrs(a.extra)}/>`;
       case 'change_marker': {
         const el = a.kind === 'point' ? 'text:change' : `text:change-${a.kind}`;

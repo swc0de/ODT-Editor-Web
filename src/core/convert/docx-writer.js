@@ -36,15 +36,26 @@
  *               with their current results
  *   properties  title, subject, author, keywords, description, dates
  */
-import { zipSync, strToU8 } from 'fflate';
+import { zipSync, strToU8, strFromU8 } from 'fflate';
 import { mergeAuto, autoFromTree } from '../odt/styles.js';
 import { findChild } from '../odt/xml.js';
 import { toPx } from '../../layout/units.js';
 import { tocOptions } from '../indexes.js';
 import { wrapOf, positionOf, graphicProps, sizeOf } from '../objects.js';
+import { mergeProps, PPR_ORDER, RPR_ORDER, PPR_MAPPED, RPR_MAPPED, patchSectPr, readRels, keptRels, maxAttr, splitChildren, parts, mergeRootStart, mergeNumbering, mergeStyles, patchSettings, patchCore, mergePackage, OWNED_TYPES } from './docx-preserve.js';
 
 const NS = 'xmlns:wpc="http://schemas.microsoft.com/office/word/2010/wordprocessingCanvas" xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:m="http://schemas.openxmlformats.org/officeDocument/2006/math" xmlns:v="urn:schemas-microsoft-com:vml" xmlns:wp14="http://schemas.microsoft.com/office/word/2010/wordprocessingDrawing" xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing" xmlns:w10="urn:schemas-microsoft-com:office:word" xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" xmlns:w15="http://schemas.microsoft.com/office/word/2012/wordml" xmlns:wpg="http://schemas.microsoft.com/office/word/2010/wordprocessingGroup" xmlns:wps="http://schemas.microsoft.com/office/word/2010/wordprocessingShape" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture" mc:Ignorable="w14 w15 wp14"';
 const DECL = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n';
+/** Prefix → namespace of the root declarations (NS). */
+const ROOT_URIS = Object.fromEntries([...NS.matchAll(/xmlns:([\w.-]+)="([^"]*)"/g)].map((m) => [m[1], m[2]]));
+/** A part path relative to a directory ("word/" + "customXml/item1.xml" → "../customXml/item1.xml"). */
+function relTarget(dir, path) {
+  const from = dir.split('/').filter(Boolean);
+  const to = path.split('/');
+  let i = 0;
+  while (i < from.length && i < to.length - 1 && from[i] === to[i]) i++;
+  return [...from.slice(i).map(() => '..'), ...to.slice(i)].join('/');
+}
 const REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships';
 const CT = 'application/vnd.openxmlformats-officedocument.wordprocessingml';
 
@@ -206,7 +217,11 @@ function pPrXml(a = {}, c = [], x = {}) {
 
 // ------------------------------------------------------------ writer
 
-function createDocxWriter(state, index) {
+function createDocxWriter(state, index, src = null) {
+  const srcFiles = src?.files || null;
+  const origDoc = srcFiles?.[src.mainPath] ? strFromU8(srcFiles[src.mainPath]) : '';
+  /** XML from the original package: drop namespace declarations the merged root already makes. */
+  const cleanDecls = (xml) => xml.replace(/\sxmlns:(w|r|wp|a|pic|mc|w14|wps|wpg|m|v|o|w10|wp14|w15)="([^"]*)"/g, (m, p, uri) => (ROOT_URIS[p] === uri ? '' : m));
   const files = {};
   const overrides = [];
   const media = new Map(); // picture path → media name
@@ -215,22 +230,46 @@ function createDocxWriter(state, index) {
   const comments = [];
   const numbering = createNumbering(index);
   const bookmarks = new Map();
-  let bookmarkId = 0;
-  let drawingId = 0;
+  // Ids continue after the original document's, so reused XML never clashes with new ids.
+  let bookmarkId = Math.max(0, maxAttr(origDoc.match(/<w:bookmarkStart\b[^>]*>/g)?.join('') || '', 'w:id') + 1);
+  let drawingId = Math.max(0, maxAttr(origDoc.match(/<wp:docPr\b[^>]*>/g)?.join('') || '', 'id'));
   let changeId = 0;
+  const noteBase = { footnote: 0, endnote: 0 };
+  let commentBase = 0;
+  if (srcFiles) {
+    for (const cls of ['footnote', 'endnote']) { const r = readRels(srcFiles, src.mainPath).find((x) => x.type.endsWith(`/${cls}s`)); if (r && srcFiles[r.path]) noteBase[cls] = Math.max(0, maxAttr(strFromU8(srcFiles[r.path]), 'w:id')); }
+    const c = readRels(srcFiles, src.mainPath).find((x) => x.type.endsWith('/comments'));
+    if (c && srcFiles[c.path]) commentBase = maxAttr(strFromU8(srcFiles[c.path]), 'w:id') + 1;
+  }
 
-  /** A story (document, header, note…) with its own relationships. */
-  function story(path) {
+  /**
+   * A story (document, header, note…) with its own relationships. `orig`:
+   * the original part it replaces, whose relationships (except to parts the
+   * writer writes itself) are kept with their ids.
+   */
+  function story(path, orig = null) {
     const rels = [];
+    const taken = new Set();
+    if (srcFiles && orig) {
+      const dir = path.slice(0, path.lastIndexOf('/') + 1);
+      for (const r of keptRels(srcFiles, orig)) {
+        const target = r.external ? r.target : relTarget(dir, r.path);
+        rels.push({ key: `${r.type}|${target}|${r.external}`, id: r.id, type: r.type, target, external: r.external });
+        taken.add(r.id);
+      }
+    }
+    let n = 0;
     const rel = (type, target, external = false) => {
-      const key = `${type}|${target}|${external}`;
+      const key = `${type.includes('://') ? type : `${REL}/${type}`}|${target}|${external}`;
       const found = rels.find((r) => r.key === key);
       if (found) return found.id;
-      const id = `rId${rels.length + 1}`;
-      rels.push({ key, id, type, target, external });
+      let id;
+      do { id = `rId${++n}`; } while (taken.has(id));
+      taken.add(id);
+      rels.push({ key, id, type: type.includes('://') ? type : `${REL}/${type}`, target, external });
       return id;
     };
-    const s = { path, rels, rel };
+    const s = { path, rels, rel, orig };
     parts.push(s);
     return s;
   }
@@ -242,7 +281,10 @@ function createDocxWriter(state, index) {
       const ext = (path.split('.').pop() || 'png').toLowerCase();
       // The picture keeps its file name where it can.
       const own = path.split('/').pop();
-      const name = /^[\w.-]+$/.test(own) && ![...media.values()].includes(own) ? own : `image${media.size + 1}.${ext}`;
+      // A name the original package uses for other bytes is avoided (copied parts may refer to that file).
+      const clash = (n) => [...media.values()].includes(n) || (srcFiles?.[`word/media/${n}`] && !sameBytes(srcFiles[`word/media/${n}`], pic.bytes));
+      let name = /^[\w.-]+$/.test(own) && !clash(own) ? own : `image${media.size + 1}.${ext}`;
+      for (let k = media.size + 1; clash(name); k++) name = `image${k}x.${ext}`;
       media.set(path, name);
       files[`word/media/${name}`] = pic.bytes;
     }
@@ -257,13 +299,16 @@ function createDocxWriter(state, index) {
   let paraText = {}; // text properties of the paragraph being written (they apply to all of its text in ODF)
   function runXml(node, inner, extraRPr = '') {
     const cs = charStyle(node);
-    const rPr = rPrXml({ ...paraText, ...effText(node) }, { rStyle: cs ? wordStyle('text', cs, index).id : null }) + extraRPr;
-    return `<w:r>${rPr ? `<w:rPr>${rPr}</w:rPr>` : ''}${inner}</w:r>`;
+    const original = node.marks?.find((m) => m.type.name === 'textProps')?.attrs.auto?.ooxml?.rPr;
+    const rPr = cleanDecls(mergeProps(rPrXml({ ...paraText, ...effText(node) }, { rStyle: cs ? wordStyle('text', cs, index).id : null }) + extraRPr, original, RPR_ORDER, RPR_MAPPED));
+    return `<w:r>${rPr ? `<w:rPr>${rPr}</w:rPr>` : original ? '<w:rPr/>' : ''}${inner}</w:r>`;
   }
 
   const textRun = (node, text, deleted) => {
     const tag = deleted ? 'w:delText' : 'w:t';
-    return runXml(node, text.split(/(\n)/).map((t) => (t === '\n' ? '<w:br/>' : t ? `<${tag} xml:space="preserve">${esc(t)}</${tag}>` : '')).join(''));
+    // xml:space only where spaces would otherwise be dropped (as Word writes it).
+    const keep = node.marks?.find((m) => m.type.name === 'textProps')?.attrs.auto?.ooxml?.space;
+    return runXml(node, text.split(/(\n)/).map((t) => (t === '\n' ? '<w:br/>' : t ? `<${tag}${keep || /^\s|\s$|\s\s|\t/.test(t) ? ' xml:space="preserve"' : ''}>${esc(t)}</${tag}>` : '')).join(''));
   };
 
   function fieldXml(st, node, ctxNode) {
@@ -363,8 +408,8 @@ function createDocxWriter(state, index) {
         }
         if (link) {
           const href = link.attrs.href || '';
-          if (href.startsWith('#')) open += `<w:hyperlink w:anchor="${esc(href.slice(1))}" w:history="1">`;
-          else open += `<w:hyperlink r:id="${st.rel('hyperlink', href, true)}" w:history="1">`;
+          if (href.startsWith('#')) open += `<w:hyperlink w:anchor="${esc(href.slice(1))}"${link.attrs.extra?.ooxml ?? ' w:history="1"'}>`;
+          else open += `<w:hyperlink r:id="${st.rel('hyperlink', href, true)}"${link.attrs.extra?.ooxml ?? ' w:history="1"'}>`;
           close = `</w:hyperlink>${close}`;
         }
         group = { key, open, close, items: [] };
@@ -384,14 +429,14 @@ function createDocxWriter(state, index) {
         case 'field': wrapIn(node, fieldXml(st, node)); break;
         case 'note': {
           const cls = node.attrs.noteClass === 'endnote' ? 'endnote' : 'footnote';
-          const id = notes[cls].length + 1;
+          const id = noteBase[cls] + notes[cls].length + 1;
           notes[cls].push({ id, body: node.attrs.body || [] });
           wrapIn(node, `<w:r><w:rPr><w:rStyle w:val="${cls === 'footnote' ? 'FootnoteReference' : 'EndnoteReference'}"/></w:rPr><w:${cls}Reference w:id="${id}"/></w:r>`);
           break;
         }
         case 'annotation': {
           flush();
-          const id = comments.length;
+          const id = commentBase + comments.length;
           comments.push({ id, attrs: node.attrs });
           commentIds.set(node.attrs.name, id);
           // A comment without a range ends where it starts.
@@ -416,6 +461,7 @@ function createDocxWriter(state, index) {
           break;
         }
         case 'frame': wrapIn(node, frameXml(st, node)); break;
+        case 'opaque_inline': if (node.attrs.dialect === 'ooxml') { flush(); out.push(opaqueXml(st, node)); break; } // falls through (ODF content: its text)
         default: if (node.isText || node.isLeaf) { const t = node.textContent; if (t) wrapIn(node, textRun(node, t, deleted)); }
       }
     });
@@ -441,14 +487,15 @@ function createDocxWriter(state, index) {
     if (extra.numPr) { delete a['fo:margin-left']; delete a['fo:text-indent']; }
     const sectPr = extra.sectPr || (pendingSect?.node === node ? pendingSect.xml : null);
     if (sectPr && pendingSect?.node === node) pendingSect = null;
-    const ppr = pPrXml(a, pp.c || [], { style: style.id === 'Normal' ? null : style.id, numPr: extra.numPr, sectPr, rPr: rPrXml(node.attrs.auto?.props?.['style:text-properties']?.a || {}) });
+    const ppr = cleanDecls(mergeProps(pPrXml(a, pp.c || [], { style: style.id === 'Normal' ? null : style.id, numPr: extra.numPr, sectPr, rPr: rPrXml(node.attrs.auto?.props?.['style:text-properties']?.a || {}) }), node.attrs.auto?.ooxml?.pPr, PPR_ORDER, PPR_MAPPED));
     const prefix = extra.prefix || '';
     const suffix = extra.suffix || '';
     const saved = paraText;
     paraText = node.attrs.auto?.props?.['style:text-properties']?.a || {};
     const runs = inlineXml(st, node);
     paraText = saved;
-    return `<w:p>${ppr ? `<w:pPr>${ppr}</w:pPr>` : ''}${prefix}${runs}${suffix}</w:p>`;
+    const ox = node.attrs.auto?.ooxml;
+    return `<w:p${ox?.pAttrs || ''}>${ppr ? `<w:pPr>${ppr}</w:pPr>` : ox?.pPr ? '<w:pPr/>' : ''}${prefix}${runs}${suffix}</w:p>`;
   }
 
   /** Blocks (JSON or nodes) → XML. */
@@ -503,6 +550,26 @@ function createDocxWriter(state, index) {
     return first.replace(/<\/w:p>$/, `${rest}</w:p>`);
   }
 
+  /**
+   * Word content kept as it was read. Its relationship ids belong to the part
+   * it came from: in another story they are added to that story's
+   * relationships and renumbered.
+   */
+  function opaqueXml(st, node) {
+    let xml = cleanDecls(node.attrs.xml || '');
+    const from = node.attrs.part;
+    if (srcFiles && from && from !== st.orig) {
+      const rels = readRels(srcFiles, from);
+      const dir = st.path.slice(0, st.path.lastIndexOf('/') + 1);
+      xml = xml.replace(/(\sr:(?:id|embed|link|pict|dm|lo|qs|cs|href))="([^"]*)"/g, (m, attr, id) => {
+        const r = rels.find((x) => x.id === id);
+        if (!r) return m;
+        return `${attr}="${st.rel(r.type, r.external ? r.target : relTarget(dir, r.path), r.external)}"`;
+      });
+    }
+    return xml;
+  }
+
   function blockXml(st, node, opts = {}) {
     switch (node.type.name) {
       case 'paragraph': case 'heading': return paraXml(st, node, opts.paraExtra?.(node) || {});
@@ -510,6 +577,7 @@ function createDocxWriter(state, index) {
       case 'table': return tableXml(st, node);
       case 'section': return seqXml(st, childrenOf(node), opts);
       case 'index': return indexXml(st, node, opts);
+      case 'opaque_block': if (node.attrs.dialect === 'ooxml') return opaqueXml(st, node); return node.attrs.text ? `<w:p><w:r><w:t xml:space="preserve">${esc(node.attrs.text)}</w:t></w:r></w:p>` : '';
       default: {
         // Unknown blocks: their paragraphs.
         let s = '';
@@ -618,20 +686,23 @@ function createDocxWriter(state, index) {
   function indexXml(st, node, opts) {
     if (node.attrs.element !== 'text:table-of-content') { let s = ''; node.forEach((c) => { s += blockXml(st, c, opts); }); return s; }
     const o = tocOptions(node.attrs.source);
-    const instr = `TOC \\o "1-${o.levels}"${o.links ? ' \\h' : ''} \\z \\u${o.pageNumbers ? '' : ' \\n'}`;
+    const ox = node.attrs.ooxml;
+    // A TOC read from Word keeps its field instruction while its options are unchanged.
+    const instr = ox?.instr && ox.source === JSON.stringify(node.attrs.source) ? ox.instr.trim() : `TOC \\o "1-${o.levels}"${o.links ? ' \\h' : ''} \\z \\u${o.pageNumbers ? '' : ' \\n'}`;
     const children = [];
     node.forEach((c) => children.push(c));
     const title = node.attrs.titleCount ? children.slice(0, node.attrs.titleCount) : [];
     const entries = children.slice(title.length);
     let s = title.map((c) => blockXml(st, c, opts)).join('');
-    const begin = `<w:r><w:fldChar w:fldCharType="begin"/></w:r><w:r><w:instrText xml:space="preserve"> ${esc(instr)} </w:instrText></w:r><w:r><w:fldChar w:fldCharType="separate"/></w:r>`;
+    const begin = `<w:r><w:fldChar w:fldCharType="begin"${ox?.begin || ''}/></w:r><w:r><w:instrText xml:space="preserve"> ${esc(instr)} </w:instrText></w:r><w:r><w:fldChar w:fldCharType="separate"/></w:r>`;
     const end = '<w:r><w:fldChar w:fldCharType="end"/></w:r>';
     if (!entries.length) return `${s}<w:p>${begin}${end}</w:p>`;
     entries.forEach((c, i) => {
       if (!c.isTextblock) { s += blockXml(st, c, opts); return; }
       s += paraXml(st, c, { prefix: i === 0 ? begin : '', suffix: i === entries.length - 1 ? end : '' });
     });
-    return `<w:sdt><w:sdtPr><w:docPartObj><w:docPartGallery w:val="Table of Contents"/><w:docPartUnique/></w:docPartObj></w:sdtPr><w:sdtContent>${s}</w:sdtContent></w:sdt>`;
+    if (ox && !ox.sdtPr) return s;
+    return `<w:sdt>${ox?.sdtPr ? cleanDecls(ox.sdtPr) : '<w:sdtPr><w:docPartObj><w:docPartGallery w:val="Table of Contents"/><w:docPartUnique/></w:docPartObj></w:sdtPr>'}<w:sdtContent>${s}</w:sdtContent></w:sdt>`;
   }
 
   let schemaNode = null; // set below (schema from the document)
@@ -714,6 +785,14 @@ function createDocxWriter(state, index) {
   function partXml(part, tree) {
     hfCount++;
     const path = `word/${part}${hfCount}.xml`;
+    // Unchanged since the document was opened: the original part, with its relationships.
+    const same = tree && src?.hfParts?.find((x) => x.tree === JSON.stringify(tree) && srcFiles[x.path]);
+    if (same) {
+      story(path, same.path);
+      files[path] = srcFiles[same.path];
+      overrides.push([`/${path}`, `${CT}.${part}+xml`]);
+      return path;
+    }
     const st = story(path);
     let body = '';
     if (tree) {
@@ -766,22 +845,67 @@ function createDocxWriter(state, index) {
 
   // ---------------------------------------------------------------- document
 
-  const docStory = story('word/document.xml');
+  const docStory = story('word/document.xml', src?.mainPath || null);
+
+  /**
+   * Top-level blocks → XML, reusing the original XML of every run of blocks
+   * that is unchanged since the document was opened (see docx-preserve.js).
+   */
+  const reused = []; // XML that was reused (for the notes and comments it refers to)
+  const usedGroups = new Set();
+  const groupsByFirst = new Map();
+  for (const g of src?.groups || []) {
+    if (g.sect === -1) continue;
+    const first = g.json.split('\n')[0];
+    if (!groupsByFirst.has(first)) groupsByFirst.set(first, []);
+    groupsByFirst.get(first).push(g);
+  }
+  const jsonCache = new Map();
+  const jsonOf = (n) => { if (!jsonCache.has(n)) jsonCache.set(n, JSON.stringify(n.toJSON())); return jsonCache.get(n); };
+  const containsNode = (top, target) => { if (top === target) return true; let f = false; top.descendants((d) => { if (d === target) f = true; return !f; }); return f; };
+  function reuseSeq(blocks) {
+    if (!groupsByFirst.size) return seqXml(docStory, blocks);
+    let out = '';
+    let pending = [];
+    const flush = () => { if (pending.length) { out += seqXml(docStory, pending); pending = []; } };
+    for (let i = 0; i < blocks.length;) {
+      const cands = (groupsByFirst.get(jsonOf(blocks[i])) || []).filter((g) => !usedGroups.has(g) && i + g.count <= blocks.length);
+      const g = cands.find((c) => blocks.slice(i, i + c.count).map(jsonOf).join('\n') === c.json);
+      if (!g) { pending.push(blocks[i]); i++; continue; }
+      flush();
+      usedGroups.add(g);
+      const xml = [...g.xml];
+      // The section break of this section goes into the group's last paragraph when it carries it.
+      if (pendingSect && blocks.slice(i, i + g.count).some((b) => containsNode(b, pendingSect.node)) && /^<w:p[\s>]/.test(xml[xml.length - 1] || '')) {
+        const p = xml[xml.length - 1];
+        xml[xml.length - 1] = /<w:pPr>/.test(p) || /<w:pPr\s/.test(p) ? p.replace(/<\/w:pPr>/, `${pendingSect.xml}</w:pPr>`).replace(/<w:pPr\/>/, `<w:pPr>${pendingSect.xml}</w:pPr>`) : p.replace(/^<w:p((?:[^>"']|"[^"]*"|'[^']*')*?)>/, (m) => `${m}<w:pPr>${pendingSect.xml}</w:pPr>`);
+        pendingSect = null;
+      }
+      reused.push(...xml);
+      out += xml.join('');
+      i += g.count;
+    }
+    flush();
+    return out;
+  }
   return {
-    files, overrides, parts, media, notes, comments, numbering, commentIds, ends,
+    files, overrides, parts, media, notes, comments, numbering, commentIds, ends, reused, usedGroups,
     setSchemaNode: (fn) => { schemaNode = fn; },
     setPartDoc: (fn) => { partDoc = fn; },
     build(doc) {
       collectEnds(doc);
       const sections = wordSections(doc);
+      const origSects = src?.sectPrs?.length === sections.length ? src.sectPrs : null;
       let body = '';
       sections.forEach((sec, i) => {
         const last = i === sections.length - 1;
-        const sp = sectPrXml(sec);
+        let sp = sectPrXml(sec);
+        // Grid, line numbering, page borders, printer settings… of the original section.
+        if (origSects?.[i]) sp = cleanDecls(patchSectPr(sp, origSects[i]));
         // The section break goes in the section's last paragraph (not one inside a table).
         const carrier = last ? null : lastParagraph(sec.blocks);
         pendingSect = carrier ? { node: carrier, xml: sp } : null;
-        let xml = seqXml(docStory, sec.blocks);
+        let xml = reuseSeq(sec.blocks);
         // No paragraph to carry it: one of its own.
         if (!last && pendingSect) xml += `<w:p><w:pPr>${sp}</w:pPr></w:p>`;
         if (!last && !carrier) xml += `<w:p><w:pPr>${sp}</w:pPr></w:p>`;
@@ -929,23 +1053,92 @@ export function writeDocx(state, index, helpers) {
   return zipSync(Object.fromEntries(Object.entries(parts).map(([k, v]) => [k, [v, { level: /\.(png|jpe?g|gif|webp)$/i.test(k) ? 0 : 6 }]])));
 }
 
-/** The .docx as a parts map (path → bytes, [Content_Types].xml included): the source of DOCX and Word XML. */
+/** core.xml for the document's properties. */
+function coreXml(state) {
+  const meta = (n) => (state.meta?.c || []).filter((t) => typeof t !== 'string' && t.n === n).map((t) => (t.c || []).filter((x) => typeof x === 'string').join(''));
+  const dt = (v) => (v ? `${v.replace(/\.\d+$/, '').replace(/Z?$/, 'Z')}` : '');
+  const created = dt(meta('meta:creation-date')[0]);
+  const modified = dt(meta('dc:date')[0]);
+  return `${DECL}<cp:coreProperties xmlns:cp="http://schemas.openxmlformats.org/package/2006/metadata/core-properties" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:dcterms="http://purl.org/dc/terms/" xmlns:dcmitype="http://purl.org/dc/dcmitype/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">${meta('dc:title')[0] ? `<dc:title>${esc(meta('dc:title')[0])}</dc:title>` : ''}${meta('dc:subject')[0] ? `<dc:subject>${esc(meta('dc:subject')[0])}</dc:subject>` : ''}${meta('meta:initial-creator')[0] ? `<dc:creator>${esc(meta('meta:initial-creator')[0])}</dc:creator>` : ''}${meta('meta:keyword').length ? `<cp:keywords>${esc(meta('meta:keyword').join(', '))}</cp:keywords>` : ''}${meta('dc:description')[0] ? `<dc:description>${esc(meta('dc:description')[0])}</dc:description>` : ''}${meta('dc:creator')[0] ? `<cp:lastModifiedBy>${esc(meta('dc:creator')[0])}</cp:lastModifiedBy>` : ''}${created ? `<dcterms:created xsi:type="dcterms:W3CDTF">${created}</dcterms:created>` : ''}${modified ? `<dcterms:modified xsi:type="dcterms:W3CDTF">${modified}</dcterms:modified>` : ''}</cp:coreProperties>`;
+}
+
+const snapOf = (x) => JSON.stringify(x ?? null);
+function sameBytes(a, b) { if (a.length !== b.length) return false; for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return false; return true; }
+const asTemplateCt = (bytes, on) => (on ? strToU8(strFromU8(bytes).replace(`${CT}.document.main+xml`, `${CT}.template.main+xml`)) : bytes);
+const rootRelOf = (files, kind) => readRels(files, '').find((r) => r.type.endsWith(`/${kind}`));
+
+/**
+ * The .docx as a parts map (path → bytes, [Content_Types].xml included): the
+ * source of DOCX and Word XML. A document read from a .docx keeps its
+ * original package (state.docxSource): unchanged, it is written back as it
+ * was (with the properties updated); edited, the parts the editor owns are
+ * regenerated (reusing the original XML of unchanged blocks) and everything
+ * else is copied through.
+ */
 export function writeDocxParts(state, index, helpers) {
-  const w = createDocxWriter(state, index);
+  const src = state.docxSource?.files ? state.docxSource : null;
+  if (src) {
+    const same = {
+      doc: snapOf(state.doc.toJSON()) === src.snap.doc,
+      styles: snapOf([state.commonStyles, state.fontFaces]) === src.snap.styles,
+      pages: snapOf([state.masterStyles, state.stylesAutoStyles, state.contentAutoStyles]) === src.snap.pages,
+      meta: snapOf(state.meta) === src.snap.meta,
+    };
+    const origSettings = readRels(src.files, src.mainPath).find((r) => r.type.endsWith('/settings'));
+    const origTrack = origSettings && src.files[origSettings.path] ? /<w:trackRevisions(?![\w-])(?![^>]*w:val="(false|0|off)")/.test(strFromU8(src.files[origSettings.path])) : false;
+    if (same.doc && same.styles && same.pages && origTrack === !!state.trackChanges) {
+      // Nothing the editor writes changed: the original package, as it was.
+      const out = { ...src.files };
+      const core = rootRelOf(out, 'core-properties');
+      if (!same.meta) {
+        const path = core?.path || 'docProps/core.xml';
+        out[path] = strToU8(out[path] ? patchCore(strFromU8(out[path]), coreXml(state)) : coreXml(state));
+      }
+      out['[Content_Types].xml'] = asTemplateCt(out['[Content_Types].xml'], helpers.asTemplate);
+      return out;
+    }
+    return writeRegenerated(state, index, helpers, src, same);
+  }
+  return writeRegenerated(state, index, helpers, null, {});
+}
+
+function writeRegenerated(state, index, helpers, src, same) {
+  const w = createDocxWriter(state, index, src);
   w.setSchemaNode(helpers.nodeFromJSON);
   w.setPartDoc(helpers.partDoc);
   const { files, overrides } = w;
   const { body, anyEven } = w.build(state.doc);
-  files['word/document.xml'] = strToU8(`${DECL}<w:document ${NS}><w:body>${body}</w:body></w:document>`);
+  // For tests and the development console: how much original XML was reused.
+  globalThis.__odteDocxReuse = { groups: src?.groups?.length ?? null, reused: w.usedGroups.size, blocks: state.doc.childCount };
+  const orig = src?.files || null;
+  const origRels = orig ? readRels(orig, src.mainPath) : [];
+  const origPart = (kind) => { const r = origRels.find((x) => x.type.endsWith(`/${kind}`)); return r && orig[r.path] ? { path: r.path, xml: strFromU8(orig[r.path]) } : null; };
+  const rootOf = (xml) => parts(xml.replace(/^﻿?\s*<\?xml[^?]*\?>\s*/, ''))?.start || '';
+  const reused = w.reused.join('');
+  // document.xml: the original root's namespaces (reused XML relies on them) and what precedes the body (page background).
+  let root = `<w:document ${NS}>`;
+  let preBody = '';
+  if (src) {
+    root = mergeRootStart(src.rootStart, root);
+    const od = strFromU8(orig[src.mainPath]);
+    const m = /<w:document\b(?:[^>"']|"[^"]*"|'[^']*')*>([\s\S]*?)<w:body\b/.exec(od);
+    if (m) preBody = m[1].trim();
+  }
+  files['word/document.xml'] = strToU8(`${DECL}${root}${preBody}<w:body>${body}</w:body></w:document>`);
   overrides.push(['/word/document.xml', `${CT}.document.main+xml`]);
   const ds = w.docStory;
-  // Notes (after the body, which numbers them).
+  // Notes (after the body, which numbers them); notes referred to by reused XML come from the original part.
   for (const cls of ['footnote', 'endnote']) {
     const list = w.notes[cls];
-    if (!list.length) continue;
+    const op = origPart(`${cls}s`);
+    const refIds = new Set([...reused.matchAll(new RegExp(`<w:${cls}Reference\\b[^>]*w:id="(-?\\d+)"`, 'g'))].map((m) => m[1]));
+    const origItems = op ? splitChildren(parts(op.xml.replace(/^﻿?\s*<\?xml[^?]*\?>\s*/, ''))?.inner || '') : [];
+    const special = origItems.filter((c) => /w:type="/.test(/^<[^>]*>/.exec(c.xml)?.[0] || ''));
+    const kept = origItems.filter((c) => refIds.has(/w:id="(-?\d+)"/.exec(c.xml)?.[1]) && !special.includes(c));
+    if (!list.length && !kept.length && !op) continue;
     const path = `word/${cls}s.xml`;
-    const st = w.story(path);
-    const sep = `<w:${cls} w:type="separator" w:id="-1"><w:p><w:pPr><w:spacing w:after="0" w:line="240" w:lineRule="auto"/></w:pPr><w:r><w:separator/></w:r></w:p></w:${cls}><w:${cls} w:type="continuationSeparator" w:id="0"><w:p><w:pPr><w:spacing w:after="0" w:line="240" w:lineRule="auto"/></w:pPr><w:r><w:continuationSeparator/></w:r></w:p></w:${cls}>`;
+    const st = w.story(path, op?.path || null);
+    const sep = special.length ? special.map((c) => c.xml).join('') : `<w:${cls} w:type="separator" w:id="-1"><w:p><w:pPr><w:spacing w:after="0" w:line="240" w:lineRule="auto"/></w:pPr><w:r><w:separator/></w:r></w:p></w:${cls}><w:${cls} w:type="continuationSeparator" w:id="0"><w:p><w:pPr><w:spacing w:after="0" w:line="240" w:lineRule="auto"/></w:pPr><w:r><w:continuationSeparator/></w:r></w:p></w:${cls}>`;
     const items = list.map((n) => {
       const nodes = (n.body || []).map((b) => helpers.nodeFromJSON(b)).filter(Boolean);
       const ref = `<w:r><w:rPr><w:rStyle w:val="${cls === 'footnote' ? 'FootnoteReference' : 'EndnoteReference'}"/></w:rPr><w:${cls}Ref/></w:r>`;
@@ -953,34 +1146,48 @@ export function writeDocxParts(state, index, helpers) {
       nodes.forEach((node, i) => { xml += node.isTextblock && i === 0 ? w.blocksXml(st, [node]).replace(/(<w:p>(?:<w:pPr>.*?<\/w:pPr>)?)/, `$1${ref}`) : w.blocksXml(st, [node]); });
       return `<w:${cls} w:id="${n.id}">${xml || `<w:p>${ref}</w:p>`}</w:${cls}>`;
     });
-    files[path] = strToU8(`${DECL}<w:${cls}s ${NS}>${sep}${items.join('')}</w:${cls}s>`);
+    const rootStart = op ? mergeRootStart(rootOf(op.xml), `<w:${cls}s ${NS}>`) : `<w:${cls}s ${NS}>`;
+    files[path] = strToU8(`${DECL}${rootStart}${sep}${kept.map((c) => c.xml).join('')}${items.join('')}</w:${cls}s>`);
     overrides.push([`/${path}`, `${CT}.${cls}s+xml`]);
     ds.rel(`${cls}s`, `${cls}s.xml`);
   }
   // Comments.
-  if (w.comments.length) {
-    const st = w.story('word/comments.xml');
+  const oc = origPart('comments');
+  const commentRefs = new Set([...reused.matchAll(/<w:comment(?:Reference|RangeStart)\b[^>]*w:id="(\d+)"/g)].map((m) => m[1]));
+  const keptComments = oc ? splitChildren(parts(oc.xml.replace(/^﻿?\s*<\?xml[^?]*\?>\s*/, ''))?.inner || '').filter((c) => commentRefs.has(/w:id="(\d+)"/.exec(c.xml)?.[1])) : [];
+  if (w.comments.length || keptComments.length) {
+    const st = w.story('word/comments.xml', oc?.path || null);
     const items = w.comments.map((c) => {
       const nodes = (c.attrs.body || []).map((b) => helpers.nodeFromJSON(b)).filter(Boolean);
       const date = c.attrs.date ? ` w:date="${esc(/Z$/.test(c.attrs.date) ? c.attrs.date : `${c.attrs.date.replace(/\.\d+$/, '')}Z`)}"` : '';
       return `<w:comment w:id="${c.id}" w:author="${esc(c.attrs.creator || 'Unknown')}"${date} w:initials="${esc(c.attrs.initials || '')}">${w.blocksXml(st, nodes) || '<w:p/>'}</w:comment>`;
     });
-    files['word/comments.xml'] = strToU8(`${DECL}<w:comments ${NS}>${items.join('')}</w:comments>`);
+    const rootStart = oc ? mergeRootStart(rootOf(oc.xml), `<w:comments ${NS}>`) : `<w:comments ${NS}>`;
+    files['word/comments.xml'] = strToU8(`${DECL}${rootStart}${keptComments.map((c) => c.xml).join('')}${items.join('')}</w:comments>`);
     overrides.push(['/word/comments.xml', `${CT}.comments+xml`]);
     ds.rel('comments', 'comments.xml');
   }
-  if (!w.numbering.empty) {
-    files['word/numbering.xml'] = strToU8(w.numbering.xml());
+  // Numbering: the original definitions stay (reused XML refers to them), the new ones are added.
+  const on = origPart('numbering');
+  if (on || !w.numbering.empty) {
+    files['word/numbering.xml'] = strToU8(on ? mergeNumbering(w.numbering.empty ? '' : w.numbering.xml(), on.xml) : w.numbering.xml());
     overrides.push(['/word/numbering.xml', `${CT}.numbering+xml`]);
     ds.rel('numbering', 'numbering.xml');
   }
-  files['word/styles.xml'] = strToU8(stylesXml(state, index));
+  // Styles: unchanged → the original; else generated, with the original's latent styles and the styles not generated.
+  const os = origPart('styles');
+  files['word/styles.xml'] = os && same.styles ? strToU8(os.xml) : strToU8(os ? mergeStyles(stylesXml(state, index), os.xml) : stylesXml(state, index));
   overrides.push(['/word/styles.xml', `${CT}.styles+xml`]);
   ds.rel('styles', 'styles.xml');
-  // Settings: the default tab interval, even / odd headers.
+  // Settings: the original with what the editor changes patched in (default tab interval, even / odd headers, track changes).
   const defTree = (state.commonStyles?.c || []).find((t) => typeof t !== 'string' && t.n === 'style:default-style' && t.a['style:family'] === 'paragraph');
   const tabDist = defTree && findChild(defTree, 'style:paragraph-properties')?.a?.['style:tab-stop-distance'];
-  files['word/settings.xml'] = strToU8(`${DECL}<w:settings ${NS}>${anyEven ? '<w:evenAndOddHeaders/>' : ''}<w:defaultTabStop w:val="${tabDist ? tw(tabDist) : 720}"/><w:characterSpacingControl w:val="doNotCompress"/><w:compat><w:compatSetting w:name="compatibilityMode" w:uri="http://schemas.microsoft.com/office/word" w:val="15"/></w:compat></w:settings>`);
+  const ost = origPart('settings');
+  const tabXml = `<w:defaultTabStop w:val="${tabDist ? tw(tabDist) : 720}"/>`;
+  files['word/settings.xml'] = strToU8(ost
+    ? patchSettings(ost.xml, { evenAndOddHeaders: anyEven ? '<w:evenAndOddHeaders/>' : null, defaultTabStop: tabXml, trackRevisions: state.trackChanges ? '<w:trackRevisions/>' : null })
+    : `${DECL}<w:settings ${NS}>${state.trackChanges ? '<w:trackRevisions/>' : ''}${tabXml}${anyEven ? '<w:evenAndOddHeaders/>' : ''}<w:characterSpacingControl w:val="doNotCompress"/><w:compat><w:compatSetting w:name="compatibilityMode" w:uri="http://schemas.microsoft.com/office/word" w:val="15"/></w:compat></w:settings>`);
+  if (ost) { const rp = `${ost.path.slice(0, ost.path.lastIndexOf('/') + 1)}_rels/${ost.path.slice(ost.path.lastIndexOf('/') + 1)}.rels`; if (orig[rp]) files['word/_rels/settings.xml.rels'] = orig[rp]; }
   overrides.push(['/word/settings.xml', `${CT}.settings+xml`]);
   ds.rel('settings', 'settings.xml');
   // Relationships of every story.
@@ -988,14 +1195,11 @@ export function writeDocxParts(state, index, helpers) {
     if (!st.rels.length) continue;
     const dir = st.path.slice(0, st.path.lastIndexOf('/') + 1);
     const name = st.path.slice(st.path.lastIndexOf('/') + 1);
-    files[`${dir}_rels/${name}.rels`] = strToU8(`${DECL}<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">${st.rels.map((r) => `<Relationship Id="${r.id}" Type="${REL}/${r.type}" Target="${esc(r.target)}"${r.external ? ' TargetMode="External"' : ''}/>`).join('')}</Relationships>`);
+    files[`${dir}_rels/${name}.rels`] = strToU8(`${DECL}<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">${st.rels.map((r) => `<Relationship Id="${r.id}" Type="${esc(r.type)}" Target="${esc(r.target)}"${r.external ? ' TargetMode="External"' : ''}/>`).join('')}</Relationships>`);
   }
-  // Properties.
-  const meta = (n) => (state.meta?.c || []).filter((t) => typeof t !== 'string' && t.n === n).map((t) => (t.c || []).filter((x) => typeof x === 'string').join(''));
-  const dt = (v) => (v ? `${v.replace(/\.\d+$/, '').replace(/Z?$/, 'Z')}` : '');
-  const created = dt(meta('meta:creation-date')[0]);
-  const modified = dt(meta('dc:date')[0]);
-  files['docProps/core.xml'] = strToU8(`${DECL}<cp:coreProperties xmlns:cp="http://schemas.openxmlformats.org/package/2006/metadata/core-properties" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:dcterms="http://purl.org/dc/terms/" xmlns:dcmitype="http://purl.org/dc/dcmitype/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">${meta('dc:title')[0] ? `<dc:title>${esc(meta('dc:title')[0])}</dc:title>` : ''}${meta('dc:subject')[0] ? `<dc:subject>${esc(meta('dc:subject')[0])}</dc:subject>` : ''}${meta('meta:initial-creator')[0] ? `<dc:creator>${esc(meta('meta:initial-creator')[0])}</dc:creator>` : ''}${meta('meta:keyword').length ? `<cp:keywords>${esc(meta('meta:keyword').join(', '))}</cp:keywords>` : ''}${meta('dc:description')[0] ? `<dc:description>${esc(meta('dc:description')[0])}</dc:description>` : ''}${meta('dc:creator')[0] ? `<cp:lastModifiedBy>${esc(meta('dc:creator')[0])}</cp:lastModifiedBy>` : ''}${created ? `<dcterms:created xsi:type="dcterms:W3CDTF">${created}</dcterms:created>` : ''}${modified ? `<dcterms:modified xsi:type="dcterms:W3CDTF">${modified}</dcterms:modified>` : ''}</cp:coreProperties>`);
+  // Properties: the original core.xml keeps what the editor doesn't model (category, revision…).
+  const origCore = orig ? rootRelOf(orig, 'core-properties') : null;
+  files['docProps/core.xml'] = strToU8(origCore && orig[origCore.path] ? patchCore(strFromU8(orig[origCore.path]), coreXml(state)) : coreXml(state));
   overrides.push(['/docProps/core.xml', 'application/vnd.openxmlformats-package.core-properties+xml']);
   files['docProps/app.xml'] = strToU8(`${DECL}<Properties xmlns="http://schemas.openxmlformats.org/officeDocument/2006/extended-properties"><Application>${esc(helpers.generator || 'ODT Editor')}</Application></Properties>`);
   overrides.push(['/docProps/app.xml', 'application/vnd.openxmlformats-officedocument.extended-properties+xml']);
@@ -1003,5 +1207,13 @@ export function writeDocxParts(state, index, helpers) {
   const exts = new Set([...w.media.values()].map((n) => n.split('.').pop()));
   const MIME = { png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', gif: 'image/gif', bmp: 'image/bmp', svg: 'image/svg+xml', webp: 'image/webp', tif: 'image/tiff', tiff: 'image/tiff', emf: 'image/x-emf', wmf: 'image/x-wmf' };
   const ct = `${DECL}<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/>${[...exts].map((e) => `<Default Extension="${e}" ContentType="${MIME[e] || 'application/octet-stream'}"/>`).join('')}${overrides.map(([p, t]) => `<Override PartName="${p}" ContentType="${t}"/>`).join('')}</Types>`;
-  return { '[Content_Types].xml': strToU8(helpers.asTemplate ? ct.replace(`${CT}.document.main+xml`, `${CT}.template.main+xml`) : ct), ...files };
+  const out = { '[Content_Types].xml': strToU8(ct), ...files };
+  if (src) {
+    // Everything else in the original package, with its relationships and content types.
+    const owned = new Set(origRels.filter((r) => OWNED_TYPES.has(r.type.replace(/^.*\//, ''))).map((r) => r.path));
+    owned.add(src.mainPath);
+    mergePackage(out, orig, { mainPath: 'word/document.xml', owned });
+  }
+  out['[Content_Types].xml'] = asTemplateCt(out['[Content_Types].xml'], helpers.asTemplate);
+  return out;
 }
