@@ -59,7 +59,7 @@ const serialize = (el) => new XMLSerializer().serializeToString(el);
  * and mapped ones carrying attributes beyond w:val, are kept as raw XML on
  * the model (auto.ooxml) so the writer can put them back.
  */
-const PPR_MAPPED = new Set(['pStyle', 'keepNext', 'keepLines', 'pageBreakBefore', 'widowControl', 'numPr', 'pBdr', 'shd', 'tabs', 'bidi', 'spacing', 'ind', 'contextualSpacing', 'jc', 'outlineLvl', 'sectPr', 'rPr']);
+const PPR_MAPPED = new Set(['pStyle', 'keepNext', 'keepLines', 'pageBreakBefore', 'widowControl', 'numPr', 'pBdr', 'shd', 'tabs', 'bidi', 'spacing', 'ind', 'contextualSpacing', 'jc', 'outlineLvl', 'sectPr']);
 const RPR_MAPPED = new Set(['rStyle', 'rFonts', 'b', 'i', 'caps', 'smallCaps', 'strike', 'dstrike', 'outline', 'shadow', 'vanish', 'color', 'spacing', 'sz', 'szCs', 'highlight', 'u', 'shd', 'vertAlign', 'lang']);
 /** Raw XML of a property element's children when some aren't fully mapped (null otherwise). */
 function propExtras(pr, mapped) {
@@ -270,6 +270,49 @@ export function docxToStateNative(bytes) {
   return { state, warnings: ctx.warnings, dropped: Object.fromEntries(ctx.dropped) };
 }
 
+/** A Word content control's properties → the editor's (LibreOffice's loext) attributes and drop-down items, or null for kinds it doesn't model. */
+function controlOf(pr) {
+  const a = {};
+  const items = [];
+  const k = (n) => kids(pr).find((c) => c.localName === n) || null;
+  if (k('docPartObj') || k('citation') || k('bibliography') || k('equation') || k('group')) return null;
+  const alias = wa(k('alias'), 'val');
+  const tag = wa(k('tag'), 'val');
+  if (alias) a['loext:alias'] = alias;
+  if (tag) a['loext:tag'] = tag;
+  const id = wa(k('id'), 'val');
+  if (id) a['loext:id'] = id;
+  if (k('showingPlcHdr')) a['loext:showing-place-holder'] = 'true';
+  const lock = wa(k('lock'), 'val');
+  if (lock) a['loext:lock'] = { sdtLocked: 'sdt-locked', contentLocked: 'content-locked', sdtContentLocked: 'unlocked' }[lock] || lock;
+  const cb = k('checkbox');
+  if (cb) {
+    const v = (n) => [...cb.children].find((c) => c.localName === n);
+    const checked = ['1', 'true', 'on'].includes(String(v('checked')?.getAttributeNS?.('http://schemas.microsoft.com/office/word/2010/wordml', 'val') ?? v('checked')?.getAttribute('w14:val') ?? '0'));
+    const ch = (n) => { const e = v(n); const c = e && [...e.children].find((x) => x.localName === 'val') || e; const hex = c?.getAttribute('w14:val'); return hex ? String.fromCharCode(parseInt(hex, 16)) : null; };
+    Object.assign(a, { 'loext:checkbox': 'true', 'loext:checked': String(checked), 'loext:checked-state': '☒', 'loext:unchecked-state': '☐' });
+    const cs = [...cb.children].find((c) => c.localName === 'checkedState')?.getAttribute('w14:val');
+    const us = [...cb.children].find((c) => c.localName === 'uncheckedState')?.getAttribute('w14:val');
+    if (cs) a['loext:checked-state'] = String.fromCharCode(parseInt(cs, 16));
+    if (us) a['loext:unchecked-state'] = String.fromCharCode(parseInt(us, 16));
+    void ch;
+  } else if (k('dropDownList') || k('comboBox')) {
+    const list = k('dropDownList') || k('comboBox');
+    a['loext:dropdown'] = 'true';
+    if (list.localName === 'comboBox') a['loext:combobox'] = 'true';
+    for (const it of kids(list, 'listItem')) items.push({ 'loext:display-text': wa(it, 'displayText') || wa(it, 'value') || '', 'loext:value': wa(it, 'value') || '' });
+  } else if (k('date')) {
+    const d = k('date');
+    a['loext:date'] = 'true';
+    a['loext:date-format'] = wa(kid(d, 'dateFormat'), 'val') || 'dd/MM/yyyy';
+    a['loext:date-rfc-language-tag'] = wa(kid(d, 'lid'), 'val') || 'en-GB';
+    const full = wa(d, 'fullDate');
+    if (full) a['loext:current-date'] = full;
+  } else if (k('picture')) a['loext:picture'] = 'true';
+  else if (k('text')) a['loext:plain-text'] = 'true';
+  return { attrs: a, items };
+}
+
 /**
  * The original package and how its body maps to the model (see
  * docx-preserve.js): the writer reuses the XML of every group of body
@@ -338,6 +381,7 @@ function sourceOf(ctx, state, { docXml, bodyEls, out, srcOf, sectPrs }) {
     groups: result,
     sectPrs: sectPrs.map((sp) => (sp ? serialize(sp) : null)),
     hfParts: ctx.hfParts,
+    dropped: Object.fromEntries(ctx.dropped),
     snap: {
       doc: snap(state.doc.toJSON()),
       styles: snap([state.commonStyles, state.fontFaces]),
@@ -1023,7 +1067,7 @@ function converter(ctx, rels, opts = {}) {
   const fieldStack = [];
   const partPath = opts.partPath || ctx.pkg.mainPath;
   /** Content the editor doesn't model: kept as raw OOXML and written back in place. */
-  const opaqueInline = (xml, text = '') => ({ type: 'opaque_inline', attrs: { xml, text: text.replace(/\s+/g, ' ').trim().slice(0, 200), dialect: 'ooxml', part: partPath } });
+  const opaqueInline = (xml, text = '', hidden = false) => ({ type: 'opaque_inline', attrs: { xml, text: text.replace(/\s+/g, ' ').trim().slice(0, 200), dialect: 'ooxml', part: partPath, ...(hidden ? { hidden: true } : {}) } });
   const opaqueBlock = (el) => ({ type: 'opaque_block', attrs: { xml: serialize(el), label: el.tagName, text: (el.textContent || '').replace(/\s+/g, ' ').trim().slice(0, 4000), dialect: 'ooxml', part: partPath } });
   const drop = (el) => { ctx.dropped.set(el.tagName, (ctx.dropped.get(el.tagName) || 0) + 1); };
   const openComments = new Set();
@@ -1158,7 +1202,12 @@ function converter(ctx, rels, opts = {}) {
       case 'moveFrom': return inlineContent(el, segments, { ...marks, change: { type: 'deletion', author: wa(el, 'author') || '', date: wa(el, 'date') || '', id: wa(el, 'id') } });
       case 'moveTo': return inlineContent(el, segments, { ...marks, change: { type: 'insertion', author: wa(el, 'author') || '', date: wa(el, 'date') || '', id: wa(el, 'id') } });
       case 'smartTag': case 'customXml': case 'dir': case 'bdo': return inlineContent(el, segments, marks);
-      case 'sdt': return inlineContent(kid(el, 'sdtContent'), segments, marks);
+      case 'sdt': {
+        // A content control: the editor's content control, keeping Word's properties for writing back.
+        const pr = kid(el, 'sdtPr');
+        const cc = pr ? controlOf(pr) : null;
+        return inlineContent(kid(el, 'sdtContent'), segments, cc ? { ...marks, cc: { ...cc, ooxml: { sdtPr: serialize(pr), attrs: JSON.stringify([cc.attrs, cc.items]) } } } : marks);
+      }
       case 'fldSimple': {
         const instr = (wa(el, 'instr') || '').trim();
         const field = fieldNode(instr);
@@ -1172,12 +1221,15 @@ function converter(ctx, rels, opts = {}) {
       }
       case 'bookmarkStart': {
         const name = wa(el, 'name');
-        if (name && !name.startsWith('_')) push(segments, { type: 'bookmark', attrs: { element: 'text:bookmark-start', name } });
-        if (name) bookmarks.set(wa(el, 'id'), name.startsWith('_') ? null : name);
+        // Word's hidden bookmarks (_Toc…, _Ref…, _GoBack) aren't shown, but are kept: TOC links and cross-references use them.
+        if (name && name.startsWith('_')) { bookmarks.set(wa(el, 'id'), { hidden: true }); return push(segments, opaqueInline(serialize(el), '', true)); }
+        if (name) push(segments, { type: 'bookmark', attrs: { element: 'text:bookmark-start', name } });
+        if (name) bookmarks.set(wa(el, 'id'), name);
         return;
       }
       case 'bookmarkEnd': {
         const name = bookmarks.get(wa(el, 'id'));
+        if (name?.hidden) return push(segments, opaqueInline(serialize(el), '', true));
         if (name) push(segments, { type: 'bookmark', attrs: { element: 'text:bookmark-end', name } });
         return;
       }
@@ -1229,6 +1281,8 @@ function converter(ctx, rels, opts = {}) {
     const rPrXml = rPr ? serialize(rPr) : '';
     /** A run child the editor doesn't model, in a run of its own with the run's properties. */
     const opaqueRun = (child, text = '') => opaqueInline(`<w:r xmlns:w="${W}">${rPrXml}${serialize(child)}</w:r>`, text);
+    // A run with nothing in it (some writers leave them): kept, invisible.
+    if (!kids(r).some((c) => c.localName !== 'rPr') && !fieldStack.length) { push(segments, opaqueInline(serialize(r), '', true)); return; }
     // A character style's toggle property flips the paragraph style's (L1), unless the run sets it itself.
     if (rStyle && currentParaStyle) {
       for (const [el, attr, , offV] of TOGGLES) {
@@ -1259,7 +1313,8 @@ function converter(ctx, rels, opts = {}) {
         case 'br': {
           const type = wa(el, 'type');
           if (type === 'page') segments.push([]);
-          else if (type !== 'column') push(segments, { type: 'hard_break' });
+          else if (type === 'column') push(segments, opaqueRun(el)); // column breaks: kept as Word wrote them
+          else push(segments, { type: 'hard_break' });
           break;
         }
         case 'cr': push(segments, { type: 'hard_break' }); break;
@@ -1294,7 +1349,11 @@ function converter(ctx, rels, opts = {}) {
           const conv = converter(ctx, ctx.pkg.rels(n.path), { inNote: true, partPath: n.path });
           const body = conv.blocksOf(n.el);
           const count = ++ctx.noteCount[cls];
-          push(segments, { type: 'note', attrs: { noteClass: cls, citation: String(count), body: body.length ? body : [{ type: 'paragraph', attrs: { styleName: cls === 'footnote' ? 'Footnote' : 'Endnote' } }], extra: { 'text:id': `${cls === 'footnote' ? 'ftn' : 'edn'}${count}` } } });
+          // The reference's run properties and the note mark's (Word's character styles for them).
+          const markRun = [...n.el.getElementsByTagName('*')].find((x) => x.localName === `${cls}Ref`)?.parentNode;
+          const markRPr = markRun && kid(markRun, 'rPr');
+          const ooxml = { ref: rPrXml || null, mark: markRPr ? serialize(markRPr) : null };
+          push(segments, { type: 'note', attrs: { noteClass: cls, citation: String(count), body: body.length ? body : [{ type: 'paragraph', attrs: { styleName: cls === 'footnote' ? 'Footnote' : 'Endnote' } }], extra: { 'text:id': `${cls === 'footnote' ? 'ftn' : 'edn'}${count}` }, ooxml } });
           break;
         }
         case 'footnoteRef': case 'endnoteRef': break;
@@ -1332,10 +1391,11 @@ function converter(ctx, rels, opts = {}) {
 
   function textNode(text, marks, f) {
     const m = [];
-    if (marks.link) m.push({ type: 'link', attrs: { href: marks.link, ...(marks.linkAttrs != null ? { extra: { ooxml: marks.linkAttrs } } : {}) } });
+    if (marks.link) m.push({ type: 'link', attrs: { href: marks.link, ...(marks.linkAttrs != null ? { ooxml: marks.linkAttrs } : {}) } });
     if (f?.charStyle) m.push({ type: 'charStyle', attrs: { name: f.charStyle } });
     const ox = f?.rExtras || f?.space ? { ...(f.rExtras ? { rPr: f.rExtras } : {}), ...(f.space ? { space: true } : {}) } : null;
     if ((f?.tp && Object.keys(f.tp).length) || ox) m.push({ type: 'textProps', attrs: { auto: { styleAttrs: {}, props: { 'style:text-properties': { a: f.tp || {} } }, ...(ox ? { ooxml: ox } : {}) } } });
+    if (marks.cc) m.push({ type: 'contentControl', attrs: { attrs: marks.cc.attrs, items: marks.cc.items, ooxml: marks.cc.ooxml } });
     if (marks.change) m.push({ type: marks.change.type, attrs: { author: marks.change.author, date: marks.change.date.replace(/(\.\d+)?Z$/, ''), cid: `ct${marks.change.id ?? ++ctx.cid}` } });
     return m.length ? { type: 'text', text, marks: m } : { type: 'text', text };
   }

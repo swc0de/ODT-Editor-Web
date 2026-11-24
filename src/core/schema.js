@@ -280,7 +280,8 @@ export const nodes = {
   /** Footnote / endnote. The body is a list of block nodes as JSON (edited in M8). */
   note: {
     group: 'inline', inline: true, atom: true,
-    attrs: { noteClass: { default: 'footnote' }, citation: { default: '' }, label: { default: null }, body: { default: [] }, extra: EXTRA },
+    // ooxml: from Word, the run properties of the reference and of the mark inside the note ({ ref, mark }).
+    attrs: { noteClass: { default: 'footnote' }, citation: { default: '' }, label: { default: null }, body: { default: [] }, extra: EXTRA, ooxml: { default: null } },
     parseDOM: [{ tag: 'sup[data-odt-note]', priority: 60, getAttrs: (dom) => ({ ...parseJson(dom.getAttribute('data-note')) }) }],
     toDOM: (node) => ['sup', { 'data-odt-note': '', 'data-note': json(node.attrs), class: `odt-note ${node.attrs.noteClass}` }, node.attrs.citation || '*'],
   },
@@ -328,9 +329,10 @@ export const nodes = {
   /** Inline XML the editor doesn't model (ruby, shapes, index marks…). */
   opaque_inline: {
     group: 'inline', inline: true, atom: true,
-    attrs: { xml: { default: '' }, text: { default: '' }, dialect: { default: 'odf' }, part: { default: null } },
-    parseDOM: [{ tag: 'span[data-odt-opaque]', priority: 60, getAttrs: (dom) => ({ xml: dom.getAttribute('data-xml') || '', text: dom.textContent, dialect: dom.getAttribute('data-dialect') || 'odf', part: dom.getAttribute('data-part') || null }) }],
-    toDOM: (node) => ['span', { 'data-odt-opaque': '', 'data-xml': node.attrs.xml, 'data-dialect': node.attrs.dialect, 'data-part': node.attrs.part, class: 'odt-opaque-inline' }, node.attrs.text || '□'],
+    // hidden: nothing to show (Word's hidden bookmarks, empty runs).
+    attrs: { xml: { default: '' }, text: { default: '' }, dialect: { default: 'odf' }, part: { default: null }, hidden: { default: false } },
+    parseDOM: [{ tag: 'span[data-odt-opaque]', priority: 60, getAttrs: (dom) => ({ xml: dom.getAttribute('data-xml') || '', text: dom.textContent, dialect: dom.getAttribute('data-dialect') || 'odf', part: dom.getAttribute('data-part') || null, hidden: dom.hasAttribute('data-hidden') }) }],
+    toDOM: (node) => ['span', { 'data-odt-opaque': '', 'data-xml': node.attrs.xml, 'data-dialect': node.attrs.dialect, 'data-part': node.attrs.part, 'data-hidden': node.attrs.hidden ? '' : null, class: node.attrs.hidden ? 'odt-opaque-hidden' : 'odt-opaque-inline' }, node.attrs.hidden ? '' : node.attrs.text || '□'],
     leafText: (node) => node.attrs.text,
   },
 };
@@ -349,7 +351,8 @@ export const marks = {
    * loext:alias, loext:tag, loext:lock…), items = drop-down entries.
    */
   contentControl: {
-    attrs: { attrs: { default: {} }, items: { default: [] } },
+    // ooxml: from Word, { sdtPr, attrs } — the control's properties as written, while its attributes are unchanged.
+    attrs: { attrs: { default: {} }, items: { default: [] }, ooxml: { default: null } },
     inclusive: false,
     excludes: 'contentControl',
     parseDOM: [{ tag: 'span[data-cc]', priority: 80, getAttrs: (dom) => ({ attrs: parseJson(dom.getAttribute('data-cc')) || {}, items: parseJson(dom.getAttribute('data-items')) || [] }) }],
@@ -363,7 +366,8 @@ export const marks = {
     },
   },
   link: {
-    attrs: { href: { default: '' }, extra: EXTRA },
+    // ooxml: from Word, the hyperlink's other attributes (history, tooltip, target frame) as XML text.
+    attrs: { href: { default: '' }, extra: EXTRA, ooxml: { default: null } },
     inclusive: false,
     parseDOM: [{ tag: 'a[href]', getAttrs: (dom) => ({ href: dom.getAttribute('href'), extra: parseJson(dom.getAttribute('data-extra')) }) }],
     toDOM: (mark) => ['a', { href: mark.attrs.href, 'data-extra': mark.attrs.extra ? json(mark.attrs.extra) : null, class: 'odt-link' }, 0],

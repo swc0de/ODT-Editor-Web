@@ -26,7 +26,7 @@ function rels(files, part) {
   if (!files[p]) return [];
   const out = [];
   for (const m of strFromU8(files[p]).matchAll(/<Relationship\b([^>]*)\/?>/g)) {
-    const a = Object.fromEntries([...m[1].matchAll(/([\w:]+)="([^"]*)"/g)].map((x) => [x[1], x[2]]));
+    const a = Object.fromEntries([...m[1].matchAll(/([\w:]+)="([^"]*)"/g)].map((x) => [x[1], x[2].replace(/&quot;/g, '"').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&')]));
     if (a.TargetMode === 'External') { out.push({ type: a.Type.replace(/^.*\//, ''), path: a.Target, id: a.Id, external: true }); continue; }
     const segs = [];
     for (const s of (a.Target.startsWith('/') ? a.Target.slice(1) : dir + a.Target).split('/')) { if (s === '..') segs.pop(); else if (s && s !== '.') segs.push(s); }

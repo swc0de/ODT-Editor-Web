@@ -194,3 +194,5 @@
 .odt-doc :is(.ProseMirror, .odt-mirror) li > :is(p, h1, h2, h3, h4, h5, h6) { margin-left: 0; text-indent: 0; }
 .odt-doc .ProseMirror li.has-label[data-label]::marker { content: none; }
 .odt-doc .odt-label { display: inline-block; white-space: pre; text-indent: 0; text-decoration: none; vertical-align: baseline; }
+/* Word content kept without anything to show (hidden bookmarks, empty runs). */
+.odt-doc .odt-opaque-hidden { display: inline; font-size: 0; }

@@ -83,7 +83,10 @@ const SECTPR_ORDER = ['headerReference', 'footerReference', 'footnotePr', 'endno
 /** What the writer decides in a sectPr; the rest comes from the original. */
 const SECTPR_OWNED = new Set(['headerReference', 'footerReference', 'type', 'pgSz', 'pgMar', 'cols', 'titlePg']);
 
+const unesc = (v) => v.replace(/&quot;/g, '"').replace(/&apos;/g, "'").replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&#x([0-9a-f]+);/gi, (_, h) => String.fromCodePoint(parseInt(h, 16))).replace(/&#(\d+);/g, (_, d) => String.fromCodePoint(Number(d))).replace(/&amp;/g, '&');
 const attrsOf = (start) => { const o = {}; for (const m of start.matchAll(/\s([\w:.-]+)="([^"]*)"/g)) o[m[1]] = m[2]; return o; };
+/** Attributes with entities decoded (relationship targets). */
+const attrsText = (start) => Object.fromEntries(Object.entries(attrsOf(start)).map(([k, v]) => [k, unesc(v)]));
 const startWith = (name, attrs, selfClose) => `<${name}${Object.entries(attrs).map(([k, v]) => ` ${k}="${v}"`).join('')}${selfClose ? '/>' : '>'}`;
 
 /**
@@ -131,7 +134,7 @@ export function patchSectPr(generated, original) {
 
 export const PPR_ORDER = ['pStyle', 'keepNext', 'keepLines', 'pageBreakBefore', 'framePr', 'widowControl', 'numPr', 'suppressLineNumbers', 'pBdr', 'shd', 'tabs', 'suppressAutoHyphens', 'kinsoku', 'wordWrap', 'overflowPunct', 'topLinePunct', 'autoSpaceDE', 'autoSpaceDN', 'bidi', 'adjustRightInd', 'snapToGrid', 'spacing', 'ind', 'contextualSpacing', 'mirrorIndents', 'suppressOverlap', 'jc', 'textDirection', 'textAlignment', 'textboxTightWrap', 'outlineLvl', 'divId', 'cnfStyle', 'rPr', 'sectPr', 'pPrChange'];
 export const RPR_ORDER = ['rStyle', 'rFonts', 'b', 'bCs', 'i', 'iCs', 'caps', 'smallCaps', 'strike', 'dstrike', 'outline', 'shadow', 'emboss', 'imprint', 'noProof', 'snapToGrid', 'vanish', 'webHidden', 'color', 'spacing', 'w', 'kern', 'position', 'sz', 'szCs', 'highlight', 'u', 'effect', 'bdr', 'shd', 'fitText', 'vertAlign', 'rtl', 'cs', 'em', 'lang', 'eastAsianLayout', 'specVanish', 'oMath', 'rPrChange'];
-export const PPR_MAPPED = new Set(['w:pStyle', 'w:keepNext', 'w:keepLines', 'w:pageBreakBefore', 'w:widowControl', 'w:numPr', 'w:pBdr', 'w:shd', 'w:tabs', 'w:bidi', 'w:spacing', 'w:ind', 'w:contextualSpacing', 'w:jc', 'w:outlineLvl', 'w:sectPr', 'w:rPr']);
+export const PPR_MAPPED = new Set(['w:pStyle', 'w:keepNext', 'w:keepLines', 'w:pageBreakBefore', 'w:widowControl', 'w:numPr', 'w:pBdr', 'w:shd', 'w:tabs', 'w:bidi', 'w:spacing', 'w:ind', 'w:contextualSpacing', 'w:jc', 'w:outlineLvl', 'w:sectPr']);
 export const RPR_MAPPED = new Set(['w:rStyle', 'w:rFonts', 'w:b', 'w:i', 'w:caps', 'w:smallCaps', 'w:strike', 'w:dstrike', 'w:outline', 'w:shadow', 'w:vanish', 'w:color', 'w:spacing', 'w:sz', 'w:szCs', 'w:highlight', 'w:u', 'w:shd', 'w:vertAlign', 'w:lang']);
 
 const W_DECL = /\sxmlns:w="http:\/\/schemas\.openxmlformats\.org\/wordprocessingml\/2006\/main"/g;
@@ -161,13 +164,25 @@ export function mergeProps(generatedInner, extras, order, mapped) {
       const ga = attrSet(g.xml);
       const oa = attrSet(o.xml);
       if (Object.entries(ga).every(([k, v]) => oa[k] === v)) return o;
+      // Indents written another way (start / left, hanging / negative first line) with the same values.
+      if (g.name === 'w:ind') {
+        const n = (x) => ({ l: Number(x['w:left'] ?? x['w:start'] ?? 0), r: Number(x['w:right'] ?? x['w:end'] ?? 0), f: Number(x['w:firstLine'] ?? 0) - Number(x['w:hanging'] ?? 0) });
+        const [p, q] = [n(ga), n(oa)];
+        if (p.l === q.l && p.r === q.r && p.f === q.f) return o;
+      }
       return g;
     }
     return noDecl(o.xml) === noDecl(g.xml) ? o : g;
   });
   // Original children the writer didn't write: kept unless the reader maps them (the model decides
   // those), except explicit "off" values and the default paragraph style, which mean what absence means.
-  const meansDefault = (o) => /^<[\w:.-]+\s*\/>$/.test(noDecl(o.xml).trim()) || /^<w:pStyle\b[^>]*w:val="Normal"/.test(o.xml) || (/\/>$/.test(o.xml.trim()) && /\sw:val="(0|false|off)"/.test(o.xml) && !/\sw:(?!val)[\w]+=/.test(o.xml.replace(/\sxmlns:[\w.-]+="[^"]*"/g, '')));
+  // (an empty element, or one whose every value is zero / off / none).
+  const meansDefault = (o) => {
+    const x = noDecl(o.xml).trim();
+    if (/^<w:pStyle\b[^>]*w:val="Normal"/.test(x)) return true;
+    if (!/\/>$/.test(x)) return false;
+    return Object.values(attrSet(x)).every((v) => /^(0|false|off|none|nil)$/.test(v));
+  };
   for (const o of orig) if (!used.has(o) && (!mapped.has(o.name) || meansDefault(o)) && !out.some((x) => x.name === o.name)) out.push(o);
   const wOrder = (c) => (c.name.startsWith('w:') ? c.name : `~${c.name}`);
   return orderChildren(out.map((c) => ({ ...c, name: wOrder(c) })), order).map((c) => c.xml).join('');
@@ -287,7 +302,7 @@ export function readRels(files, part) {
   const xml = files[relsPath] ? strFromU8(files[relsPath]) : '';
   const out = [];
   for (const m of xml.matchAll(/<(?:\w+:)?Relationship\b([^>]*)\/?>/g)) {
-    const a = attrsOf(m[1]);
+    const a = attrsText(m[1]);
     const external = a.TargetMode === 'External';
     const target = a.Target || '';
     out.push({ id: a.Id, type: a.Type || '', target, external, path: external ? null : normalise(target.startsWith('/') ? target.slice(1) : dir + target) });

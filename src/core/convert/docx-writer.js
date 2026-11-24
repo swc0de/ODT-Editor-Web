@@ -394,12 +394,15 @@ function createDocxWriter(state, index, src = null) {
       // Tracked change, then link (a link inside a change).
       const change = node.marks?.find((m) => m.type.name === 'insertion' || m.type.name === 'deletion');
       const link = node.marks?.find((m) => m.type.name === 'link');
-      const key = `${change ? `${change.type.name}:${change.attrs.author}:${change.attrs.date}` : ''}|${link ? link.attrs.href : ''}`;
-      if (!change && !link) { flush(); out.push(xml); return; }
+      const cc = node.marks?.find((m) => m.type.name === 'contentControl');
+      const key = `${change ? `${change.type.name}:${change.attrs.author}:${change.attrs.date}` : ''}|${link ? link.attrs.href : ''}|${cc ? JSON.stringify(cc.attrs) : ''}`;
+      if (!change && !link && !cc) { flush(); out.push(xml); return; }
       if (group?.key !== key) {
         flush();
         let open = '';
         let close = '';
+        // A content control around the runs (outermost).
+        if (cc) { open += `<w:sdt>${sdtPrXml(cc)}<w:sdtContent>`; close = '</w:sdtContent></w:sdt>'; }
         if (change) {
           const tag = change.type.name === 'insertion' ? 'w:ins' : 'w:del';
           const known = /^ct(\d+)$/.exec(change.attrs.cid || '');
@@ -408,8 +411,8 @@ function createDocxWriter(state, index, src = null) {
         }
         if (link) {
           const href = link.attrs.href || '';
-          if (href.startsWith('#')) open += `<w:hyperlink w:anchor="${esc(href.slice(1))}"${link.attrs.extra?.ooxml ?? ' w:history="1"'}>`;
-          else open += `<w:hyperlink r:id="${st.rel('hyperlink', href, true)}"${link.attrs.extra?.ooxml ?? ' w:history="1"'}>`;
+          if (href.startsWith('#')) open += `<w:hyperlink w:anchor="${esc(href.slice(1))}"${link.attrs.ooxml ?? ' w:history="1"'}>`;
+          else open += `<w:hyperlink r:id="${st.rel('hyperlink', href, true)}"${link.attrs.ooxml ?? ' w:history="1"'}>`;
           close = `</w:hyperlink>${close}`;
         }
         group = { key, open, close, items: [] };
@@ -430,8 +433,9 @@ function createDocxWriter(state, index, src = null) {
         case 'note': {
           const cls = node.attrs.noteClass === 'endnote' ? 'endnote' : 'footnote';
           const id = noteBase[cls] + notes[cls].length + 1;
-          notes[cls].push({ id, body: node.attrs.body || [] });
-          wrapIn(node, `<w:r><w:rPr><w:rStyle w:val="${cls === 'footnote' ? 'FootnoteReference' : 'EndnoteReference'}"/></w:rPr><w:${cls}Reference w:id="${id}"/></w:r>`);
+          notes[cls].push({ id, body: node.attrs.body || [], mark: node.attrs.ooxml?.mark || null });
+          const refRPr = node.attrs.ooxml?.ref ? cleanDecls(node.attrs.ooxml.ref) : `<w:rPr><w:rStyle w:val="${cls === 'footnote' ? 'FootnoteReference' : 'EndnoteReference'}"/></w:rPr>`;
+          wrapIn(node, `<w:r>${refRPr}<w:${cls}Reference w:id="${id}"/></w:r>`);
           break;
         }
         case 'annotation': {
@@ -467,6 +471,30 @@ function createDocxWriter(state, index, src = null) {
     });
     flush();
     return out.join('');
+  }
+
+  /** A content control's w:sdtPr: Word's own while the control is unchanged, else from its attributes. */
+  function sdtPrXml(cc) {
+    const ox = cc.attrs.ooxml;
+    const a = cc.attrs.attrs || {};
+    if (ox?.sdtPr && ox.attrs === JSON.stringify([a, cc.attrs.items || []])) return cleanDecls(ox.sdtPr);
+    const v = (x) => esc(x);
+    const kind = a['loext:checkbox'] === 'true' ? 'checkbox' : a['loext:combobox'] === 'true' ? 'combobox' : a['loext:dropdown'] === 'true' ? 'dropdown' : a['loext:date'] === 'true' ? 'date' : a['loext:picture'] === 'true' ? 'picture' : a['loext:plain-text'] === 'true' ? 'plain' : 'rich';
+    const list = (cc.attrs.items || []).map((it) => `<w:listItem w:displayText="${v(it['loext:display-text'] ?? it['loext:value'] ?? '')}" w:value="${v(it['loext:value'] ?? it['loext:display-text'] ?? '')}"/>`).join('');
+    const hex = (ch, d) => (ch || d).codePointAt(0).toString(16).toUpperCase();
+    const body = {
+      checkbox: `<w14:checkbox><w14:checked w14:val="${a['loext:checked'] === 'true' ? 1 : 0}"/><w14:checkedState w14:val="${hex(a['loext:checked-state'], '☒')}" w14:font="MS Gothic"/><w14:uncheckedState w14:val="${hex(a['loext:unchecked-state'], '☐')}" w14:font="MS Gothic"/></w14:checkbox>`,
+      combobox: `<w:comboBox>${list}</w:comboBox>`,
+      dropdown: `<w:dropDownList>${list}</w:dropDownList>`,
+      date: `<w:date${a['loext:current-date'] ? ` w:fullDate="${v(a['loext:current-date'])}"` : ''}><w:dateFormat w:val="${v(a['loext:date-format'] || 'dd/MM/yyyy')}"/><w:lid w:val="${v(a['loext:date-rfc-language-tag'] || 'en-GB')}"/><w:storeMappedDataAs w:val="dateTime"/><w:calendar w:val="gregorian"/></w:date>`,
+      picture: '<w:picture/>', plain: '<w:text/>', rich: '',
+    }[kind];
+    const lock = { 'sdt-locked': 'sdtLocked', 'content-locked': 'contentLocked', unlocked: 'sdtContentLocked' }[a['loext:lock']];
+    // A changed control keeps Word's other properties (its run properties, placeholder, data binding…).
+    const keep = ox?.sdtPr ? splitChildren(parts(cleanDecls(ox.sdtPr))?.inner || '').filter((c) => !/^(w:(alias|tag|id|lock|showingPlcHdr|dropDownList|comboBox|date|picture|text|richText)|w14:checkbox)$/.test(c.name) && !(c.name === 'w:temporary' && a['loext:showing-place-holder'] !== 'true')).map((c) => c.xml).join('') : '';
+    const id = /^-?\d+$/.test(a['loext:id'] || '') ? a['loext:id'] : String((Math.abs([...JSON.stringify(a)].reduce((h, c) => (h * 31 + c.charCodeAt(0)) | 0, 7)) % 2147483647) || 1);
+    const rPr = /^<w:rPr[\s>/][\s\S]*?(<\/w:rPr>|\/>)/.exec(keep)?.[0] || '';
+    return `<w:sdtPr>${rPr}${a['loext:alias'] ? `<w:alias w:val="${v(a['loext:alias'])}"/>` : ''}${a['loext:tag'] ? `<w:tag w:val="${v(a['loext:tag'])}"/>` : ''}<w:id w:val="${id}"/>${lock ? `<w:lock w:val="${lock}"/>` : ''}${a['loext:showing-place-holder'] === 'true' ? '<w:showingPlcHdr/>' : ''}${keep.replace(rPr, '')}${body}</w:sdtPr>`;
   }
 
   // Comment ids by annotation name (so the end finds its start).
@@ -852,6 +880,7 @@ function createDocxWriter(state, index, src = null) {
    * that is unchanged since the document was opened (see docx-preserve.js).
    */
   const reused = []; // XML that was reused (for the notes and comments it refers to)
+  let usedSects = null;
   const usedGroups = new Set();
   const groupsByFirst = new Map();
   for (const g of src?.groups || []) {
@@ -876,10 +905,16 @@ function createDocxWriter(state, index, src = null) {
       usedGroups.add(g);
       const xml = [...g.xml];
       // The section break of this section goes into the group's last paragraph when it carries it.
-      if (pendingSect && blocks.slice(i, i + g.count).some((b) => containsNode(b, pendingSect.node)) && /^<w:p[\s>]/.test(xml[xml.length - 1] || '')) {
+      const carrierHere = !!pendingSect && blocks.slice(i, i + g.count).some((b) => containsNode(b, pendingSect.node));
+      if (carrierHere && /^<w:p[\s>]/.test(xml[xml.length - 1] || '')) {
         const p = xml[xml.length - 1];
         xml[xml.length - 1] = /<w:pPr>/.test(p) || /<w:pPr\s/.test(p) ? p.replace(/<\/w:pPr>/, `${pendingSect.xml}</w:pPr>`).replace(/<w:pPr\/>/, `<w:pPr>${pendingSect.xml}</w:pPr>`) : p.replace(/^<w:p((?:[^>"']|"[^"]*"|'[^']*')*?)>/, (m) => `${m}<w:pPr>${pendingSect.xml}</w:pPr>`);
         pendingSect = null;
+      }
+      if (!carrierHere && g.sect != null && g.sect >= 0 && usedSects && !usedSects.has(g.sect) && src.sectPrs[g.sect] && /^<w:p[\s>]/.test(xml[xml.length - 1] || '')) {
+        const p = xml[xml.length - 1];
+        const sp = cleanDecls(src.sectPrs[g.sect]);
+        xml[xml.length - 1] = /<w:pPr[\s>]/.test(p) ? p.replace(/<\/w:pPr>/, `${sp}</w:pPr>`).replace(/<w:pPr\/>/, `<w:pPr>${sp}</w:pPr>`) : p.replace(/^<w:p((?:[^>"']|"[^"]*"|'[^']*')*?)>/, (m) => `${m}<w:pPr>${sp}</w:pPr>`);
       }
       reused.push(...xml);
       out += xml.join('');
@@ -889,19 +924,37 @@ function createDocxWriter(state, index, src = null) {
     return out;
   }
   return {
-    files, overrides, parts, media, notes, comments, numbering, commentIds, ends, reused, usedGroups,
+    files, overrides, parts, media, notes, comments, numbering, commentIds, ends, reused, usedGroups, cleanDecls,
     setSchemaNode: (fn) => { schemaNode = fn; },
     setPartDoc: (fn) => { partDoc = fn; },
     build(doc) {
       collectEnds(doc);
       const sections = wordSections(doc);
+      // Each section's original sectPr: the one its last block ended with when it was read
+      // (by content, so inserted sections don't shift them), the body's for the last section.
       const origSects = src?.sectPrs?.length === sections.length ? src.sectPrs : null;
+      const topOf = new Map();
+      doc.forEach((n) => { topOf.set(n, n); if (n.type.name === 'section') n.forEach((c) => topOf.set(c, n)); });
+      const sectByLast = new Map();
+      for (const g of src?.groups || []) if (g.sect != null && g.sect >= 0) sectByLast.set(g.json.split('\n').pop(), g.sect);
+      const origSectIndex = (sec, i, last) => {
+        if (!src?.sectPrs?.length) return null;
+        if (last) return src.sectPrs.length - 1;
+        const top = topOf.get(sec.blocks[sec.blocks.length - 1]);
+        const k = top ? sectByLast.get(jsonOf(top)) : undefined;
+        return k != null ? k : origSects ? i : null;
+      };
+      const origSectOf = (sec, i, last) => { const k = origSectIndex(sec, i, last); return k != null ? src.sectPrs[k] : null; };
+      // Original section breaks no section of the writer's ends at (a continuous break the model
+      // doesn't show) stay where they were when their paragraph is reused.
+      usedSects = new Set(sections.map((sec, i) => origSectIndex(sec, i, i === sections.length - 1)).filter((k) => k != null));
       let body = '';
       sections.forEach((sec, i) => {
         const last = i === sections.length - 1;
         let sp = sectPrXml(sec);
         // Grid, line numbering, page borders, printer settings… of the original section.
-        if (origSects?.[i]) sp = cleanDecls(patchSectPr(sp, origSects[i]));
+        const os = origSectOf(sec, i, last);
+        if (os) sp = cleanDecls(patchSectPr(sp, os));
         // The section break goes in the section's last paragraph (not one inside a table).
         const carrier = last ? null : lastParagraph(sec.blocks);
         pendingSect = carrier ? { node: carrier, xml: sp } : null;
@@ -1141,7 +1194,7 @@ function writeRegenerated(state, index, helpers, src, same) {
     const sep = special.length ? special.map((c) => c.xml).join('') : `<w:${cls} w:type="separator" w:id="-1"><w:p><w:pPr><w:spacing w:after="0" w:line="240" w:lineRule="auto"/></w:pPr><w:r><w:separator/></w:r></w:p></w:${cls}><w:${cls} w:type="continuationSeparator" w:id="0"><w:p><w:pPr><w:spacing w:after="0" w:line="240" w:lineRule="auto"/></w:pPr><w:r><w:continuationSeparator/></w:r></w:p></w:${cls}>`;
     const items = list.map((n) => {
       const nodes = (n.body || []).map((b) => helpers.nodeFromJSON(b)).filter(Boolean);
-      const ref = `<w:r><w:rPr><w:rStyle w:val="${cls === 'footnote' ? 'FootnoteReference' : 'EndnoteReference'}"/></w:rPr><w:${cls}Ref/></w:r>`;
+      const ref = `<w:r>${n.mark ? w.cleanDecls(n.mark) : `<w:rPr><w:rStyle w:val="${cls === 'footnote' ? 'FootnoteReference' : 'EndnoteReference'}"/></w:rPr>`}<w:${cls}Ref/></w:r>`;
       let xml = '';
       nodes.forEach((node, i) => { xml += node.isTextblock && i === 0 ? w.blocksXml(st, [node]).replace(/(<w:p>(?:<w:pPr>.*?<\/w:pPr>)?)/, `$1${ref}`) : w.blocksXml(st, [node]); });
       return `<w:${cls} w:id="${n.id}">${xml || `<w:p>${ref}</w:p>`}</w:${cls}>`;

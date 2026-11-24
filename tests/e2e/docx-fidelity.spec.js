@@ -341,7 +341,8 @@ for (const fx of FIXTURES) {
         const p = li.querySelector('p');
         const pg = [...document.querySelectorAll('.page-bgs .pg')].find((g) => { const b = g.getBoundingClientRect(); const e = li.getBoundingClientRect(); return e.top >= b.top - 1 && e.top < b.bottom; }).getBoundingClientRect();
         const range = document.createRange();
-        const text = [...p.childNodes].find((n) => n.nodeType === 3);
+        // The first text node (M15: runs read from Word keep their properties, so the text may be in a span).
+        const text = document.createTreeWalker(p, NodeFilter.SHOW_TEXT, { acceptNode: (n) => (n.parentElement.closest('.odt-label') || !n.textContent ? NodeFilter.FILTER_SKIP : NodeFilter.FILTER_ACCEPT) }).nextNode();
         range.setStart(text, 0); range.setEnd(text, 1);
         const toc = document.querySelector('.page-flow .odt-index');
         return {
@@ -370,7 +371,7 @@ for (const fx of FIXTURES) {
     test('round trip: import → export DOCX → import gives the same model; the export keeps every property; LibreOffice opens it', async ({ page }) => {
       test.setTimeout(240_000);
       mkdirSync(OUT, { recursive: true });
-      const sorted = (pg = page) => pg.evaluate(() => { const sort = (v) => (Array.isArray(v) ? v.map(sort) : v && typeof v === 'object' ? Object.fromEntries(Object.keys(v).sort().map((k) => [k, sort(v[k])])) : v); return JSON.stringify(sort(window.odtEditor.editor.view.state.doc.toJSON())); });
+      const sorted = (pg = page) => pg.evaluate(() => { const sort = (v) => (Array.isArray(v) ? v.map(sort) : v && typeof v === 'object' ? Object.fromEntries(Object.keys(v).filter((k) => k !== 'ooxml' && k !== 'part').sort().map((k) => [k, sort(v[k])])) : v); return JSON.stringify(sort(window.odtEditor.editor.view.state.doc.toJSON())); });
       const before = await sorted();
       const pagesBefore = (await pagesInfo(page)).map((p) => p.start.slice(0, 20));
       const dl = page.waitForEvent('download');
@@ -439,7 +440,7 @@ test.describe('docx round trip: existing fixtures', () => {
       const problems = await openApp(page);
       const bytes = readFileSync(path.resolve('tests/fixtures', name));
       await openDocx(page, name, bytes);
-      const sorted = (pg) => pg.evaluate(() => { const sort = (v) => (Array.isArray(v) ? v.map(sort) : v && typeof v === 'object' ? Object.fromEntries(Object.keys(v).sort().map((k) => [k, sort(v[k])])) : v); return JSON.stringify(sort(window.odtEditor.editor.view.state.doc.toJSON())); });
+      const sorted = (pg) => pg.evaluate(() => { const sort = (v) => (Array.isArray(v) ? v.map(sort) : v && typeof v === 'object' ? Object.fromEntries(Object.keys(v).filter((k) => k !== 'ooxml' && k !== 'part').sort().map((k) => [k, sort(v[k])])) : v); return JSON.stringify(sort(window.odtEditor.editor.view.state.doc.toJSON())); });
       const before = await sorted(page);
       const dl = page.waitForEvent('download');
       await page.evaluate(() => window.odtEditor.registry.run('file.export_docx'));

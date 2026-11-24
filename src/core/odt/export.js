@@ -430,7 +430,7 @@ export function exportOdt(state, opts = {}) {
     const tcTree = { n: 'text:tracked-changes', a: {}, c: [] };
     preludeTrees = at < 0 ? [...preludeTrees, tcTree] : [...preludeTrees.slice(0, at), tcTree, ...preludeTrees.slice(at)];
   }
-  const prelude = preludeTrees.map((t) => {
+  let prelude = preludeTrees.map((t) => {
     if (t.n !== 'text:tracked-changes') return treeToXml(t);
     const a = { ...t.a };
     if (state.trackChanges) a['text:track-changes'] = 'true'; else delete a['text:track-changes'];
@@ -457,6 +457,8 @@ export function exportOdt(state, opts = {}) {
   }
   const names = registry.entries();
   body = body.replace(/\u0001(\d+)\u0001/g, (_, id) => escAttr(names[Number(id)].name));
+  // Deleted text in tracked-change regions uses generated styles too.
+  prelude = prelude.replace(/\u0001(\d+)\u0001/g, (_, id) => escAttr(names[Number(id)].name));
 
   const autoNames = new Set([...kept, ...generated].map((t) => t.a['style:name']));
   const commonStyles = withMissingStyles(state.commonStyles || { n: 'office:styles', a: {} }, body + treeToXml({ n: 'x', a: {}, c: [...kept, ...generated] }), autoNames);
