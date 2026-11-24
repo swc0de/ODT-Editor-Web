@@ -9,7 +9,8 @@ import { writeDocxParts } from '../../core/convert/docx-writer.js';
 import { SAVE_FORMATS, IMPORT_FORMATS, formatById } from '../../core/formats.js';
 import { partToDoc } from '../../core/hf-content.js';
 import { schema } from '../../core/schema.js';
-import { pageToPng } from '../../core/convert/png.js';
+import { pageToPng, elementToPng } from '../../core/convert/png.js';
+import { DOCX_FRAME_KINDS } from '../../core/losses.js';
 import { pageLayout } from '../../core/odt/styles.js';
 import { toPx } from '../../layout/units.js';
 import { APP_NAME, APP_VERSION } from '../../config.js';
@@ -44,9 +45,18 @@ const baseName = (c) => (c.session.info.name || 'Document').replace(/[\\/:*?"<>|
 /** What core/formats.js writers need from the live editor. */
 export function formatEnv(c) {
   return {
-    docxParts: (state, o = {}) => {
+    docxParts: async (state, o = {}) => {
       const index = c.ui.docArea.styleIndex;
-      return writeDocxParts(state, index, { nodeFromJSON: (j) => schema.nodeFromJSON(j), partDoc: (tree) => partToDoc(state, index, tree), generator: `${APP_NAME} ${APP_VERSION}`, asTemplate: !!o.asTemplate });
+      // Objects DOCX has no equivalent for are written with a picture of them, drawn from the page.
+      const pictures = new Map();
+      const view = c.mainEditor.view;
+      const need = [];
+      if (view.state.doc === state.doc) state.doc.descendants((n, pos) => { if (n.type.name === 'frame' && !DOCX_FRAME_KINDS.has(n.attrs.kind)) need.push([n, pos]); return true; });
+      for (const [n, pos] of need) {
+        const dom = view.nodeDOM(pos);
+        if (dom?.getBoundingClientRect) { try { pictures.set(n, await elementToPng(dom)); } catch (e) { console.warn('Object picture failed:', e); } }
+      }
+      return writeDocxParts(state, index, { nodeFromJSON: (j) => schema.nodeFromJSON(j), partDoc: (tree) => partToDoc(state, index, tree), generator: `${APP_NAME} ${APP_VERSION}`, asTemplate: !!o.asTemplate, framePicture: (n) => pictures.get(n) });
     },
     html: (state, o = {}) => documentHtml(c, o),
   };

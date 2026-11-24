@@ -81,3 +81,42 @@ export async function pageToPng({ stack, pageEl, scale = 2 }) {
     return await new Promise((res, rej) => canvas.toBlob((b) => (b ? res(b) : rej(new Error('The page could not be drawn.'))), 'image/png'));
   }
 }
+
+/**
+ * One element (a drawing object in the document) as a transparent PNG, the
+ * same way: a copy in an SVG <foreignObject>, onto a canvas. Used for the
+ * picture Word shows of objects DOCX has no equivalent for.
+ * → Promise<{ bytes: Uint8Array, width, height }> (CSS pixels)
+ */
+export async function elementToPng(el, { scale = 2 } = {}) {
+  const r = el.getBoundingClientRect();
+  const zoom = el.closest('[style*="zoom"]') ? parseFloat(getComputedStyle(el.closest('[style*="zoom"]')).zoom) || 1 : 1;
+  const w = Math.max(1, Math.round(r.width / zoom));
+  const h = Math.max(1, Math.round(r.height / zoom));
+  const copy = el.cloneNode(true);
+  for (const n of copy.querySelectorAll('[contenteditable]')) n.removeAttribute('contenteditable');
+  for (const n of copy.querySelectorAll('.obj-handles, .ProseMirror-selectednode')) n.classList?.remove('ProseMirror-selectednode');
+  copy.style.position = 'absolute';
+  copy.style.left = '0';
+  copy.style.top = '0';
+  copy.style.margin = '0';
+  copy.style.transform = 'none';
+  await inlineImages(copy);
+  const families = new Set();
+  for (const x of [el, ...el.querySelectorAll('*')]) {
+    const f = getComputedStyle(x).fontFamily.split(',')[0].replace(/['"]/g, '').trim().toLowerCase();
+    if (f) families.add(f);
+    if (families.size > 6) break;
+  }
+  const html = `<div xmlns="http://www.w3.org/1999/xhtml" class="odt-doc" style="position:relative;width:${w}px;height:${h}px;overflow:visible">${new XMLSerializer().serializeToString(copy)}</div>`;
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${w * scale}" height="${h * scale}" viewBox="0 0 ${w} ${h}"><foreignObject x="0" y="0" width="${w}" height="${h}"><style>${esc(pageCss(families))}</style>${html}</foreignObject></svg>`;
+  const img = new Image();
+  img.decoding = 'sync';
+  await new Promise((res, rej) => { img.onload = res; img.onerror = () => rej(new Error('The object could not be drawn.')); img.src = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`; });
+  const canvas = document.createElement('canvas');
+  canvas.width = Math.round(w * scale);
+  canvas.height = Math.round(h * scale);
+  canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+  const blob = await new Promise((res, rej) => canvas.toBlob((b) => (b ? res(b) : rej(new Error('The object could not be drawn.'))), 'image/png'));
+  return { bytes: new Uint8Array(await blob.arrayBuffer()), width: w, height: h };
+}

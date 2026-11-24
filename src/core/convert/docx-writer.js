@@ -39,8 +39,12 @@
 import { zipSync, strToU8, strFromU8 } from 'fflate';
 import { mergeAuto, autoFromTree } from '../odt/styles.js';
 import { findChild } from '../odt/xml.js';
+import { getConfigItem } from '../doc-settings.js';
 import { toPx } from '../../layout/units.js';
 import { tocOptions } from '../indexes.js';
+import { lineNumbering, hyphenation } from '../page-setup.js';
+import { watermarkSpec } from '../watermark.js';
+import { mathmlToOmml } from './omml.js';
 import { wrapOf, positionOf, graphicProps, sizeOf } from '../objects.js';
 import { mergeProps, PPR_ORDER, RPR_ORDER, PPR_MAPPED, RPR_MAPPED, patchSectPr, readRels, keptRels, maxAttr, splitChildren, parts, mergeRootStart, mergeNumbering, mergeStyles, patchSettings, patchCore, mergePackage, OWNED_TYPES } from './docx-preserve.js';
 
@@ -156,6 +160,8 @@ function rPrXml(a = {}, { rStyle = null } = {}) {
       o.push(`<w:u w:val="${v}"${c && c !== 'font-color' ? ` w:color="${hex(c)}"` : ''}/>`);
     }
   }
+  // Character border (Home ▸ Character Border): w:bdr, its padding as the space.
+  if (a['fo:border'] && a['fo:border'] !== 'none') o.push(borderEl('bdr', a['fo:border'], a['fo:padding'] ? Math.round(ptOf(a['fo:padding'])) : 0));
   if (bg && bg !== 'transparent' && !hl) o.push(`<w:shd w:val="clear" w:color="auto" w:fill="${hex(bg)}"/>`);
   const pos = String(a['style:text-position'] || '');
   if (/^(super|[1-9])/.test(pos)) o.push('<w:vertAlign w:val="superscript"/>');
@@ -176,6 +182,7 @@ function pPrXml(a = {}, c = [], x = {}) {
   if (a['fo:break-before'] === 'page') o.push('<w:pageBreakBefore/>');
   if (a['fo:widows'] != null || a['fo:orphans'] != null) o.push(Number(a['fo:widows'] ?? a['fo:orphans']) > 0 ? '<w:widowControl/>' : '<w:widowControl w:val="0"/>');
   if (x.numPr) o.push(x.numPr);
+  if (a['text:number-lines'] === 'false') o.push('<w:suppressLineNumbers/>');
   // Borders: w:space from the padding; left / right borders sit outside the indent.
   const pad = (side) => a[`fo:padding-${side}`] ?? a['fo:padding'];
   const bd = (side) => a[`fo:border-${side}`] ?? a['fo:border'];
@@ -252,7 +259,7 @@ function createDocxWriter(state, index, src = null) {
     const taken = new Set();
     if (srcFiles && orig) {
       const dir = path.slice(0, path.lastIndexOf('/') + 1);
-      for (const r of keptRels(srcFiles, orig)) {
+      for (const r of keptRels(srcFiles, orig).filter((x) => x.path !== APP_DATA_PATH)) {
         const target = r.external ? r.target : relTarget(dir, r.path);
         rels.push({ key: `${r.type}|${target}|${r.external}`, id: r.id, type: r.type, target, external: r.external });
         taken.add(r.id);
@@ -300,7 +307,10 @@ function createDocxWriter(state, index, src = null) {
   function runXml(node, inner, extraRPr = '') {
     const cs = charStyle(node);
     const original = node.marks?.find((m) => m.type.name === 'textProps')?.attrs.auto?.ooxml?.rPr;
-    const rPr = cleanDecls(mergeProps(rPrXml({ ...paraText, ...effText(node) }, { rStyle: cs ? wordStyle('text', cs, index).id : null }) + extraRPr, original, RPR_ORDER, RPR_MAPPED));
+    // A tracked formatting change (the earlier formatting isn't kept by the model: an empty w:rPr).
+    const fc = node.marks?.find((m) => m.type.name === 'formatChange');
+    const fcXml = fc ? `<w:rPrChange w:id="${/^ct(\d+)$/.exec(fc.attrs.cid || '')?.[1] || 100000 + ++changeId}" w:author="${esc(fc.attrs.author || 'Unknown')}"${fc.attrs.date ? ` w:date="${esc(/Z$/.test(fc.attrs.date) ? fc.attrs.date : `${fc.attrs.date.replace(/\.\d+$/, '')}Z`)}"` : ''}><w:rPr/></w:rPrChange>` : '';
+    const rPr = cleanDecls(mergeProps(rPrXml({ ...paraText, ...effText(node) }, { rStyle: cs ? wordStyle('text', cs, index).id : null }) + extraRPr + fcXml, original, RPR_ORDER, RPR_MAPPED));
     return `<w:r>${rPr ? `<w:rPr>${rPr}</w:rPr>` : original ? '<w:rPr/>' : ''}${inner}</w:r>`;
   }
 
@@ -322,8 +332,17 @@ function createDocxWriter(state, index, src = null) {
       case 'text:time': instr = 'TIME \\@ "HH:mm"'; break;
       case 'text:bookmark-ref': case 'text:reference-ref': instr = `REF ${fa['text:ref-name'] || ''} \\h`; break;
       case 'text:title': instr = 'TITLE'; break;
-      case 'text:author-name': case 'text:initial-creator': instr = 'AUTHOR'; break;
+      case 'text:subject': instr = 'SUBJECT'; break;
+      case 'text:keywords': instr = 'KEYWORDS'; break;
+      case 'text:description': instr = 'COMMENTS'; break;
+      case 'text:initial-creator': instr = 'AUTHOR'; break;
+      case 'text:author-name': instr = 'USERNAME'; break;
       case 'text:file-name': instr = 'FILENAME'; break;
+      // Captions, index entries, citations and mail-merge fields.
+      case 'text:sequence': instr = `SEQ ${fieldArg(fa['text:name'] || 'Figure')} \\* ${{ i: 'roman', I: 'ROMAN', a: 'alphabetic', A: 'ALPHABETIC' }[fa['style:num-format']] || 'ARABIC'}`; break;
+      case 'text:alphabetical-index-mark': return complexField(node, `XE "${String(fa['text:string-value'] || '').replace(/"/g, "'")}"${fa['text:key1'] ? `:"${fa['text:key1']}"` : ''}`, '');
+      case 'text:bibliography-mark': instr = `CITATION ${fieldArg(fa['text:identifier'] || '')}`; break;
+      case 'text:database-display': instr = `MERGEFIELD ${fieldArg(fa['text:column-name'] || '')}`; break;
       default: break;
     }
     const result = f.text || '';
@@ -331,6 +350,7 @@ function createDocxWriter(state, index, src = null) {
     return complexField(node, instr, result ? textRun(node, result) : '');
   }
 
+  const fieldArg = (v) => (/[\s"]/.test(v) ? `"${String(v).replace(/"/g, "'")}"` : v);
   const complexField = (node, instr, resultRuns) => `${runXml(node, '<w:fldChar w:fldCharType="begin"/>')}${runXml(node, `<w:instrText xml:space="preserve"> ${esc(instr)} </w:instrText>`)}${runXml(node, '<w:fldChar w:fldCharType="separate"/>')}${resultRuns}${runXml(node, '<w:fldChar w:fldCharType="end"/>')}`;
 
   function frameXml(st, node, inPara = true) {
@@ -344,6 +364,7 @@ function createDocxWriter(state, index, src = null) {
     const desc = a.parts?.find((p) => p.n === 'svg:desc')?.c?.[0];
     const descr = esc(typeof desc === 'string' ? desc : typeof title === 'string' ? title : '');
     let graphic = null;
+    let marker = '';
     if (a.kind === 'image') {
       const img = a.parts?.find((p) => p.n === 'draw:image');
       const path = String(img?.a?.['xlink:href'] || a.href || '').replace(/^\.\//, '');
@@ -357,8 +378,26 @@ function createDocxWriter(state, index, src = null) {
       const ln = gp['fo:border'] && gp['fo:border'] !== 'none' ? `<a:ln w="${Math.round(bw * 12700)}"><a:solidFill><a:srgbClr val="${hex(String(gp['fo:border']).split(/\s+/).find((p) => /^#/.test(p)) || '#000000')}"/></a:solidFill></a:ln>` : '<a:ln><a:noFill/></a:ln>';
       const body = blocksXml(st, a.body || [], { inBox: true });
       graphic = `<a:graphic xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"><a:graphicData uri="http://schemas.microsoft.com/office/word/2010/wordprocessingShape"><wps:wsp><wps:cNvSpPr txBox="1"/><wps:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="${cx}" cy="${cy}"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom>${fill}${ln}</wps:spPr><wps:txbx><w:txbxContent>${body || '<w:p/>'}</w:txbxContent></wps:txbx><wps:bodyPr rot="0" vert="horz" wrap="square" lIns="91440" tIns="45720" rIns="91440" bIns="45720" anchor="t" anchorCtr="0"><a:noAutofit/></wps:bodyPr></wps:wsp></a:graphicData></a:graphic>`;
-    } else return '';
-    const docPr = `<wp:docPr id="${id}" name="${name}"${descr ? ` descr="${descr}"` : ''}/>`;
+    } else if (a.kind === 'equation' && omml(a)) {
+      // An equation: Word's own (OMML), marked by a hidden bookmark so this app reopens the object as it was.
+      const n = Object.keys(appData.frames ||= {}).length + 1;
+      appData.frames[n] = { attrs: a, files: frameFiles(a) };
+      const b = bookmarkId++;
+      return `<w:bookmarkStart w:id="${b}" w:name="_odte_frame_${n}"/>${omml(a)}<w:bookmarkEnd w:id="${b}"/>`;
+    } else {
+      // Shapes, WordArt, canvases, SmartArt, ink, charts: the picture Word shows (drawn by
+      // the app), with the object itself in the app's data part so this app reopens it as it was.
+      const n = Object.keys(appData.frames ||= {}).length + 1;
+      appData.frames[n] = { attrs: a, files: frameFiles(a) };
+      marker = ` title="odte:frame:${n}"`;
+      const pic = framePicture(node);
+      const file = `odte-frame${n}.png`;
+      files[`word/media/${file}`] = pic?.bytes || TRANSPARENT_PNG;
+      media.set(`#frame${n}`, file);
+      const rid = st.rel('image', `media/${file}`);
+      graphic = `<a:graphic xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/picture"><pic:pic xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture"><pic:nvPicPr><pic:cNvPr id="${id}" name="${name}"${descr ? ` descr="${descr}"` : ''}/><pic:cNvPicPr/></pic:nvPicPr><pic:blipFill><a:blip r:embed="${rid}"/><a:stretch><a:fillRect/></a:stretch></pic:blipFill><pic:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="${cx}" cy="${cy}"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></pic:spPr></pic:pic></a:graphicData></a:graphic>`;
+    }
+    const docPr = `<wp:docPr id="${id}" name="${name}"${descr ? ` descr="${descr}"` : ''}${marker}/>`;
     const wrap = wrapOf(a, index);
     let drawing;
     if (wrap === 'inline' || !inPara) {
@@ -444,7 +483,8 @@ function createDocxWriter(state, index, src = null) {
           comments.push({ id, attrs: node.attrs });
           commentIds.set(node.attrs.name, id);
           // A comment without a range ends where it starts.
-          if (!hasEnd(node.attrs.name)) out.push(`<w:commentRangeStart w:id="${id}"/><w:commentRangeEnd w:id="${id}"/><w:r><w:rPr><w:rStyle w:val="CommentReference"/></w:rPr><w:commentReference w:id="${id}"/></w:r>`);
+          // A comment without a range (a reply, or one at a point): just its reference.
+          if (!hasEnd(node.attrs.name)) out.push(`<w:r><w:rPr><w:rStyle w:val="CommentReference"/></w:rPr><w:commentReference w:id="${id}"/></w:r>`);
           else out.push(`<w:commentRangeStart w:id="${id}"/>`);
           break;
         }
@@ -712,7 +752,7 @@ function createDocxWriter(state, index, src = null) {
 
   /** A table of contents: a TOC field around its entries (their text is the field's result). */
   function indexXml(st, node, opts) {
-    if (node.attrs.element !== 'text:table-of-content') { let s = ''; node.forEach((c) => { s += blockXml(st, c, opts); }); return s; }
+    if (node.attrs.element !== 'text:table-of-content') return otherIndexXml(st, node, opts);
     const o = tocOptions(node.attrs.source);
     const ox = node.attrs.ooxml;
     // A TOC read from Word keeps its field instruction while its options are unchanged.
@@ -732,6 +772,52 @@ function createDocxWriter(state, index, src = null) {
     if (ox && !ox.sdtPr) return s;
     return `<w:sdt>${ox?.sdtPr ? cleanDecls(ox.sdtPr) : '<w:sdtPr><w:docPartObj><w:docPartGallery w:val="Table of Contents"/><w:docPartUnique/></w:docPartObj></w:sdtPr>'}<w:sdtContent>${s}</w:sdtContent></w:sdt>`;
   }
+
+  /**
+   * Tables of figures, indexes and bibliographies: a Word field (TOC \\c,
+   * INDEX, BIBLIOGRAPHY) with the entries as its result, in a content control
+   * whose tag refers to the index's full definition in the app's data part.
+   */
+  const appData = { indexes: {} };
+  function otherIndexXml(st, node, opts) {
+    const n = Object.keys(appData.indexes).length + 1;
+    appData.indexes[n] = { element: node.attrs.element, attrs: node.attrs.attrs, source: node.attrs.source, titleCount: node.attrs.titleCount, titleAttrs: node.attrs.titleAttrs };
+    const src = node.attrs.source;
+    const seq = src?.a?.['text:caption-sequence-name'];
+    const instr = { 'text:illustration-index': `TOC \\h \\z \\c "${String(seq || 'Figure').replace(/"/g, "'")}"`, 'text:alphabetical-index': 'INDEX \\h "A" \\c "1"', 'text:bibliography': 'BIBLIOGRAPHY' }[node.attrs.element] || 'TOC \\h \\z';
+    const children = [];
+    node.forEach((c) => children.push(c));
+    const title = node.attrs.titleCount ? children.slice(0, node.attrs.titleCount) : [];
+    const entries = children.slice(title.length);
+    let s = title.map((c) => blockXml(st, c, opts)).join('');
+    const begin = `<w:r><w:fldChar w:fldCharType="begin"/></w:r><w:r><w:instrText xml:space="preserve"> ${esc(instr)} </w:instrText></w:r><w:r><w:fldChar w:fldCharType="separate"/></w:r>`;
+    const end = '<w:r><w:fldChar w:fldCharType="end"/></w:r>';
+    const texts = entries.filter((c) => c.isTextblock);
+    if (!texts.length) s += `<w:p>${begin}${end}</w:p>`;
+    entries.forEach((c) => {
+      if (!c.isTextblock) { s += blockXml(st, c, opts); return; }
+      s += paraXml(st, c, { prefix: c === texts[0] ? begin : '', suffix: c === texts[texts.length - 1] ? end : '' });
+    });
+    const gallery = node.attrs.element === 'text:bibliography' ? '<w:docPartObj><w:docPartGallery w:val="Bibliographies"/><w:docPartUnique/></w:docPartObj>' : '';
+    return `<w:sdt><w:sdtPr><w:tag w:val="odte:index:${n}"/>${gallery}</w:sdtPr><w:sdtContent>${s}</w:sdtContent></w:sdt>`;
+  }
+
+  /** Package files an object refers to (pictures inside it, replacement images), base64, for the app's data. */
+  function frameFiles(a) {
+    const out = {};
+    const visit = (p) => {
+      if (!p || typeof p !== 'object') return;
+      const href = String(p.a?.['xlink:href'] || '').replace(/^\.\//, '');
+      const f = href && (state.pictures?.[href] || state.extraFiles?.[href]);
+      if (f) out[href] = { b64: bytesB64(f.bytes), mediaType: f.mediaType || '' };
+      (p.c || []).forEach(visit);
+    };
+    (a.parts || []).forEach(visit);
+    return out;
+  }
+  let framePicture = () => null; // set by the caller (needs the rendered document)
+  /** An equation frame's MathML as OMML ('' when there is none). */
+  const omml = (a) => { const f = (a.parts || []).find((p) => p.n === 'draw:object')?.['#files']?.['content.xml']; try { return f && typeof DOMParser !== 'undefined' ? mathmlToOmml(f) : ''; } catch { return ''; } };
 
   let schemaNode = null; // set below (schema from the document)
   let pendingSect = null; // { node, xml }: the paragraph that carries a section break
@@ -770,10 +856,11 @@ function createDocxWriter(state, index, src = null) {
     const startOf = (node) => { const pn = firstTextblock(node)?.attrs.auto?.props?.['style:paragraph-properties']?.a?.['style:page-number']; return pn && pn !== 'auto' ? Number(pn) : null; };
     doc.forEach((node) => {
       const m = masterOfNode(firstTextblock(node));
-      const cols = node.type.name === 'section' ? sectionCols(node) : null;
-      if (cols && cols.count > 1) {
+      // An ODF section (with columns or not) is a Word section between continuous breaks.
+      const cols = node.type.name === 'section' ? sectionCols(node) || { count: 1, gap: '1.27cm', sep: false } : null;
+      if (cols) {
         if (cur.blocks.length) out.push(cur);
-        const sec = { blocks: [...childrenOf(node)], master: m || cur.master, cols, type: m && cur.blocks.length ? 'nextPage' : (out.length || cur.blocks.length ? 'continuous' : 'nextPage'), start: startOf(node) };
+        const sec = { blocks: [...childrenOf(node)], master: m || cur.master, cols, type: m && cur.blocks.length ? 'nextPage' : (out.length || cur.blocks.length ? 'continuous' : 'nextPage'), start: startOf(node), odf: { name: node.attrs.name, extra: node.attrs.extra || null } };
         if (m && !cur.blocks.length && !out.length) sec.type = 'nextPage';
         out.push(sec);
         cur = { blocks: [], master: sec.master, cols: null, type: 'continuous' };
@@ -826,6 +913,12 @@ function createDocxWriter(state, index, src = null) {
     if (tree) {
       const doc = partDoc(tree);
       body = doc ? blocksXml(st, childrenOf(doc)) : '';
+      // A text watermark: Word's own (a VML text-path shape in the header).
+      const wm = watermarkSpec(state, tree);
+      if (wm) {
+        const run = watermarkVml(wm);
+        body = /<w:p[\s>]/.test(body) ? body.replace(/(<w:p(?:\s[^>]*)?>(?:<w:pPr>[\s\S]*?<\/w:pPr>|<w:pPr\/>)?)/, `$1${run}`) : `<w:p>${run}</w:p>${body}`;
+      }
     }
     files[path] = strToU8(`${DECL}<w:${part === 'header' ? 'hdr' : 'ftr'} ${NS}>${body || `<w:p><w:pPr><w:pStyle w:val="${part === 'header' ? 'Header' : 'Footer'}"/></w:pPr></w:p>`}</w:${part === 'header' ? 'hdr' : 'ftr'}>`);
     overrides.push([`/${path}`, `${CT}.${part}+xml`]);
@@ -868,7 +961,18 @@ function createDocxWriter(state, index, src = null) {
     const top = hasHeader ? mt + tw(hp['fo:min-height'] || hp['svg:height'] || '0cm') + tw(hp['fo:margin-bottom'] || '0cm') : mt;
     const bottom = hasFooter ? mb + tw(fp['fo:min-height'] || fp['svg:height'] || '0cm') + tw(fp['fo:margin-top'] || '0cm') : mb;
     const cols = sec.cols && sec.cols.count > 1 ? `<w:cols w:num="${sec.cols.count}" w:space="${tw(sec.cols.gap)}"${sec.cols.sep ? ' w:sep="1"' : ''}/>` : '<w:cols w:space="720"/>';
-    return `<w:sectPr>${refs.join('')}<w:type w:val="${sec.type}"/><w:pgSz w:w="${w}" w:h="${h}"${landscape ? ' w:orient="landscape"' : ''}/><w:pgMar w:top="${top}" w:right="${tw(p['fo:margin-right'] || '2cm')}" w:bottom="${bottom}" w:left="${tw(p['fo:margin-left'] || '2cm')}" w:header="${hasHeader ? mt : 708}" w:footer="${hasFooter ? mb : 708}" w:gutter="0"/>${sec.start != null ? `<w:pgNumType w:start="${sec.start}"/>` : ''}${cols}${titlePg ? '<w:titlePg/>' : ''}<w:docGrid w:linePitch="360"/></w:sectPr>`;
+    // Page borders (measured from the text, as ODF pads them).
+    const pb = ['top', 'left', 'bottom', 'right'].map((s) => {
+      const v = p[`fo:border-${s}`] ?? p['fo:border'];
+      if (!v || v === 'none') return '';
+      const pad = p[`fo:padding-${s}`] ?? p['fo:padding'];
+      return borderEl(s, v, pad ? Math.min(31, Math.round(ptOf(pad))) : 4).replace('/>', p['style:shadow'] && p['style:shadow'] !== 'none' && (s === 'bottom' || s === 'right') ? ' w:shadow="1"/>' : '/>');
+    }).join('');
+    const pgBorders = pb ? `<w:pgBorders w:offsetFrom="text">${pb}</w:pgBorders>` : '';
+    // Line numbering (References ▸ Line Numbers).
+    const ln = lineNumbering(state);
+    const lnNum = ln ? `<w:lnNumType w:countBy="${ln.increment || 1}" w:distance="${tw(ln.offset || '0.499cm')}" w:restart="${ln.restartOnPage ? 'newPage' : 'continuous'}"/>` : '';
+    return `<w:sectPr>${refs.join('')}<w:type w:val="${sec.type}"/><w:pgSz w:w="${w}" w:h="${h}"${landscape ? ' w:orient="landscape"' : ''}/><w:pgMar w:top="${top}" w:right="${tw(p['fo:margin-right'] || '2cm')}" w:bottom="${bottom}" w:left="${tw(p['fo:margin-left'] || '2cm')}" w:header="${hasHeader ? mt : 708}" w:footer="${hasFooter ? mb : 708}" w:gutter="0"/>${pgBorders}${lnNum}${sec.start != null ? `<w:pgNumType w:start="${sec.start}"/>` : ''}${cols}${titlePg ? '<w:titlePg/>' : ''}<w:docGrid w:linePitch="360"/></w:sectPr>`;
   }
 
   // ---------------------------------------------------------------- document
@@ -924,9 +1028,10 @@ function createDocxWriter(state, index, src = null) {
     return out;
   }
   return {
-    files, overrides, parts, media, notes, comments, numbering, commentIds, ends, reused, usedGroups, cleanDecls,
+    files, overrides, parts, media, notes, comments, numbering, commentIds, ends, reused, usedGroups, cleanDecls, appData,
     setSchemaNode: (fn) => { schemaNode = fn; },
     setPartDoc: (fn) => { partDoc = fn; },
+    setFramePicture: (fn) => { if (fn) framePicture = fn; },
     build(doc) {
       collectEnds(doc);
       const sections = wordSections(doc);
@@ -951,6 +1056,7 @@ function createDocxWriter(state, index, src = null) {
       let body = '';
       sections.forEach((sec, i) => {
         const last = i === sections.length - 1;
+        if (sec.odf) (appData.sections ||= {})[i] = sec.odf;
         let sp = sectPrXml(sec);
         // Grid, line numbering, page borders, printer settings… of the original section.
         const os = origSectOf(sec, i, last);
@@ -1106,6 +1212,13 @@ export function writeDocx(state, index, helpers) {
   return zipSync(Object.fromEntries(Object.entries(parts).map(([k, v]) => [k, [v, { level: /\.(png|jpe?g|gif|webp)$/i.test(k) ? 0 : 6 }]])));
 }
 
+/** Word's watermark: a VML WordArt shape (type 136) centred on the margins. */
+function watermarkVml(wm) {
+  const deg = wm.layout === 'horizontal' ? 0 : 315;
+  const colour = String(wm.colour || '#c0c0c0').toLowerCase();
+  return `<w:r><w:rPr><w:noProof/></w:rPr><w:pict><v:shapetype id="_x0000_t136" coordsize="21600,21600" o:spt="136" adj="10800" path="m@7,l@8,m@5,21600l@6,21600e"><v:formulas><v:f eqn="sum #0 0 10800"/><v:f eqn="prod #0 2 1"/><v:f eqn="sum 21600 0 @1"/><v:f eqn="sum 0 0 @2"/><v:f eqn="sum 21600 0 @3"/><v:f eqn="if @0 @3 0"/><v:f eqn="if @0 21600 @1"/><v:f eqn="if @0 0 @2"/><v:f eqn="if @0 @4 21600"/><v:f eqn="mid @5 @6"/><v:f eqn="mid @8 @5"/><v:f eqn="mid @7 @8"/><v:f eqn="mid @6 @7"/><v:f eqn="sum @6 0 @5"/></v:formulas><v:path textpathok="t" o:connecttype="custom" o:connectlocs="@9,0;@10,10800;@11,21600;@12,10800" o:connectangles="270,180,90,0"/><v:textpath on="t" fitshape="t"/><v:handles><v:h position="#0,bottomRight" xrange="6629,14971"/></v:handles><o:lock v:ext="edit" text="t" shapetype="t"/></v:shapetype><v:shape id="PowerPlusWaterMarkObject1" o:spid="_x0000_s2049" type="#_x0000_t136" style="position:absolute;margin-left:0;margin-top:0;width:${wm.layout === 'horizontal' ? '425.2pt' : '453.6pt'};height:${wm.layout === 'horizontal' ? '85pt' : '113.4pt'};${deg ? `rotation:${deg};` : ''}z-index:-251657216;mso-position-horizontal:center;mso-position-horizontal-relative:margin;mso-position-vertical:center;mso-position-vertical-relative:margin" o:allowincell="f" fillcolor="${esc(colour)}" stroked="f"><v:fill opacity="${wm.semi ? '.5' : '1'}"/><v:textpath style="font-family:&quot;${esc(wm.font || 'Calibri')}&quot;;font-size:1pt" string="${esc(wm.text || '')}"/><w10:wrap anchorx="margin" anchory="margin"/></v:shape></w:pict></w:r>`;
+}
+
 /** core.xml for the document's properties. */
 function coreXml(state) {
   const meta = (n) => (state.meta?.c || []).filter((t) => typeof t !== 'string' && t.n === n).map((t) => (t.c || []).filter((x) => typeof x === 'string').join(''));
@@ -1116,6 +1229,13 @@ function coreXml(state) {
 }
 
 const snapOf = (x) => JSON.stringify(x ?? null);
+/** A 1×1 transparent PNG (an object that couldn't be drawn). */
+const TRANSPARENT_PNG = Uint8Array.from(atobSafe('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg=='));
+function atobSafe(b64) { if (typeof atob === 'function') return [...atob(b64)].map((c) => c.charCodeAt(0)); return [...Buffer.from(b64, 'base64')]; }
+function bytesB64(bytes) { if (typeof Buffer !== 'undefined') return Buffer.from(bytes).toString('base64'); let s = ''; for (let i = 0; i < bytes.length; i += 0x8000) s += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000)); return btoa(s); }
+/** The app's data part in a .docx (see docx-reader.js). */
+export const APP_DATA_PATH = 'customXml/odte-data.xml';
+export const APP_DATA_NS = 'urn:odt-editor:data:1';
 function sameBytes(a, b) { if (a.length !== b.length) return false; for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return false; return true; }
 const asTemplateCt = (bytes, on) => (on ? strToU8(strFromU8(bytes).replace(`${CT}.document.main+xml`, `${CT}.template.main+xml`)) : bytes);
 const rootRelOf = (files, kind) => readRels(files, '').find((r) => r.type.endsWith(`/${kind}`));
@@ -1159,6 +1279,7 @@ function writeRegenerated(state, index, helpers, src, same) {
   const w = createDocxWriter(state, index, src);
   w.setSchemaNode(helpers.nodeFromJSON);
   w.setPartDoc(helpers.partDoc);
+  w.setFramePicture(helpers.framePicture);
   const { files, overrides } = w;
   const { body, anyEven } = w.build(state.doc);
   // For tests and the development console: how much original XML was reused.
@@ -1177,6 +1298,11 @@ function writeRegenerated(state, index, helpers, src, same) {
     const m = /<w:document\b(?:[^>"']|"[^"]*"|'[^']*')*>([\s\S]*?)<w:body\b/.exec(od);
     if (m) preBody = m[1].trim();
   }
+  // Page colour: w:background (Word shows it with displayBackgroundShape).
+  const firstLayout = (() => { const m = (state.masterStyles?.c || []).find((x) => typeof x !== 'string' && x.n === 'style:master-page'); const l = (state.stylesAutoStyles?.c || []).find((x) => typeof x !== 'string' && x.n === 'style:page-layout' && x.a['style:name'] === m?.a['style:page-layout-name']); return l ? findChild(l, 'style:page-layout-properties')?.a || {} : {}; })();
+  const pageBg = firstLayout['fo:background-color'];
+  preBody = preBody.replace(/<w:background\b[^>]*\/>|<w:background\b[\s\S]*?<\/w:background>/, '');
+  if (pageBg && pageBg !== 'transparent') preBody = `<w:background w:color="${hex(pageBg)}"/>${preBody}`;
   files['word/document.xml'] = strToU8(`${DECL}${root}${preBody}<w:body>${body}</w:body></w:document>`);
   overrides.push(['/word/document.xml', `${CT}.document.main+xml`]);
   const ds = w.docStory;
@@ -1207,16 +1333,36 @@ function writeRegenerated(state, index, helpers, src, same) {
   // Comments.
   const oc = origPart('comments');
   const commentRefs = new Set([...reused.matchAll(/<w:comment(?:Reference|RangeStart)\b[^>]*w:id="(\d+)"/g)].map((m) => m[1]));
+  const paraIds = new Map(); // comment name → w14:paraId of its last paragraph
   const keptComments = oc ? splitChildren(parts(oc.xml.replace(/^﻿?\s*<\?xml[^?]*\?>\s*/, ''))?.inner || '').filter((c) => commentRefs.has(/w:id="(\d+)"/.exec(c.xml)?.[1])) : [];
   if (w.comments.length || keptComments.length) {
     const st = w.story('word/comments.xml', oc?.path || null);
     const items = w.comments.map((c) => {
       const nodes = (c.attrs.body || []).map((b) => helpers.nodeFromJSON(b)).filter(Boolean);
       const date = c.attrs.date ? ` w:date="${esc(/Z$/.test(c.attrs.date) ? c.attrs.date : `${c.attrs.date.replace(/\.\d+$/, '')}Z`)}"` : '';
-      return `<w:comment w:id="${c.id}" w:author="${esc(c.attrs.creator || 'Unknown')}"${date} w:initials="${esc(c.attrs.initials || '')}">${w.blocksXml(st, nodes) || '<w:p/>'}</w:comment>`;
+      // The last paragraph's w14:paraId links replies and resolved state (commentsExtended).
+      const pid = (0x10000000 + c.id).toString(16).toUpperCase();
+      paraIds.set(c.attrs.name, pid);
+      let xml = w.blocksXml(st, nodes) || '<w:p/>';
+      const lastP = xml.lastIndexOf('<w:p>') >= xml.lastIndexOf('<w:p ') ? xml.lastIndexOf('<w:p>') : xml.lastIndexOf('<w:p ');
+      if (lastP >= 0) xml = `${xml.slice(0, lastP)}<w:p w14:paraId="${pid}" w14:textId="77777777"${xml.slice(lastP + 4)}`;
+      return `<w:comment w:id="${c.id}" w:author="${esc(c.attrs.creator || 'Unknown')}"${date} w:initials="${esc(c.attrs.initials || '')}">${xml}</w:comment>`;
     });
     const rootStart = oc ? mergeRootStart(rootOf(oc.xml), `<w:comments ${NS}>`) : `<w:comments ${NS}>`;
     files['word/comments.xml'] = strToU8(`${DECL}${rootStart}${keptComments.map((c) => c.xml).join('')}${items.join('')}</w:comments>`);
+    // Replies and resolved threads.
+    const exs = w.comments.map((c) => {
+      const parent = c.attrs.extra?.['loext:parent-name'];
+      const pp = parent ? paraIds.get(parent) : null;
+      return `<w15:commentEx w15:paraId="${paraIds.get(c.attrs.name)}"${pp ? ` w15:paraIdParent="${pp}"` : ''} w15:done="${!parent && c.attrs.extra?.['loext:resolved'] === 'true' ? 1 : 0}"/>`;
+    });
+    const oce = origPart('commentsExtended');
+    const keptEx = oce ? [...oce.xml.matchAll(/<w15:commentEx\b[^>]*\/>/g)].map((m) => m[0]).filter((x) => keptComments.some((c) => c.xml.includes(`w14:paraId="${/w15:paraId="([^"]*)"/.exec(x)?.[1]}"`))) : [];
+    if (exs.length || keptEx.length) {
+      files['word/commentsExtended.xml'] = strToU8(`${DECL}<w15:commentsEx ${NS}>${keptEx.join('')}${exs.join('')}</w15:commentsEx>`);
+      overrides.push(['/word/commentsExtended.xml', `${CT}.commentsExtended+xml`]);
+      ds.rel('http://schemas.microsoft.com/office/2011/relationships/commentsExtended', 'commentsExtended.xml');
+    }
     overrides.push(['/word/comments.xml', `${CT}.comments+xml`]);
     ds.rel('comments', 'comments.xml');
   }
@@ -1237,12 +1383,32 @@ function writeRegenerated(state, index, helpers, src, same) {
   const tabDist = defTree && findChild(defTree, 'style:paragraph-properties')?.a?.['style:tab-stop-distance'];
   const ost = origPart('settings');
   const tabXml = `<w:defaultTabStop w:val="${tabDist ? tw(tabDist) : 720}"/>`;
+  // Restrict Editing → document protection (enforced, without a password).
+  const restrict = getConfigItem(state.settingsXml || '', 'ODTEditorRestrictEditing');
+  const protEdit = { readonly: 'readOnly', comments: 'comments', tracked: 'trackedChanges', forms: 'forms' }[restrict];
+  const hy = hyphenation(state);
+  const set = {
+    evenAndOddHeaders: anyEven ? '<w:evenAndOddHeaders/>' : null, defaultTabStop: tabXml, trackRevisions: state.trackChanges ? '<w:trackRevisions/>' : null,
+    documentProtection: protEdit ? `<w:documentProtection w:edit="${protEdit}" w:enforcement="1"/>` : null,
+    autoHyphenation: hy.on ? '<w:autoHyphenation/>' : null, doNotHyphenateCaps: hy.on && !hy.caps ? '<w:doNotHyphenateCaps/>' : null,
+    displayBackgroundShape: pageBg && pageBg !== 'transparent' ? '<w:displayBackgroundShape/>' : null,
+  };
+  const order = ['displayBackgroundShape', 'trackRevisions', 'documentProtection', 'defaultTabStop', 'autoHyphenation', 'doNotHyphenateCaps', 'evenAndOddHeaders'];
   files['word/settings.xml'] = strToU8(ost
-    ? patchSettings(ost.xml, { evenAndOddHeaders: anyEven ? '<w:evenAndOddHeaders/>' : null, defaultTabStop: tabXml, trackRevisions: state.trackChanges ? '<w:trackRevisions/>' : null })
-    : `${DECL}<w:settings ${NS}>${state.trackChanges ? '<w:trackRevisions/>' : ''}${tabXml}${anyEven ? '<w:evenAndOddHeaders/>' : ''}<w:characterSpacingControl w:val="doNotCompress"/><w:compat><w:compatSetting w:name="compatibilityMode" w:uri="http://schemas.microsoft.com/office/word" w:val="15"/></w:compat></w:settings>`);
+    ? patchSettings(ost.xml, set)
+    : `${DECL}<w:settings ${NS}>${order.map((k) => set[k] || '').join('')}<w:characterSpacingControl w:val="doNotCompress"/><w:compat><w:compatSetting w:name="compatibilityMode" w:uri="http://schemas.microsoft.com/office/word" w:val="15"/></w:compat></w:settings>`);
   if (ost) { const rp = `${ost.path.slice(0, ost.path.lastIndexOf('/') + 1)}_rels/${ost.path.slice(ost.path.lastIndexOf('/') + 1)}.rels`; if (orig[rp]) files['word/_rels/settings.xml.rels'] = orig[rp]; }
   overrides.push(['/word/settings.xml', `${CT}.settings+xml`]);
   ds.rel('settings', 'settings.xml');
+  // The app's own data (index definitions, bibliography sources, the mail-merge list): a custom XML part Word keeps.
+  const data = { ...(w.appData.frames ? { frames: w.appData.frames } : {}), ...(Object.keys(w.appData.indexes).length ? { indexes: w.appData.indexes } : {}), ...(w.appData.sections ? { sections: w.appData.sections } : {}), ...(state.bibliography?.sources?.length || (state.bibliography?.style && state.bibliography.style !== 'apa') ? { bibliography: state.bibliography } : {}), ...(state.mailMerge?.fields?.length ? { mailMerge: state.mailMerge } : {}) };
+  if (Object.keys(data).length) {
+    files[APP_DATA_PATH] = strToU8(`${DECL}<odte:data xmlns:odte="${APP_DATA_NS}"><![CDATA[${JSON.stringify(data).replace(/]]>/g, ']]\\u003e')}]]></odte:data>`);
+    files['customXml/odte-dataProps.xml'] = strToU8(`${DECL}<ds:datastoreItem ds:itemID="{6F1D5C3A-0D1E-4C55-9A27-0DE7EA000001}" xmlns:ds="http://schemas.openxmlformats.org/officeDocument/2006/customXml"><ds:schemaRefs><ds:schemaRef ds:uri="${APP_DATA_NS}"/></ds:schemaRefs></ds:datastoreItem>`);
+    files['customXml/_rels/odte-data.xml.rels'] = strToU8(`${DECL}<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="${REL}/customXmlProps" Target="odte-dataProps.xml"/></Relationships>`);
+    overrides.push(['/customXml/odte-dataProps.xml', 'application/vnd.openxmlformats-officedocument.customXmlProperties+xml']);
+    ds.rel('customXml', '../customXml/odte-data.xml');
+  }
   // Relationships of every story.
   for (const st of w.parts) {
     if (!st.rels.length) continue;

@@ -1,4 +1,5 @@
 /** Insert tab: Pages, Tables, Illustrations, Links, Comments, Header & Footer, Text, Symbols. */
+import { SHAPES } from '../../core/shapes.js';
 import { defineCommands } from '../define.js';
 import { newComment } from '../review/comments.js';
 import { applyPreset, pageNumberAt, removePageNumbers, fields, insertInline, pageNumberFormat, setPageNumberFormat } from '../headerfooter/actions.js';
@@ -37,7 +38,7 @@ export const commands = defineCommands('insert', {
   stockImages: {},
   onlinePictures: {},
   shapes: { icon: 'shapes', isEnabled: canEdit, menuOnly: true },
-  insertShape: { label: 'cmd.insert.shapes', isEnabled: canEdit, isChecked: (c) => !!c.state.objectDraw && c.state.objectDraw !== 'textBox', run: (c, id) => { if (typeof id === 'string') startDraw(c, { shape: id }); } },
+  insertShape: { label: 'cmd.insert.shapes', isEnabled: canEdit, isChecked: (c) => !!c.state.objectDraw && c.state.objectDraw !== 'textBox', run: (c, id) => { if (typeof id === 'string' && SHAPES[id]) startDraw(c, { shape: id }); } },
   newDrawingCanvas: {},
   icons: { icon: 'icons', isEnabled: canEdit, run: insertIcons },
   smartArt: { icon: 'smartart', isEnabled: canEdit, run: (c) => insertSmartArt(c) },

@@ -27,13 +27,14 @@ import { treeFromAuto } from '../odt/styles.js';
 import { encodeStyleName } from '../style-edit.js';
 import { makeListStyle } from '../commands/lists.js';
 import { changeAuto, withWidths } from '../commands/tables.js';
-import { updatePageLayouts, newSectionMaster, setPartOptions, setSectionStyle } from '../page-setup.js';
+import { updatePageLayouts, newSectionMaster, setPartOptions, setSectionStyle, setLineNumbering, setHyphenation } from '../page-setup.js';
 import { writePart, removePart } from '../hf-content.js';
 import { setConfigItem } from '../doc-settings.js';
 import { DEFAULT_SETTINGS } from '../odt/export.js';
 import { imageAttrs, textBoxAttrs, withWrap, withPosition, withFrameAttrs, withGraphic } from '../objects.js';
 import { imageSize } from './readers.js';
 import { TOC_DEFAULTS, tocSource, tocBody } from '../indexes.js';
+import { applyWatermark } from '../watermark.js';
 
 const W = 'http://schemas.openxmlformats.org/wordprocessingml/2006/main';
 const R = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships';
@@ -59,8 +60,8 @@ const serialize = (el) => new XMLSerializer().serializeToString(el);
  * and mapped ones carrying attributes beyond w:val, are kept as raw XML on
  * the model (auto.ooxml) so the writer can put them back.
  */
-const PPR_MAPPED = new Set(['pStyle', 'keepNext', 'keepLines', 'pageBreakBefore', 'widowControl', 'numPr', 'pBdr', 'shd', 'tabs', 'bidi', 'spacing', 'ind', 'contextualSpacing', 'jc', 'outlineLvl', 'sectPr']);
-const RPR_MAPPED = new Set(['rStyle', 'rFonts', 'b', 'i', 'caps', 'smallCaps', 'strike', 'dstrike', 'outline', 'shadow', 'vanish', 'color', 'spacing', 'sz', 'szCs', 'highlight', 'u', 'shd', 'vertAlign', 'lang']);
+const PPR_MAPPED = new Set(['suppressLineNumbers', 'pStyle', 'keepNext', 'keepLines', 'pageBreakBefore', 'widowControl', 'numPr', 'pBdr', 'shd', 'tabs', 'bidi', 'spacing', 'ind', 'contextualSpacing', 'jc', 'outlineLvl', 'sectPr']);
+const RPR_MAPPED = new Set(['rPrChange', 'rStyle', 'rFonts', 'b', 'i', 'caps', 'smallCaps', 'strike', 'dstrike', 'outline', 'shadow', 'vanish', 'color', 'spacing', 'sz', 'szCs', 'highlight', 'u', 'shd', 'vertAlign', 'lang', 'bdr']);
 /** Raw XML of a property element's children when some aren't fully mapped (null otherwise). */
 function propExtras(pr, mapped) {
   if (!pr) return null;
@@ -168,6 +169,8 @@ export function docxToStateNative(bytes) {
     seenNum: new Set(),
     notes: { footnote: readNotes(partXml('footnotes')), endnote: readNotes(partXml('endnotes')) },
     comments: readComments(partXml('comments')?.xml),
+    allComments: readComments(partXml('comments')?.xml),
+    commentsEx: readCommentsEx(partXml('commentsExtended')?.xml),
     commentsPath: relOfType('comments')?.path || 'word/comments.xml',
     stylesXml: partXml('styles')?.xml,
     noteCount: { footnote: 0, endnote: 0 },
@@ -176,6 +179,15 @@ export function docxToStateNative(bytes) {
     dropped: new Map(), // elements the reader drops (logged; the corpus tests require none)
     hfParts: [], // header / footer trees with their original parts
   };
+  // The app's own data (written by docx-writer.js): index definitions, bibliography sources, mail-merge list.
+  for (const r of mainRels.values()) {
+    if (!r.type.endsWith('/customXml') || !files[r.path]) continue;
+    const text = strFromU8(files[r.path]);
+    if (!text.includes('urn:odt-editor:data:1')) continue;
+    try { ctx.appData = JSON.parse(/<!\[CDATA\[([\s\S]*)\]\]>/.exec(text)[1]); } catch { ctx.appData = null; }
+  }
+  if (ctx.appData?.bibliography) state.bibliography = ctx.appData.bibliography;
+  if (ctx.appData?.mailMerge) state.mailMerge = ctx.appData.mailMerge;
   readFontTable(ctx, partXml('fontTable')?.xml);
   readStyles(ctx, partXml('styles')?.xml);
   const settings = partXml('settings')?.xml;
@@ -186,6 +198,17 @@ export function docxToStateNative(bytes) {
   const updateFields = !!onOff(kid(settings?.documentElement, 'updateFields'));
   // Word's layout rules for this document (tab stops from the margin, natural line height, …).
   state.settingsXml = wordCompatSettings();
+  // Automatic hyphenation, document protection (Restrict Editing), tracked changes.
+  if (onOff(kid(settings?.documentElement, 'autoHyphenation'))) setHyphenation(state, { on: true, caps: !onOff(kid(settings?.documentElement, 'doNotHyphenateCaps')) });
+  const prot = kid(settings?.documentElement, 'documentProtection');
+  // "forms" protection with sections that opt out (formProt off) protects only some sections (as LibreOffice writes
+  // a protected section): not a document restriction; the sections keep their settings in their sectPr.
+  const sectionOnly = wa(prot, 'edit') === 'forms' && [...docXml.getElementsByTagName('*')].some((x) => x.localName === 'formProt' && !onOffAttr(wa(x, 'val') ?? 'true'));
+  if (prot && onOffAttr(wa(prot, 'enforcement')) && !sectionOnly) {
+    const mode = { readOnly: 'readonly', comments: 'comments', trackedChanges: 'tracked', forms: 'forms' }[wa(prot, 'edit')];
+    if (mode) state.settingsXml = setConfigItem(state.settingsXml, 'ODTEditorRestrictEditing', 'string', mode);
+  }
+  if (onOff(kid(settings?.documentElement, 'trackRevisions'))) state.trackChanges = true;
 
   // Body: blocks, split into sections at every sectPr. Each section's
   // geometry is known before its content is read (positional tabs need it).
@@ -247,6 +270,11 @@ export function docxToStateNative(bytes) {
     // Columns: a section with the columns (and the separator line), so
     // that each page style can have its own; the section starts on the
     // section's first page.
+    // A section this app wrote from an ODF section (see the writer's app data) is one again.
+    const odfSection = ctx.appData?.sections?.[i];
+    if (odfSection && geometry.columns <= 1) {
+      sec.blocks = [{ type: 'section', attrs: { name: odfSection.name || `Section${i + 1}`, styleName: null, extra: odfSection.extra || null }, content: sec.blocks.length ? sec.blocks : [{ type: 'paragraph' }] }];
+    }
     if (geometry.columns > 1) {
       const name = setSectionStyle(state, null, { count: geometry.columns, gap: geometry.gap, separator: geometry.separator });
       // Word balances columns only before a continuous section break; otherwise column 1 fills first.
@@ -254,11 +282,25 @@ export function docxToStateNative(bytes) {
       if (nextType !== 'continuous') {
         state.contentAutoStyles = state.contentAutoStyles.map((t) => (t.a?.['style:name'] === name && t.a['style:family'] === 'section' ? { ...t, c: t.c.map((c) => (c.n === 'style:section-properties' ? { ...c, a: { ...c.a, 'text:dont-balance-text-columns': 'true' } } : c)) } : t));
       }
-      sec.blocks = [{ type: 'section', attrs: { name: `Section${i + 1}`, styleName: name }, content: sec.blocks.length ? sec.blocks : [{ type: 'paragraph' }] }];
+      sec.blocks = [{ type: 'section', attrs: { name: odfSection?.name || `Section${i + 1}`, styleName: name, ...(odfSection?.extra ? { extra: odfSection.extra } : {}) }, content: sec.blocks.length ? sec.blocks : [{ type: 'paragraph' }] }];
     }
     out.push(...sec.blocks);
   });
   if (!out.length) out.push({ type: 'paragraph', attrs: { styleName: 'Standard' } });
+  // A Word watermark in a header: the editor's watermark on every page style with a header.
+  if (ctx.watermark) {
+    const withHeader = (state.masterStyles?.c || []).filter((m) => typeof m !== 'string' && m.n === 'style:master-page' && (m.c || []).some((x) => typeof x !== 'string' && /^style:header/.test(x.n))).map((m) => m.a['style:name']);
+    applyWatermark(state, withHeader, ctx.watermark);
+  }
+  // Page colour (w:background) on every page style.
+  const bg = wa(kid(docXml.documentElement, 'background'), 'color');
+  if (bg && bg !== 'auto') {
+    const masters = (state.masterStyles?.c || []).filter((m) => typeof m !== 'string' && m.n === 'style:master-page').map((m) => m.a['style:name']);
+    updatePageLayouts(state, masters, () => ({ attrs: { 'fo:background-color': `#${bg.toLowerCase()}`, 'draw:fill': 'solid', 'draw:fill-color': `#${bg.toLowerCase()}` } }));
+  }
+  // Line numbering (w:lnNumType of the first section that has it).
+  const ln = sectPrs.map((sp) => kid(sp, 'lnNumType')).find(Boolean);
+  if (ln) setLineNumbering(state, { increment: num(wa(ln, 'countBy')) || 1, restartOnPage: (wa(ln, 'restart') || 'newPage') === 'newPage', offset: num(wa(ln, 'distance')) != null ? twipsCm(num(wa(ln, 'distance'))) : undefined });
   markContinuations(out);
   state.doc = schema.nodeFromJSON({ type: 'doc', content: out.map(fixBlock) });
   fillTocs(ctx, state, out);
@@ -478,6 +520,23 @@ function pageGeometry(sp, has = { header: !!kid(sp, 'headerReference'), footer: 
     'fo:margin-top': twipsCm(has.header ? header : Math.abs(top)), 'fo:margin-bottom': twipsCm(has.footer ? footer : Math.abs(bottom)),
     'fo:margin-left': twipsCm(left), 'fo:margin-right': twipsCm(right),
   };
+  // Page borders (Design ▸ Page Borders): ODF page borders and their distance from the text.
+  const pb = kid(sp, 'pgBorders');
+  if (pb) {
+    for (const side of ['top', 'left', 'bottom', 'right']) {
+      const b = kid(pb, side);
+      const v = border(b);
+      if (v) { attrs[`fo:border-${side}`] = v; const space = num(wa(b, 'space')); if (space != null) attrs[`fo:padding-${side}`] = `${space}pt`; }
+    }
+    if (kids(pb).some((b) => onOffAttr(wa(b, 'shadow')))) attrs['style:shadow'] = '#808080 0.18cm 0.18cm';
+    // The same border all round: one fo:border (as the editor writes it).
+    const sides = ['top', 'left', 'bottom', 'right'];
+    if (sides.every((x) => attrs[`fo:border-${x}`] && attrs[`fo:border-${x}`] === attrs['fo:border-top'])) {
+      attrs['fo:border'] = attrs['fo:border-top'];
+      for (const x of sides) delete attrs[`fo:border-${x}`];
+      if (sides.every((x) => attrs[`fo:padding-${x}`] === attrs['fo:padding-top'])) { attrs['fo:padding'] = attrs['fo:padding-top']; for (const x of sides) delete attrs[`fo:padding-${x}`]; }
+    }
+  }
   const change = { attrs };
   // Word starts the body at max(top margin, header bottom): the header's
   // minimum height reaches the top margin and grows with its content (the
@@ -657,6 +716,8 @@ function textProps(ctx, rPr) {
   if (onOff(kid(rPr, 'vanish'))) a['text:display'] = 'none';
   if (onOff(kid(rPr, 'outline'))) a['style:text-outline'] = 'true';
   if (onOff(kid(rPr, 'shadow'))) a['fo:text-shadow'] = '1pt 1pt';
+  const bdr = border(kid(rPr, 'bdr'));
+  if (bdr) { a['fo:border'] = bdr; const sp = num(wa(kid(rPr, 'bdr'), 'space')); if (sp) a['fo:padding'] = `${sp}pt`; }
   const sp = num(wa(kid(rPr, 'spacing'), 'val'));
   if (sp) a['fo:letter-spacing'] = twipsPt(sp);
   const lang = wa(kid(rPr, 'lang'), 'val');
@@ -673,6 +734,7 @@ function paraProps(pPr, inherited = {}) {
   const a = {};
   const c = [];
   if (!pPr) return { a, c };
+  if (onOff(kid(pPr, 'suppressLineNumbers'))) a['text:number-lines'] = 'false';
   const jc = wa(kid(pPr, 'jc'), 'val');
   if (jc) a['fo:text-align'] = { both: 'justify', distribute: 'justify', center: 'center', right: 'end', end: 'end', left: 'start', start: 'start' }[jc] || 'start';
   const ind = kid(pPr, 'ind');
@@ -1051,6 +1113,16 @@ function readNotes(part) {
   return map;
 }
 
+/** commentsExtended.xml: paraId → { parent (paraId), done }. */
+function readCommentsEx(xml) {
+  if (!xml) return null;
+  const map = new Map();
+  for (const e of [...xml.getElementsByTagName('*')].filter((x) => x.localName === 'commentEx')) {
+    map.set(e.getAttribute('w15:paraId'), { parent: e.getAttribute('w15:paraIdParent') || null, done: ['1', 'true'].includes(e.getAttribute('w15:done') || '') });
+  }
+  return map;
+}
+
 function readComments(xml) {
   const map = new Map();
   for (const c of kids(xml?.documentElement, 'comment')) map.set(wa(c, 'id'), c);
@@ -1087,7 +1159,7 @@ function converter(ctx, rels, opts = {}) {
   function items(el) {
     switch (el.localName) {
       case 'p': {
-        if (!toc && !opts.part) {
+        if (!toc && !opts.part && !ctx.inAppIndex) {
           const instr = tocInstr(el);
           if (instr) toc = { instr, depth: 0, started: false, blocks: [], sdtPr: sdtStack[sdtStack.length - 1] || null };
         }
@@ -1109,6 +1181,16 @@ function converter(ctx, rels, opts = {}) {
       }
       case 'tbl': return [{ block: table(el) }];
       case 'sdt': {
+        // An index this app wrote (table of figures, index, bibliography): its full definition from the app's data.
+        const tag = wa(kid(kid(el, 'sdtPr'), 'tag'), 'val') || '';
+        const def = /^odte:index:(\d+)$/.test(tag) ? ctx.appData?.indexes?.[tag.slice(11)] : null;
+        if (def) {
+          const saved = ctx.inAppIndex;
+          ctx.inAppIndex = true;
+          let blocks;
+          try { blocks = buildLists(ctx, kids(kid(el, 'sdtContent')).flatMap(items)).map(fixBlock); } finally { ctx.inAppIndex = saved; }
+          return [{ block: { type: 'index', attrs: { element: def.element, attrs: def.attrs || {}, source: def.source || null, titleCount: def.titleCount || 0, titleAttrs: def.titleAttrs || null }, content: blocks.length ? blocks : [{ type: 'paragraph' }] } }];
+        }
         // A block content control: its content; a TOC inside keeps the control's properties.
         sdtStack.push(kid(el, 'sdtPr') ? serialize(kid(el, 'sdtPr')) : null);
         try { return kids(kid(el, 'sdtContent')).flatMap(items); } finally { sdtStack.pop(); }
@@ -1221,6 +1303,9 @@ function converter(ctx, rels, opts = {}) {
       }
       case 'bookmarkStart': {
         const name = wa(el, 'name');
+        // An equation this app wrote: the bookmark marks it (see the writer).
+        const eq = /^_odte_frame_(\d+)$/.exec(name || '');
+        if (eq && ctx.appData?.frames?.[eq[1]]) { bookmarks.set(wa(el, 'id'), { odte: true }); pendingFrame = eq[1]; return; }
         // Word's hidden bookmarks (_Toc…, _Ref…, _GoBack) aren't shown, but are kept: TOC links and cross-references use them.
         if (name && name.startsWith('_')) { bookmarks.set(wa(el, 'id'), { hidden: true }); return push(segments, opaqueInline(serialize(el), '', true)); }
         if (name) push(segments, { type: 'bookmark', attrs: { element: 'text:bookmark-start', name } });
@@ -1229,6 +1314,7 @@ function converter(ctx, rels, opts = {}) {
       }
       case 'bookmarkEnd': {
         const name = bookmarks.get(wa(el, 'id'));
+        if (name?.odte) return;
         if (name?.hidden) return push(segments, opaqueInline(serialize(el), '', true));
         if (name) push(segments, { type: 'bookmark', attrs: { element: 'text:bookmark-end', name } });
         return;
@@ -1245,6 +1331,7 @@ function converter(ctx, rels, opts = {}) {
         return;
       }
       case 'oMath': case 'oMathPara': {
+        if (pendingFrame) { const f = savedFrame(pendingFrame); pendingFrame = null; if (f) return push(segments, f); }
         // Equations: kept as Word wrote them (OMML), showing their text.
         const text = [...el.getElementsByTagName('*')].filter((x) => x.localName === 't').map((x) => x.textContent).join('');
         return push(segments, opaqueInline(serialize(el), text));
@@ -1255,6 +1342,7 @@ function converter(ctx, rels, opts = {}) {
   }
 
   const bookmarks = new Map();
+  let pendingFrame = null; // an equation this app wrote is next
 
   function annotation(id) {
     const c = ctx.comments.get(id);
@@ -1262,14 +1350,44 @@ function converter(ctx, rels, opts = {}) {
     const conv = converter(ctx, ctx.pkg.rels(ctx.commentsPath), { inComment: true, partPath: ctx.commentsPath });
     const body = conv.blocksOf(c);
     ctx.comments.delete(id);
-    return { type: 'annotation', attrs: { name: `__Annotation__${id}`, creator: wa(c, 'author') || '', date: (wa(c, 'date') || '').replace(/(\.\d+)?Z$/, ''), initials: wa(c, 'initials') || '', body: body.length ? body : [{ type: 'paragraph' }] } };
+    // Replies and resolved threads (commentsExtended: the comment's last paragraph id → parent, done).
+    const paraId = (el) => { const ps = kids(el, 'p'); const last = ps[ps.length - 1]; return last?.getAttribute('w14:paraId') || null; };
+    const ex = ctx.commentsEx?.get(paraId(c));
+    let extra = null;
+    if (ex?.parent) {
+      const parentId = [...(ctx.allComments || new Map())].find(([, el]) => paraId(el) === ex.parent)?.[0];
+      if (parentId != null) extra = { 'loext:parent-name': `__Annotation__${parentId}` };
+    } else if (ctx.commentsEx) extra = { 'loext:resolved': ex?.done ? 'true' : 'false' };
+    return { type: 'annotation', attrs: { name: `__Annotation__${id}`, creator: wa(c, 'author') || '', date: (wa(c, 'date') || '').replace(/(\.\d+)?Z$/, ''), initials: wa(c, 'initials') || '', body: body.length ? body : [{ type: 'paragraph' }], ...(extra ? { extra } : {}) } };
   }
 
   function fieldNode(instr) {
     const code = instr.split(/\s+/)[0]?.toUpperCase();
-    if (code === 'PAGE') return { type: 'field', attrs: { element: 'text:page-number', fieldAttrs: { 'text:select-page': 'current' }, text: '1' } };
-    if (code === 'NUMPAGES') return { type: 'field', attrs: { element: 'text:page-count', fieldAttrs: {}, text: '1' } };
-    return null;
+    // The field's first argument (quoted or not).
+    const arg = (/^\S+\s+(?:"([^"]*)"|(\S+))/.exec(instr) || [])[1] ?? (/^\S+\s+(?:"([^"]*)"|(\S+))/.exec(instr) || [])[2] ?? '';
+    const f = (element, fieldAttrs = {}, text = '') => ({ type: 'field', attrs: { element, fieldAttrs, text } });
+    switch (code) {
+      case 'PAGE': return f('text:page-number', { 'text:select-page': 'current' }, '1');
+      case 'NUMPAGES': return f('text:page-count', {}, '1');
+      case 'DATE': case 'CREATEDATE': case 'SAVEDATE': case 'PRINTDATE': return f('text:date', { 'text:fixed': 'false' });
+      case 'TIME': return f('text:time', { 'text:fixed': 'false' });
+      case 'TITLE': return f('text:title');
+      case 'SUBJECT': return f('text:subject');
+      case 'KEYWORDS': return f('text:keywords');
+      case 'COMMENTS': return f('text:description');
+      case 'AUTHOR': return f('text:initial-creator');
+      case 'USERNAME': return f('text:author-name', { 'text:fixed': 'false' });
+      case 'FILENAME': return f('text:file-name');
+      case 'SEQ': {
+        const fmt = { ROMAN: 'I', roman: 'i', ALPHABETIC: 'A', alphabetic: 'a' }[(/\\\*\s*(\w+)/.exec(instr) || [])[1]] || '1';
+        return f('text:sequence', { 'text:name': arg || 'Figure', 'text:formula': `ooow:${arg || 'Figure'}+1`, 'style:num-format': fmt }, '1');
+      }
+      case 'XE': return f('text:alphabetical-index-mark', { 'text:string-value': arg });
+      case 'CITATION': return f('text:bibliography-mark', { 'text:identifier': arg, 'text:bibliography-type': 'misc' });
+      case 'MERGEFIELD': return f('text:database-display', { 'text:column-name': arg }, `«${arg}»`);
+      case 'REF': return arg && !/^_/.test(arg) ? f('text:bookmark-ref', { 'text:ref-name': arg, 'text:reference-format': 'text' }) : null;
+      default: return null;
+    }
   }
 
   function run(r, segments, marks) {
@@ -1278,6 +1396,9 @@ function converter(ctx, rels, opts = {}) {
     const charStyle = rStyle ? ctx.styles.get(rStyle)?.odt : null;
     const tp = textProps(ctx, rPr);
     const rExtras = propExtras(rPr, RPR_MAPPED);
+    // A tracked formatting change.
+    const fc = kid(rPr, 'rPrChange');
+    if (fc) marks = { ...marks, fmtChange: { author: wa(fc, 'author') || '', date: wa(fc, 'date') || '', id: wa(fc, 'id') } };
     const rPrXml = rPr ? serialize(rPr) : '';
     /** A run child the editor doesn't model, in a run of its own with the run's properties. */
     const opaqueRun = (child, text = '') => opaqueInline(`<w:r xmlns:w="${W}">${rPrXml}${serialize(child)}</w:r>`, text);
@@ -1298,7 +1419,9 @@ function converter(ctx, rels, opts = {}) {
           if (fld && fld.phase !== 'result') break;
           // A field the editor shows itself keeps Word's current result as its text.
           if (fld?.result === 'skip') { if (fld.node) { fld.node.attrs.text = fld.cached ? fld.node.attrs.text + el.textContent : el.textContent; fld.cached = true; } break; }
-          push(segments, textNode(el.textContent, fld?.link ? { ...marks, link: fld.link } : marks, { tp, charStyle, rExtras, space: el.getAttribute('xml:space') === 'preserve' }));
+          // xml:space="preserve" is remembered only where the writer wouldn't write it anyway.
+          const space = el.getAttribute('xml:space') === 'preserve' && !/^\s|\s$|\s\s|\t/.test(el.textContent);
+          push(segments, textNode(el.textContent, fld?.link ? { ...marks, link: fld.link } : marks, { tp, charStyle, rExtras, space }));
           break;
         }
         case 'tab': if (!fld || fld.phase === 'result') push(segments, { type: 'tab' }); break;
@@ -1374,6 +1497,18 @@ function converter(ctx, rels, opts = {}) {
         case 'pict': {
           // VML pictures (older files); other VML (shapes, OLE objects) is kept as it is.
           const all = [...el.getElementsByTagName('*')];
+          // Word's watermark: becomes the editor's watermark (Design ▸ Watermark).
+          const wmShape = all.find((x) => x.localName === 'shape' && /^PowerPlusWaterMarkObject/.test(x.getAttribute('id') || ''));
+          const wmText = wmShape && all.find((x) => x.localName === 'textpath' && x.getAttribute('string'));
+          if (wmText) {
+            const style = wmShape.getAttribute('style') || '';
+            const font = /font-family:\s*"?([^";]+)/.exec(wmText.getAttribute('style') || '')?.[1] || 'Carlito';
+            const fill = all.find((x) => x.localName === 'fill');
+            const named = { silver: '#c0c0c0', gray: '#808080', grey: '#808080', black: '#000000', red: '#ff0000' };
+            const fc = (wmShape.getAttribute('fillcolor') || 'silver').trim();
+            ctx.watermark = { kind: 'text', text: wmText.getAttribute('string'), colour: /^#/.test(fc) ? fc.slice(0, 7) : named[fc] || '#c0c0c0', font, semi: Number(fill?.getAttribute('opacity') || 1) < 0.99, layout: /rotation:\s*(?!0[;\s]|0$)\d/.test(style) ? 'diagonal' : 'horizontal' };
+            break;
+          }
           const img = all.find((x) => x.localName === 'imagedata');
           const id = img && !all.some((x) => x.localName === 'OLEObject' || x.localName === 'textbox') && (img.getAttributeNS(R, 'id') ?? img.getAttribute('r:id'));
           const node = id ? picture(id, 200, 150, '') : null;
@@ -1395,13 +1530,30 @@ function converter(ctx, rels, opts = {}) {
     if (f?.charStyle) m.push({ type: 'charStyle', attrs: { name: f.charStyle } });
     const ox = f?.rExtras || f?.space ? { ...(f.rExtras ? { rPr: f.rExtras } : {}), ...(f.space ? { space: true } : {}) } : null;
     if ((f?.tp && Object.keys(f.tp).length) || ox) m.push({ type: 'textProps', attrs: { auto: { styleAttrs: {}, props: { 'style:text-properties': { a: f.tp || {} } }, ...(ox ? { ooxml: ox } : {}) } } });
+    if (marks.fmtChange) m.push({ type: 'formatChange', attrs: { author: marks.fmtChange.author, date: marks.fmtChange.date.replace(/(\.\d+)?Z$/, ''), cid: `ct${marks.fmtChange.id ?? ++ctx.cid}` } });
     if (marks.cc) m.push({ type: 'contentControl', attrs: { attrs: marks.cc.attrs, items: marks.cc.items, ooxml: marks.cc.ooxml } });
     if (marks.change) m.push({ type: marks.change.type, attrs: { author: marks.change.author, date: marks.change.date.replace(/(\.\d+)?Z$/, ''), cid: `ct${marks.change.id ?? ++ctx.cid}` } });
     return m.length ? { type: 'text', text, marks: m } : { type: 'text', text };
   }
 
+  /** An object this app wrote (its definition in the app's data part), with the files it uses. */
+  function savedFrame(n) {
+    const saved = ctx.appData?.frames?.[n];
+    if (!saved) return null;
+    for (const [path, f] of Object.entries(saved.files || {})) {
+      const bytes = Uint8Array.from(atob(f.b64), (ch) => ch.charCodeAt(0));
+      if (path.startsWith('Pictures/')) ctx.state.pictures[path] = { bytes, mediaType: f.mediaType };
+      else (ctx.state.extraFiles ||= {})[path] = { bytes, mediaType: f.mediaType };
+    }
+    return { type: 'frame', attrs: saved.attrs };
+  }
+
   function drawing(el) {
     const holder = kid(el, 'inline') || kid(el, 'anchor');
+    // An object this app wrote with its picture for Word: the object itself, from the app's data.
+    const mark = /^odte:frame:(\d+)$/.exec(kid(holder, 'docPr')?.getAttribute('title') || '');
+    const restored = mark ? savedFrame(mark[1]) : null;
+    if (restored) return restored;
     const ext = kid(holder, 'extent');
     const w = emuPx(ext?.getAttribute('cx') || 0) || 200;
     const h = emuPx(ext?.getAttribute('cy') || 0) || 150;

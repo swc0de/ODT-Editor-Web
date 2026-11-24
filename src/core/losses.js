@@ -15,7 +15,7 @@
  */
 
 /** Frame kinds the DOCX writer writes as real DOCX objects (see docx-writer.js). */
-export const DOCX_FRAME_KINDS = new Set(['image', 'textbox']);
+export const DOCX_FRAME_KINDS = new Set(['image', 'textbox', 'equation']); // equations: OMML
 
 /** Word package parts the ODT side can't hold (path pattern → label key). */
 const WORD_ONLY_PARTS = [

@@ -4,12 +4,11 @@
  * page background (watermark, page colour, page borders). Every change is
  * one undoable step.
  */
-import { fontworkGeometry } from '../../core/shapes.js';
 import { editState } from '../../core/state-step.js';
 import { ensureStyles, findStyle, ownFormatting, setStyleFormatting } from '../../core/style-edit.js';
 import { mergeAuto } from '../../core/odt/styles.js';
 import { updatePageLayouts } from '../../core/page-setup.js';
-import { isWatermark } from '../../layout/page-model.js';
+import { applyWatermark } from '../../core/watermark.js';
 import { bodyView, sections, masterChain, PAGE_KEYS } from '../layout/sections.js';
 import { setSetting } from '../../core/settings.js';
 
@@ -195,51 +194,7 @@ export function pageBackground(c) {
 export function setWatermark(c, spec) {
   const masters = allMasters(c);
   if (spec) for (const m of masters) c.ui.hf.ensurePart(m, 'header', 'right');
-  editState(bodyView(c), c.session.state, PAGE_KEYS, (st) => {
-    const styleName = 'Mgrwm1';
-    const textStyle = 'MPwm1';
-    let autos = (st.stylesAutoStyles?.c || []).filter((t) => typeof t === 'string' || (t.a?.['style:name'] !== styleName && t.a?.['style:name'] !== textStyle));
-    let shape = null;
-    if (spec?.kind === 'text') {
-      const diag = spec.layout !== 'horizontal';
-      autos = [...autos,
-        { n: 'style:style', a: { 'style:name': styleName, 'style:family': 'graphic' }, c: [{ n: 'style:graphic-properties', a: { 'draw:stroke': 'none', 'draw:fill': 'solid', 'draw:fill-color': spec.colour, 'draw:auto-grow-height': 'false', 'draw:auto-grow-width': 'false', 'draw:opacity': spec.semi ? '50%' : '100%', 'draw:shadow': 'hidden', 'style:run-through': 'background', 'style:wrap': 'run-through', 'style:number-wrapped-paragraphs': 'no-limit', 'style:vertical-pos': 'middle', 'style:vertical-rel': 'page-content', 'style:horizontal-pos': 'center', 'style:horizontal-rel': 'page-content' } }] },
-        { n: 'style:style', a: { 'style:name': textStyle, 'style:family': 'paragraph' }, c: [{ n: 'style:text-properties', a: { 'style:font-name': spec.font || 'Carlito' } }] }];
-      shape = {
-        n: 'draw:custom-shape',
-        a: { 'text:anchor-type': 'char', 'draw:z-index': '0', 'draw:name': 'PowerPlusWaterMarkObject1', 'draw:style-name': styleName, 'draw:text-style-name': textStyle, 'svg:width': diag ? '16cm' : '15cm', 'svg:height': diag ? '4cm' : '3cm', ...(diag ? { 'draw:transform': 'rotate (0.785398163397448)' } : {}) },
-        c: [{ n: 'text:p', a: {}, c: [spec.text] }, fontworkGeometry('shape')],
-      };
-    } else if (spec?.kind === 'image') {
-      autos = [...autos, { n: 'style:style', a: { 'style:name': styleName, 'style:family': 'graphic' }, c: [{ n: 'style:graphic-properties', a: { 'draw:stroke': 'none', 'draw:fill': 'none', 'draw:image-opacity': '30%', 'draw:luminance': '50%', 'draw:contrast': '-70%', 'style:run-through': 'background', 'style:wrap': 'run-through', 'style:vertical-pos': 'middle', 'style:vertical-rel': 'page-content', 'style:horizontal-pos': 'center', 'style:horizontal-rel': 'page-content' } }] }];
-      shape = {
-        n: 'draw:frame',
-        a: { 'text:anchor-type': 'char', 'draw:z-index': '0', 'draw:name': 'PowerPlusWaterMarkObject2', 'draw:style-name': styleName, 'svg:width': `${spec.width}cm`, 'svg:height': `${spec.height}cm` },
-        c: [{ n: 'draw:image', a: { 'xlink:href': spec.path, 'xlink:type': 'simple', 'xlink:show': 'embed', 'xlink:actuate': 'onLoad' } }],
-      };
-    }
-    st.stylesAutoStyles = { ...st.stylesAutoStyles, c: autos };
-    const set = new Set(masters);
-    st.masterStyles = {
-      ...st.masterStyles,
-      c: (st.masterStyles?.c || []).map((m) => {
-        if (typeof m === 'string' || m.n !== 'style:master-page' || !set.has(m.a['style:name'])) return m;
-        return {
-          ...m,
-          c: (m.c || []).map((p) => {
-            if (typeof p === 'string' || !/^style:header(-left|-first)?$/.test(p.n)) return p;
-            let paras = (p.c || []).map((x) => (typeof x === 'string' ? x : { ...x, c: (x.c || []).filter((y) => !isWatermark(y)) }));
-            if (shape) {
-              const i = paras.findIndex((x) => typeof x !== 'string' && (x.n === 'text:p' || x.n === 'text:h'));
-              if (i >= 0) paras[i] = { ...paras[i], c: [structuredClone(shape), ...(paras[i].c || [])] };
-              else paras = [{ n: 'text:p', a: { 'text:style-name': 'Header' }, c: [structuredClone(shape)] }, ...paras];
-            }
-            return { ...p, c: paras };
-          }),
-        };
-      }),
-    };
-  });
+  editState(bodyView(c), c.session.state, PAGE_KEYS, (st) => applyWatermark(st, masters, spec));
 }
 
 export const WATERMARKS = [

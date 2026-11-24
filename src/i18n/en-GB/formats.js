@@ -110,7 +110,7 @@ export default {
   'loss.controls': 'Content controls',
   'loss.opaqueOdf': 'OpenDocument content with no Word equivalent',
   'loss.opaqueOoxml': 'Word content with no OpenDocument equivalent',
-  'loss.odfObject': 'Drawing objects with no Word equivalent',
+  'loss.odfObject': 'Drawing objects Word can only show as pictures (this app keeps them editable)',
   'loss.oleObject': 'Embedded objects (OLE)',
   'loss.customXml': 'Custom XML data parts',
   'loss.glossary': 'Building blocks (glossary document)',
