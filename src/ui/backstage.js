@@ -11,6 +11,9 @@ import { t } from '../i18n/index.js';
 import { setPinned, removeRecent } from '../core/storage.js';
 import { TEMPLATES, templateDoc } from '../features/file/templates.js';
 import { EXPORTS } from '../features/file/export.js';
+import { SAVE_FORMATS, formatById, formatForName } from '../core/formats.js';
+import { fileConversion, webOptions } from './save-dialogs.js';
+import { alertDialog } from './dialog.js';
 import { renderInfo } from './info-page.js';
 import { renderAbout } from './help.js';
 
@@ -74,6 +77,13 @@ export function createBackstage({ registry, store, toast, session }) {
   const root = h('div', { class: 'backstage', id: 'backstage', role: 'region', 'aria-label': t('backstage.label'), hidden: true, 'data-region': 'backstage' }, nav, content);
   root.addEventListener('keydown', (e) => {
     if (e.key === 'Escape' && !e.defaultPrevented) { e.preventDefault(); registry.run('file.closeBackstage'); }
+    // Word's backstage KeyTips (Alt+F, A = Save As…) with focus in the navigation column.
+    const KEYS = { h: 'home', n: 'new', o: 'open', i: 'info', r: 'recover', s: 'save', a: 'saveAs', p: 'print', e: 'export', c: 'close', t: 'options' };
+    if (e.target.closest('.bs-nav') && !e.ctrlKey && !e.metaKey && !e.altKey && KEYS[e.key.toLowerCase()]) {
+      e.preventDefault();
+      navButtons.get(KEYS[e.key.toLowerCase()])?.click();
+      return;
+    }
     if ((e.key === 'ArrowDown' || e.key === 'ArrowUp') && e.target.closest('.bs-nav')) {
       const items = [...nav.querySelectorAll('.bs-nav-item')];
       const i = items.indexOf(e.target);
@@ -105,7 +115,7 @@ export function createBackstage({ registry, store, toast, session }) {
       list.setAttribute('role', 'list');
       list.replaceChildren(...items.map((e) => {
         const open = h('button', { type: 'button', class: 'bs-recent-open' },
-          h('span', { class: 'bs-recent-icon', html: iconSvg('file-text', { size: 20 }) }),
+          h('span', { class: 'bs-recent-icon', html: iconSvg((formatById(e.format) || formatForName(e.name))?.icon || 'file-text', { size: 20 }) }),
           h('span', { class: 'bs-recent-text' }, h('span', { class: 'bs-recent-name' }, e.name), h('span', { class: 'bs-recent-when' }, t('backstage.openedAt', { when: fmtWhen(e.openedAt) }))));
         open.addEventListener('click', async () => { if (await session.openRecent(e)) store.set({ backstageOpen: false }); });
         const pin = h('button', { type: 'button', class: `bs-icon-btn${e.pinned ? ' is-on' : ''}`, 'aria-label': t(e.pinned ? 'backstage.unpin' : 'backstage.pin'), 'data-tip': t(e.pinned ? 'backstage.unpin' : 'backstage.pin'), 'aria-pressed': String(e.pinned), html: iconSvg('pin', { size: 14 }) });
@@ -148,13 +158,76 @@ export function createBackstage({ registry, store, toast, session }) {
       h('h2', { class: 'bs-h2' }, t('backstage.recent')), recentList());
   }
 
+  /**
+   * Save As, laid out like Word's: "This PC" and "Browse" on the left; the
+   * file name, the "Save as type" list, More options… and Save on the right.
+   * Without File System Access, Save downloads <name>.<ext>; with it, Save
+   * and Browse open the save picker pre-filled with them.
+   */
+  const pendingOptions = {};
   function renderSaveAs() {
-    const saveAs = h('button', { type: 'button', class: 'bs-big-btn' }, h('span', { html: iconSvg('save-as', { size: 20 }) }), t('backstage.saveAsOdt'));
-    saveAs.addEventListener('click', async () => { if (await session.saveAs()) store.set({ backstageOpen: false }); });
-    const copy = h('button', { type: 'button', class: 'bs-big-btn' }, h('span', { html: iconSvg('download', { size: 20 }) }), t('backstage.downloadCopy'));
-    copy.addEventListener('click', () => session.downloadCopy());
-    return h('div', { class: 'bs-home' }, h('h1', { class: 'bs-title' }, t('backstage.saveAsTitle')),
-      h('div', { class: 'bs-actions' }, saveAs, copy), h('p', { class: 'bs-empty bs-gap' }, t('backstage.saveAsHint')));
+    const info = session.info;
+    let format = store.get().saveAsFormat && formatById(store.get().saveAsFormat) ? store.get().saveAsFormat : session.currentFormat();
+    const name = h('input', { type: 'text', class: 'bs-input sa-name', value: info.name || '', 'aria-label': t('saveas.fileName'), 'data-saveas-name': '', spellcheck: 'false' });
+    const type = h('select', { class: 'bs-select sa-type', 'aria-label': t('saveas.type'), 'data-saveas-type': '' },
+      SAVE_FORMATS.map((f) => h('option', { value: f.id, selected: f.id === format ? '' : null, disabled: f.available === false ? '' : null }, t(f.labelKey))));
+    const ext = h('span', { class: 'sa-ext', 'aria-hidden': 'true' });
+    const note = h('p', { class: 'bs-empty sa-note', role: 'status' });
+    const more = h('button', { type: 'button', class: 'bs-link sa-more', 'data-saveas-more': '' }, t('saveas.moreOptions'));
+    const saveBtn = h('button', { type: 'button', class: 'bs-print-btn sa-save', 'data-saveas-save': '' }, h('span', { html: iconSvg('save-as', { size: 24 }) }), t('saveas.save'));
+    const update = () => {
+      format = type.value;
+      const f = formatById(format);
+      ext.textContent = f.exts[0];
+      const notes = [];
+      if (f.kind === 'fixed') notes.push(f.available === false ? t('fmt.comingM16') : t('saveas.copyNote', { format: t(`fmt.short.${f.id}`) }));
+      notes.push(info.fileName ? t('saveas.current', { file: info.fileName }) : t('saveas.unsaved'));
+      if (!session.fsAccess()) notes.push(t('saveas.download'));
+      note.textContent = notes.join(' ');
+      saveBtn.disabled = f.available === false;
+      more.disabled = f.available === false;
+    };
+    type.addEventListener('change', update);
+    // A name typed with an extension picks that type.
+    name.addEventListener('change', () => {
+      const m = /\.[a-z0-9]+$/i.exec(name.value.trim());
+      const f = m && SAVE_FORMATS.find((x) => x.exts.includes(m[0].toLowerCase()) && x.available !== false);
+      if (f) { name.value = name.value.trim().slice(0, -m[0].length); type.value = f.id; update(); }
+    });
+    more.addEventListener('click', async () => {
+      const f = formatById(format);
+      const cur = { ...(info.format === f.id ? info.options : {}), ...pendingOptions[f.id] };
+      let o = null;
+      if (f.id === 'txt') o = await fileConversion({ encoding: 'utf-8', lineEnding: 'crlf', ...cur }, session.currentState());
+      else if (f.id === 'html') o = await webOptions(cur, info.name);
+      else { await alertDialog(t('saveas.moreOptions'), t('saveas.noOptions')); return; }
+      if (o) pendingOptions[f.id] = o;
+    });
+    const doSave = async () => {
+      const f = formatById(format);
+      const ok = await session.saveAs({ format: f.id, name: name.value.trim() || info.name, options: pendingOptions[f.id], optionsChosen: !!pendingOptions[f.id], direct: true });
+      if (ok) { delete pendingOptions[f.id]; store.set({ backstageOpen: false, saveAsFormat: null }); }
+    };
+    saveBtn.addEventListener('click', doSave);
+    name.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); doSave(); } });
+    const browse = h('button', { type: 'button', class: 'bs-recent-open sa-place', 'data-saveas-browse': '' },
+      h('span', { class: 'bs-recent-icon', html: iconSvg('open', { size: 22 }) }),
+      h('span', { class: 'bs-recent-text' }, h('span', { class: 'bs-recent-name' }, t('saveas.browse')), h('span', { class: 'bs-recent-when' }, t('saveas.browseDesc'))));
+    browse.addEventListener('click', doSave);
+    const thisPc = h('div', { class: 'bs-recent-open sa-place is-current', role: 'presentation' },
+      h('span', { class: 'bs-recent-icon', html: iconSvg('computer', { size: 22 }) }),
+      h('span', { class: 'bs-recent-text' }, h('span', { class: 'bs-recent-name' }, t('saveas.thisPc'))));
+    update();
+    requestAnimationFrame(() => { name.focus({ preventScroll: true }); name.select(); });
+    return h('div', { class: 'bs-home sa-page' }, h('h1', { class: 'bs-title' }, t('backstage.saveAsTitle')),
+      h('div', { class: 'sa-cols' },
+        h('div', { class: 'sa-places' }, thisPc, browse),
+        h('div', { class: 'sa-form' },
+          h('h2', { class: 'bs-h2' }, t('saveas.thisPc')),
+          h('label', { class: 'sa-row' }, h('span', { class: 'sa-label' }, t('saveas.fileName')), h('span', { class: 'sa-namewrap' }, name, ext)),
+          h('label', { class: 'sa-row' }, h('span', { class: 'sa-label' }, t('saveas.type')), type),
+          h('div', { class: 'sa-row sa-actions' }, more, saveBtn),
+          note)));
   }
 
   function renderRecover() {
@@ -260,6 +333,12 @@ export function createBackstage({ registry, store, toast, session }) {
       });
       return b;
     }));
+    // Create PDF/XPS Document: Save As with PDF selected (dimmed until the PDF/XPS writers exist).
+    const pdfXps = h('button', { type: 'button', class: 'bs-export-item bs-export-pdfxps', 'data-command': 'file.createPdfXps', disabled: registry.isEnabled('file.createPdfXps') ? null : '', 'data-tip': registry.isEnabled('file.createPdfXps') ? null : t('fmt.comingM16') },
+      h('span', { class: 'bs-export-icon', html: iconSvg('fmt-pdf', { size: 22 }) }),
+      h('span', { class: 'bs-export-text' }, h('span', { class: 'bs-export-name' }, t('export.createPdfXps')), h('span', { class: 'bs-export-desc' }, t('export.createPdfXpsDesc'))));
+    pdfXps.addEventListener('click', () => registry.run('file.createPdfXps'));
+    list.prepend(pdfXps);
     return h('div', { class: 'bs-home' }, h('h1', { class: 'bs-title' }, t('backstage.exportTitle')), h('p', { class: 'bs-empty' }, t('backstage.exportHint')), list);
   }
 

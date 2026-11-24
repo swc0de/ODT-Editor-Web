@@ -38,7 +38,7 @@ export default {
   'cmd.file.redo': 'Redo',
   'cmd.file.repeat': 'Repeat',
   'cmd.file.share': 'Share',
-  'cmd.file.shareDownload': 'Download .odt',
+  'cmd.file.shareDownload': 'Download a copy',
   'cmd.file.shareExportPdf': 'Export PDF',
   'cmd.file.shareCopyHtml': 'Copy as HTML',
 

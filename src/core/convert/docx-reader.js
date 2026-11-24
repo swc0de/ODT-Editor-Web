@@ -104,7 +104,7 @@ function strongerBorder(a, b) {
 // ------------------------------------------------------------ package
 
 function readPackage(bytes) {
-  const files = unzipSync(bytes);
+  const files = bytes instanceof Uint8Array ? unzipSync(bytes) : bytes;
   const rels = (part) => {
     const dir = part.includes('/') ? part.slice(0, part.lastIndexOf('/') + 1) : '';
     const name = part.slice(part.lastIndexOf('/') + 1);
@@ -130,6 +130,9 @@ function normalise(p) {
 }
 
 // ------------------------------------------------------------ main
+
+/** An unzipped .docx (path → bytes, e.g. from Word XML) → { state, warnings }. */
+export const docxPartsToState = (files) => docxToStateNative(files);
 
 export function docxToStateNative(bytes) {
   const pkg = readPackage(bytes);

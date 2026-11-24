@@ -12,5 +12,6 @@ import references from './en-GB/references.js';
 import review from './en-GB/review.js';
 import view from './en-GB/view.js';
 import final from './en-GB/final.js';
+import formats from './en-GB/formats.js';
 
-export default { ...app, ...commands, ...ribbon, ...ui, ...file, ...home, ...layout, ...tables, ...objects, ...references, ...review, ...view, ...final };
+export default { ...app, ...commands, ...ribbon, ...ui, ...file, ...home, ...layout, ...tables, ...objects, ...references, ...review, ...view, ...final, ...formats };

@@ -84,7 +84,10 @@ export function renderInfo({ registry, store, session, refresh }) {
   if (found.opaque) row('opaque', t('info.findOpaque', { count: found.opaque }), t('info.findOpaqueDetail'), null);
   if (!rows.length) rows.push(h('p', { class: 'bs-empty' }, t('info.findNothing')));
   const inspectSec = h('section', { class: 'bs-info-row' }, h('span', { class: 'bs-info-icon', html: iconSvg('accessibility', { size: 26 }) }), h('div', { class: 'bs-inspect' },
-    h('h2', { class: 'bs-h2' }, t('info.inspectTitle')), h('p', { class: 'bs-empty' }, t('info.inspectHint')), ...rows));
+    h('h2', { class: 'bs-h2' }, t('info.inspectTitle')), h('p', { class: 'bs-empty' }, t('info.inspectHint')), ...rows,
+    // Check for Issues ▸ Check Compatibility
+    h('div', { class: 'bs-inspect-row', 'data-finding': 'compat' }, h('div', {}, h('strong', {}, t('compat.checkIssues')), h('div', { class: 'bs-empty' }, t('compat.checkDesc'))),
+      h('button', { type: 'button', class: 'bs-text-btn', 'data-command': 'file.checkCompatibility', onclick: () => registry.run('file.checkCompatibility') }, t('compat.check')))));
 
   // ---------------------------------------------------------- versions
   const versionList = h('div', { class: 'bs-versions' }, h('p', { class: 'bs-empty' }, t('info.noVersions')));

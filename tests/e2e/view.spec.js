@@ -304,14 +304,27 @@ test.describe('view', () => {
     await expect(page.locator('.tp-card')).toHaveCount(7);
     await page.locator('.tp-card[data-template="report"]').click();
     await expect(body(page)).toContainText('Community Garden Annual Report');
-    const download = page.waitForEvent('download');
+    // M15: Save as Template asks for Word Template (*.dotx, the default) or OpenDocument Template (*.ott).
     await run(page, 'file.saveAsTemplate');
+    await expect(page.locator('.dlg button.primary')).toHaveText('Word Template (*.dotx)');
+    const download = page.waitForEvent('download');
+    await page.locator('.dlg button', { hasText: 'OpenDocument Template (*.ott)' }).click();
     const d = await download;
     expect(d.suggestedFilename()).toMatch(/\.ott$/);
     const file = path.join(OUT, d.suggestedFilename());
     await d.saveAs(file);
     const zip = readZipText(new Uint8Array(readFileSync(file)));
     expect(zip.mimetype).toBe('application/vnd.oasis.opendocument.text-template');
+    // The document stays as it was (a template is a copy).
+    expect(await page.evaluate(() => window.odtEditor.session.info.format)).toBe(null);
+    const dotx = page.waitForEvent('download');
+    await run(page, 'file.saveAsTemplate');
+    await page.locator('.dlg button.primary').click();
+    const d2 = await dotx;
+    expect(d2.suggestedFilename()).toMatch(/\.dotx$/);
+    const f2 = path.join(OUT, d2.suggestedFilename());
+    await d2.saveAs(f2);
+    expect(readZipText(new Uint8Array(readFileSync(f2)))['[Content_Types].xml']).toContain('wordprocessingml.template.main+xml');
     void APP_URL;
   });
 });

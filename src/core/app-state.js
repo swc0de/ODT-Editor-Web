@@ -74,6 +74,8 @@ export const INITIAL_APP_STATE = Object.freeze({
   objectSelected: false,
   showRuler: true,
   docTitle: null,
+  docFormat: null,
+  saveAsFormat: null,
   dirty: false,
   words: 0,
   // Home tab (M4)

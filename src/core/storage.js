@@ -56,10 +56,10 @@ const MAX_STORED_BYTES = 10; // keep file copies for the 10 most recent unpinned
 const MAX_FILE_SIZE = 25 * 1024 * 1024;
 
 /** Adds/updates a recent entry; keeps a copy of the bytes so it can be reopened. */
-export async function addRecent({ name, bytes, handle = null }) {
+export async function addRecent({ name, bytes, handle = null, format = null }) {
   const id = name;
   const prev = await storage.get('recent', id);
-  const entry = { id, name, openedAt: Date.now(), pinned: prev?.pinned || false, size: bytes?.length || 0, handle: handle || prev?.handle || null, hasCopy: false };
+  const entry = { id, name, openedAt: Date.now(), pinned: prev?.pinned || false, size: bytes?.length || 0, handle: handle || prev?.handle || null, hasCopy: false, format: format || prev?.format || null };
   if (bytes && bytes.length <= MAX_FILE_SIZE) {
     entry.hasCopy = await storage.put('files', { id, bytes });
   }

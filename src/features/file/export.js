@@ -5,7 +5,8 @@
  */
 import { toText, toMarkdown, toRtf } from '../../core/convert/writers.js';
 import { toHtml } from '../../core/convert/html-export.js';
-import { writeDocx } from '../../core/convert/docx-writer.js';
+import { writeDocxParts } from '../../core/convert/docx-writer.js';
+import { SAVE_FORMATS, IMPORT_FORMATS, formatById } from '../../core/formats.js';
 import { partToDoc } from '../../core/hf-content.js';
 import { schema } from '../../core/schema.js';
 import { pageToPng } from '../../core/convert/png.js';
@@ -13,15 +14,18 @@ import { pageLayout } from '../../core/odt/styles.js';
 import { toPx } from '../../layout/units.js';
 import { APP_NAME, APP_VERSION } from '../../config.js';
 import { t } from '../../i18n/index.js';
+import { metaTitle } from '../../core/document.js';
 
+/**
+ * File ▸ Export: the Save as type formats from core/formats.js (as copies:
+ * the document stays attached to its file), then Markdown, RTF and the page
+ * as a picture. PDF goes through the print dialog until M16.
+ */
+const EXPORT_IDS = { txt: 'text' }; // command ids kept from earlier versions (file.export_text)
 export const EXPORTS = [
-  { id: 'odt', ext: 'odt', icon: 'save', mime: 'application/vnd.oasis.opendocument.text' },
-  { id: 'pdf', ext: 'pdf', icon: 'print' },
-  { id: 'docx', ext: 'docx', icon: 'file-text', mime: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' },
-  { id: 'html', ext: 'html', icon: 'web-layout', mime: 'text/html' },
-  { id: 'markdown', ext: 'md', icon: 'file-text', mime: 'text/markdown' },
-  { id: 'rtf', ext: 'rtf', icon: 'file-text', mime: 'application/rtf' },
-  { id: 'text', ext: 'txt', icon: 'file-text', mime: 'text/plain' },
+  ...SAVE_FORMATS.filter((f) => f.kind !== 'fixed').map((f) => ({ id: EXPORT_IDS[f.id] || f.id, format: f.id, ext: f.exts[0].slice(1), icon: f.icon, mime: f.mime })),
+  { id: 'pdf', ext: 'pdf', icon: 'fmt-pdf' },
+  ...IMPORT_FORMATS.map((f) => ({ id: f.id === 'md' ? 'markdown' : f.id, ext: f.exts[0].slice(1), icon: f.icon, mime: f.mime })),
   { id: 'png', ext: 'png', icon: 'image', mime: 'image/png' },
 ];
 
@@ -37,8 +41,19 @@ export function download(data, fileName, mime = 'application/octet-stream') {
 
 const baseName = (c) => (c.session.info.name || 'Document').replace(/[\\/:*?"<>|]+/g, '_');
 
+/** What core/formats.js writers need from the live editor. */
+export function formatEnv(c) {
+  return {
+    docxParts: (state, o = {}) => {
+      const index = c.ui.docArea.styleIndex;
+      return writeDocxParts(state, index, { nodeFromJSON: (j) => schema.nodeFromJSON(j), partDoc: (tree) => partToDoc(state, index, tree), generator: `${APP_NAME} ${APP_VERSION}`, asTemplate: !!o.asTemplate });
+    },
+    html: (state, o = {}) => documentHtml(c, o),
+  };
+}
+
 /** The document as a standalone web page. */
-export async function documentHtml(c) {
+export async function documentHtml(c, o = {}) {
   const st = c.session.state;
   const pl = pageLayout(st);
   const pictures = st.pictures || {};
@@ -46,7 +61,7 @@ export async function documentHtml(c) {
   return toHtml({
     dom: c.mainEditor.view.dom,
     docCss: document.getElementById('odt-doc-css')?.textContent || '',
-    title: c.session.info.name,
+    title: o.title || metaTitle(c.session.state) || c.session.info.name,
     lang: document.documentElement.lang,
     pictures,
     pictureUrlToPath: (u) => byUrl.get(u),
@@ -60,13 +75,11 @@ export async function documentHtml(c) {
 export async function exportData(c, id) {
   const state = c.session.currentState();
   const index = c.ui.docArea.styleIndex;
+  const fmt = EXPORTS.find((f) => f.id === id);
+  if (fmt?.format) return c.session.serializeAs(fmt.format, fmt.format === 'txt' ? { encoding: 'utf-8', lineEnding: 'crlf' } : {});
   switch (id) {
-    case 'odt': return c.session.serialize();
-    case 'docx': return writeDocx(state, index, { nodeFromJSON: (j) => schema.nodeFromJSON(j), partDoc: (tree) => partToDoc(state, index, tree), generator: `${APP_NAME} ${APP_VERSION}` });
-    case 'html': return documentHtml(c);
     case 'markdown': return toMarkdown(state, index);
     case 'rtf': return toRtf(state, index);
-    case 'text': return toText(state);
     case 'png': {
       const da = c.ui.docArea;
       const i = Math.max(0, (c.state.page || 1) - 1);
@@ -107,12 +120,14 @@ export async function copyAsHtml(c) {
 }
 
 export const canShareFiles = () => {
-  try { return typeof navigator.canShare === 'function' && navigator.canShare({ files: [new File(['x'], 'x.odt', { type: 'application/vnd.oasis.opendocument.text' })] }); } catch { return false; }
+  try { return typeof navigator.canShare === 'function' && navigator.canShare({ files: [new File(['x'], 'x.docx', { type: formatById('docx').mime })] }); } catch { return false; }
 };
 
-/** The system share sheet with the .odt file. */
+/** The system share sheet with the document's file in its current format (the default one for an unsaved document). */
 export async function shareNative(c) {
-  const bytes = await c.session.serialize();
-  const file = new File([bytes], `${baseName(c)}.odt`, { type: 'application/vnd.oasis.opendocument.text' });
+  const fmt = formatById(c.session.currentFormat());
+  const info = c.session.info;
+  const bytes = await c.session.serializeAs(fmt.id, info.format === fmt.id ? info.options : {});
+  const file = new File([bytes], `${baseName(c)}${fmt.exts[0]}`, { type: fmt.mime });
   try { await navigator.share({ files: [file], title: c.session.info.name }); } catch (e) { if (e.name !== 'AbortError') c.ui.toast(t('export.failed', { reason: e.message })); }
 }

@@ -43,7 +43,17 @@ const lines = (x1, x2, ys, cls) => ys.map((y) => L(x1, y, x2, y, cls));
 const colourBar = (cls) => R(3, 19.5, 18, 3.5, 0.5, cls);
 
 const TXT = (text, extra = {}, cls = 'f') => T(12, 18.5, text, 18, cls, extra);
+/** A file-format icon: a page with a coloured tag holding a short format name (original, no product logos). */
+const FMT = (label, cls) => [PAGE, P('M15 2v4h4'), R(3, 12, 15, 7.5, 1.2, cls), T(10.5, 18.1, label, 5.6, 'it-w', { 'font-weight': '700' })];
+
 const CUSTOM = {
+  'fmt-docx': FMT('DOCX', 'af'),
+  'fmt-odt': FMT('ODT', 'gff'),
+  'fmt-xml': FMT('XML', 'yf'),
+  'fmt-html': FMT('HTML', 'pf'),
+  'fmt-txt': FMT('TXT', 'of'),
+  'fmt-pdf': FMT('PDF', 'rf'),
+  'fmt-xps': FMT('XPS', 'af'),
   bold: [TXT('B', { 'font-weight': 700 })],
   italic: [TXT('I', { 'font-style': 'italic', 'font-family': 'Georgia, serif' })],
   underline: [T(12, 17, 'U', 17, 'f'), L(5.5, 21, 18.5, 21)],
@@ -261,7 +271,7 @@ const LUCIDE = {
   properties: Settings2, 'zotero-note': StickyNote, refresh: RefreshCw, preferences: Settings, unlink: Unlink,
   help: CircleHelp, feedback: MessageSquareHeart, 'whats-new': Gift, about: Info, file: File, back: ChevronLeft,
   home: House, new: FilePlus, open: FolderOpen, info: Info, save: Save, print: Printer, export: FileOutput, close: X,
-  options: Settings, download: Download, undo: Undo2, redo: Redo2, 'chevron-up': ChevronUp, 'chevron-down': ChevronDown,
+  options: Settings, download: Download, computer: Monitor, undo: Undo2, redo: Redo2, 'chevron-up': ChevronUp, 'chevron-down': ChevronDown,
   pause: Pause, play: Play, 'alert-triangle': TriangleAlert, 'circle-x': CircleX,
   'chevron-left': ChevronLeft, 'chevron-right': ChevronRight, keyboard: Keyboard, comments: MessageSquareText,
   eye: Eye, monitor: Monitor, moon: Moon, sun: Sun, minus: Minus, plus: Plus, 'arrow-right': ArrowRight,

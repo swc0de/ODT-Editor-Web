@@ -36,3 +36,5 @@ button { cursor: default; }
 ::-webkit-scrollbar { width: 12px; height: 12px; }
 ::-webkit-scrollbar-thumb { background: var(--scrollbar); border-radius: 6px; border: 3px solid transparent; background-clip: content-box; }
 ::-webkit-scrollbar-track, ::-webkit-scrollbar-corner { background: transparent; }
+.icon .gff { fill: var(--icon-green); stroke: none; }
+.icon .it-w { fill: #fff; }

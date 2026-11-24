@@ -209,3 +209,34 @@ kbd { font: 12px var(--font-ui); padding: 1px 6px; border: 1px solid var(--contr
 
 .sp-apply { flex: 1; min-width: 0; display: flex; align-items: center; gap: 6px; border: 0; background: transparent; color: inherit; font: inherit; text-align: left; padding: 0; cursor: default; }
 .sp-apply:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+
+/* ---- File ▸ Save As (M15): places on the left, name / type / options / Save on the right */
+.sa-cols { display: flex; gap: 32px; align-items: flex-start; margin-top: 8px; }
+.sa-places { display: flex; flex-direction: column; gap: 4px; width: 260px; flex: none; }
+.sa-place { width: 100%; }
+.sa-place.is-current { background: var(--hover-bg); border-radius: 4px; }
+.sa-form { flex: 1; min-width: 0; max-width: 560px; display: flex; flex-direction: column; gap: 10px; }
+.sa-form .bs-h2 { margin-top: 0; }
+.sa-row { display: flex; align-items: center; gap: 10px; }
+.sa-label { width: 96px; flex: none; color: var(--text-muted); }
+.sa-namewrap { flex: 1; display: flex; align-items: center; gap: 6px; min-width: 0; }
+.sa-name { flex: 1; min-width: 0; }
+.sa-ext { color: var(--text-muted); }
+.sa-type { flex: 1; min-width: 0; }
+.sa-actions { justify-content: space-between; padding-left: 106px; }
+.sa-save { flex-direction: row; width: auto; padding: 6px 16px; gap: 8px; }
+.sa-save:disabled, .sa-more:disabled { opacity: .4; pointer-events: none; }
+.sa-note { margin: 0; padding-left: 106px; }
+@media (max-width: 760px) { .sa-cols { flex-direction: column; } .sa-places { width: 100%; } .sa-actions, .sa-note { padding-left: 0; } }
+
+/* ---- Save dialogs: compatibility list, File Conversion */
+.sv-dlg { display: flex; flex-direction: column; gap: 10px; min-width: min(520px, 80vw); }
+.sv-note { color: var(--text-muted); margin: 0; }
+.sv-losses { border-collapse: collapse; width: 100%; }
+.sv-losses th, .sv-losses td { text-align: left; padding: 4px 8px; border-bottom: 1px solid var(--divider, #444); }
+.sv-losses .num { text-align: right; width: 90px; }
+.sv-conv-grid { display: grid; grid-template-columns: 1fr auto; gap: 16px; align-items: start; }
+.sv-conv-grid .fm-select[size] { height: auto; min-height: 140px; }
+.sv-preview { white-space: pre-wrap; font-family: var(--font-mono, Consolas, monospace); font-size: 12px; max-height: 160px; overflow: auto; padding: 8px; border: 1px solid var(--control-border, #777); border-radius: 4px; background: var(--control-bg); }
+.sv-bad { color: #fff; background: #c42b1c; border-radius: 2px; }
+.status-format { padding: 0 8px; }

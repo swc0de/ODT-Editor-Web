@@ -13,6 +13,7 @@ import { getSetting, setSetting } from '../core/settings.js';
 import { setTheme, getThemePreference } from './theme.js';
 import { AUTOCORRECT_DEFAULTS } from '../core/editing-plugins.js';
 import { UNITS } from '../layout/units.js';
+import { DEFAULT_FORMAT_CHOICES, formatById } from '../core/formats.js';
 
 export const SECTIONS = ['general', 'display', 'proofing', 'save', 'language', 'advanced', 'ribbon', 'qat'];
 export const DEFAULT_QAT = ['file.save', 'file.undo', 'file.redo'];
@@ -74,12 +75,15 @@ export async function optionsDialog(o) {
   const interval = select(intervals.map(([v, l]) => [String(v), l]), String(getSetting('autosaveIntervalMs') || 30000));
   const fsAccess = check(t('opt.fileAccess'), getSetting('fileSystemAccess') !== false && typeof window.showSaveFilePicker === 'function', { disabled: typeof window.showSaveFilePicker !== 'function' ? '' : null });
   const versions = check(t('opt.keepVersions'), getSetting('keepVersions') !== false);
+  const saveFormat = select(DEFAULT_FORMAT_CHOICES.map((id) => [id, t(formatById(id).labelKey)]), DEFAULT_FORMAT_CHOICES.includes(getSetting('defaultFormat')) ? getSetting('defaultFormat') : 'docx');
+  saveFormat.setAttribute('data-option', 'defaultFormat');
   changes.push(() => {
+    setSetting('defaultFormat', saveFormat.value);
     setSetting('autosaveIntervalMs', Number(interval.value));
     if (typeof window.showSaveFilePicker === 'function') setSetting('fileSystemAccess', fsAccess.input.checked);
     setSetting('keepVersions', versions.input.checked);
   });
-  const save = [h('h3', { class: 'opt-h' }, t('opt.autosave')), field(t('opt.autosaveEvery'), interval), h('p', { class: 'opt-note' }, t('opt.autosaveNote')), versions, h('h3', { class: 'opt-h' }, t('opt.files')), fsAccess, h('p', { class: 'opt-note' }, typeof window.showSaveFilePicker === 'function' ? t('opt.fileAccessNote') : t('opt.fileAccessNone'))];
+  const save = [h('h3', { class: 'opt-h' }, t('opt.saveDocuments')), field(t('opt.saveFormat'), saveFormat), h('h3', { class: 'opt-h' }, t('opt.autosave')), field(t('opt.autosaveEvery'), interval), h('p', { class: 'opt-note' }, t('opt.autosaveNote')), versions, h('h3', { class: 'opt-h' }, t('opt.files')), fsAccess, h('p', { class: 'opt-note' }, typeof window.showSaveFilePicker === 'function' ? t('opt.fileAccessNote') : t('opt.fileAccessNone'))];
 
   // ---------------------------------------------------------- Language
   const LANGS = [['en-GB', 'English (United Kingdom)'], ['en-US', 'English (United States)']];

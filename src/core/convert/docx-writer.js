@@ -925,6 +925,12 @@ export function stylesXml(state, index) {
  * @param {{ nodeFromJSON: Function, partDoc: Function }} helpers schema JSON → node; header/footer tree → document node
  */
 export function writeDocx(state, index, helpers) {
+  const parts = writeDocxParts(state, index, helpers);
+  return zipSync(Object.fromEntries(Object.entries(parts).map(([k, v]) => [k, [v, { level: /\.(png|jpe?g|gif|webp)$/i.test(k) ? 0 : 6 }]])));
+}
+
+/** The .docx as a parts map (path → bytes, [Content_Types].xml included): the source of DOCX and Word XML. */
+export function writeDocxParts(state, index, helpers) {
   const w = createDocxWriter(state, index);
   w.setSchemaNode(helpers.nodeFromJSON);
   w.setPartDoc(helpers.partDoc);
@@ -997,5 +1003,5 @@ export function writeDocx(state, index, helpers) {
   const exts = new Set([...w.media.values()].map((n) => n.split('.').pop()));
   const MIME = { png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', gif: 'image/gif', bmp: 'image/bmp', svg: 'image/svg+xml', webp: 'image/webp', tif: 'image/tiff', tiff: 'image/tiff', emf: 'image/x-emf', wmf: 'image/x-wmf' };
   const ct = `${DECL}<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/>${[...exts].map((e) => `<Default Extension="${e}" ContentType="${MIME[e] || 'application/octet-stream'}"/>`).join('')}${overrides.map(([p, t]) => `<Override PartName="${p}" ContentType="${t}"/>`).join('')}</Types>`;
-  return zipSync({ '[Content_Types].xml': strToU8(ct), ...files }, { level: 6 });
+  return { '[Content_Types].xml': strToU8(helpers.asTemplate ? ct.replace(`${CT}.document.main+xml`, `${CT}.template.main+xml`) : ct), ...files };
 }

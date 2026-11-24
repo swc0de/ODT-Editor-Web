@@ -30,8 +30,12 @@ test.describe('files', () => {
     await page.keyboard.press('Home');
     await page.keyboard.type('Edited ');
     await expect(page).toHaveTitle('● styles - ODT Editor');
-    const download = page.waitForEvent('download');
+    // M15: without File System Access there is no handle, so Ctrl+S opens File ▸ Save As with the file's own format.
     await page.keyboard.press('Control+s');
+    await expect(page.locator('[data-saveas-name]')).toHaveValue('styles');
+    await expect(page.locator('[data-saveas-type]')).toHaveValue('odt');
+    const download = page.waitForEvent('download');
+    await page.locator('[data-saveas-save]').click();
     const file = await download;
     expect(file.suggestedFilename()).toBe('styles.odt');
     const saved = await file.path();
@@ -41,12 +45,16 @@ test.describe('files', () => {
     expect(await firstText(page)).toContain('Edited Styles hierarchy');
   });
 
-  test('F12 Save As and the Backstage Save As page download an .odt', async ({ page }) => {
+  // M15: new documents save as .docx by default.
+  test('F12 opens the Backstage Save As page, which downloads a .docx by default', async ({ page }) => {
     await page.locator('.ProseMirror').click();
     await page.keyboard.type('Report');
-    const download = page.waitForEvent('download');
     await page.keyboard.press('F12');
-    expect((await download).suggestedFilename()).toBe('Document1.odt');
+    await expect(page.locator('[data-saveas-type]')).toHaveValue('docx');
+    const download = page.waitForEvent('download');
+    await page.locator('[data-saveas-save]').click();
+    expect((await download).suggestedFilename()).toBe('Document1.docx');
+    await expect(page).toHaveTitle('Document1 - ODT Editor');
   });
 
   test('New with unsaved changes asks to save; Don’t Save discards', async ({ page }) => {

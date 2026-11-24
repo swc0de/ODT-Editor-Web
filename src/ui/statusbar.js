@@ -9,6 +9,7 @@ import { iconSvg } from './icons.js';
 import { t, getLocale } from '../i18n/index.js';
 import { openMenu } from './menu.js';
 import { getSetting, setSetting } from '../core/settings.js';
+import { formatById } from '../core/formats.js';
 
 const ITEMS = ['page', 'words', 'language', 'focus', 'views', 'zoomSlider', 'zoom'];
 
@@ -22,6 +23,8 @@ export function createStatusBar({ registry, store, toast }) {
 
   const pageEl = h('span', { class: 'sb-item', 'data-item': 'page' });
   const wordsEl = cmdButton('review.wordCount', 'sb-text', [], { 'data-item': 'words', 'data-tip': t('status.wordCountTip') });
+  // HTML, TXT or XML: the format next to the word count, so the user knows what Save writes.
+  const formatEl = h('span', { class: 'sb-item status-format', 'data-item': 'format', 'data-status-format': '' });
   const langEl = cmdButton('review.language', 'sb-text', [], { 'data-item': 'language', 'data-tip': t('status.languageTip') });
   const focusEl = cmdButton('view.focus', 'sb-text sb-focus', [h('span', { html: iconSvg('focus', { size: 14 }) }), h('span', {}, t('status.focus'))], { 'data-item': 'focus' });
   const viewBtn = (cmd, icon, label) => cmdButton(cmd, 'sb-icon', [h('span', { html: iconSvg(icon, { size: 14 }) })], { 'aria-label': t(label), 'data-view': cmd });
@@ -35,7 +38,7 @@ export function createStatusBar({ registry, store, toast }) {
   const zoomPct = cmdButton('view.zoomDialog', 'sb-text sb-pct', [], { 'data-item': 'zoom', 'data-tip': t('status.zoomLevel') });
 
   const bar = h('footer', { class: 'status-bar', role: 'status', 'aria-label': t('status.label'), 'data-region': 'status' },
-    h('div', { class: 'sb-left' }, pageEl, wordsEl, langEl),
+    h('div', { class: 'sb-left' }, pageEl, wordsEl, formatEl, langEl),
     h('div', { class: 'sb-right' }, focusEl, views, zoomSlider, zoomPct));
 
   function update() {
@@ -43,6 +46,9 @@ export function createStatusBar({ registry, store, toast }) {
     pageEl.textContent = t('status.pageOf', { page: s.page || 1, pages: s.pageCount || 1 });
     wordsEl.textContent = t('status.words', { count: s.words || 0 });
     langEl.textContent = t(`lang.${getLocale()}`);
+    const fmt = s.docFormat && formatById(s.docFormat);
+    formatEl.textContent = fmt?.statusKey ? t(fmt.statusKey) : '';
+    if (fmt?.statusKey) formatEl.setAttribute('data-tip', t('fmt.statusTip', { format: t(fmt.labelKey) })); else formatEl.removeAttribute('data-tip');
     zoomPct.textContent = `${s.zoom}%`;
     slider.setAttribute('aria-valuenow', String(s.zoom));
     slider.setAttribute('aria-valuetext', `${s.zoom}%`);
@@ -51,6 +57,7 @@ export function createStatusBar({ registry, store, toast }) {
     slider.style.setProperty('--pos', String(frac));
     for (const b of views.children) b.classList.toggle('is-checked', b.dataset.view === `view.${{ read: 'readMode', print: 'printLayout', web: 'webLayout' }[s.view]}`);
     for (const el of bar.querySelectorAll('[data-item]')) el.hidden = hidden.has(el.dataset.item);
+    formatEl.hidden = !formatEl.textContent;
   }
 
   // Zoom slider: drag or click; 100 % sits in the middle (10 %…100 %…500 %).

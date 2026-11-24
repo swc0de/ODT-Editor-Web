@@ -214,7 +214,7 @@ export async function editIndividual(c) {
   const range = await mergeToDialog(total, c.store.get().mergeRecord || 1);
   if (!range) return;
   const st = await mergedState(c, range);
-  await c.session.openBytes(c.ui.io.exportOdt(st).bytes, { name: t('mm.lettersName'), remember: false });
+  await c.session.openBytes(c.ui.io.exportOdt(st).bytes, { name: t('mm.lettersName'), remember: false, generated: true });
 }
 
 /** Finish & Merge ▸ Print Documents: the merged letters open as a new document and print. */
@@ -224,7 +224,7 @@ export async function printDocuments(c) {
   const range = await mergeToDialog(total, c.store.get().mergeRecord || 1);
   if (!range) return;
   const st = await mergedState(c, range);
-  const ok = await c.session.openBytes(c.ui.io.exportOdt(st).bytes, { name: t('mm.lettersName'), remember: false });
+  const ok = await c.session.openBytes(c.ui.io.exportOdt(st).bytes, { name: t('mm.lettersName'), remember: false, generated: true });
   if (ok) await c.ui.print.run({ range: 'all' });
 }
 
@@ -233,7 +233,7 @@ export async function printDocuments(c) {
 const selectionText = (c) => { const s = view(c).state; return s.doc.textBetween(s.selection.from, s.selection.to, '\n', '\n').trim(); };
 
 async function openState(c, st, name) {
-  await c.session.openBytes(c.ui.io.exportOdt(st).bytes, { name, remember: false });
+  await c.session.openBytes(c.ui.io.exportOdt(st).bytes, { name, remember: false, generated: true });
 }
 
 export async function envelopes(c) {

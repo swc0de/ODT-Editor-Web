@@ -6,7 +6,6 @@
  */
 import { APP_NAME, AUTOSAVE_INTERVAL_MS } from '../config.js';
 import { t } from '../i18n/index.js';
-import { importOdt } from './odt/import.js';
 import { exportOdt } from './odt/export.js';
 import { renderThumbnail } from './odt/thumbnail.js';
 import { buildStyleIndex } from './odt/styles.js';
@@ -14,28 +13,24 @@ import { createBlankState, stateToJSON, stateFromJSON } from './document.js';
 import { storage, addRecent, recentBytes, listRecent, addVersion, listVersions } from './storage.js';
 import { getSetting } from './settings.js';
 import { showDialog, alertDialog } from '../ui/dialog.js';
-import { importFile, isImportable, IMPORT_EXTENSIONS } from './convert/index.js';
-import { isEncrypted, decryptPackage, encryptPackage } from './odt/crypto.js';
+import { convertLib } from './convert/index.js';
 import { passwordDialog } from '../ui/password-dialog.js';
+import { readFile, writeFile, formatById, formatForName, stripExt, canWriteBack, isWritable, saveTypes, openTypes, pickerType, OPEN_ACCEPT, TEMPLATE_FORMATS, DEFAULT_FORMAT_CHOICES } from './formats.js';
 
 const SESSION_ID = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
 const uid = () => (crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`);
-const ODT_TYPES = [{ description: 'OpenDocument Text', accept: { 'application/vnd.oasis.opendocument.text': ['.odt'], 'application/vnd.oasis.opendocument.text-template': ['.ott'] } }];
-const OPEN_TYPES = [
-  { description: 'All documents', accept: { 'application/vnd.oasis.opendocument.text': ['.odt', '.ott', ...IMPORT_EXTENSIONS] } },
-  ...ODT_TYPES,
-  { description: 'Word document', accept: { 'application/vnd.openxmlformats-officedocument.wordprocessingml.document': ['.docx'] } },
-  { description: 'Web page, Markdown, Rich Text, Plain text', accept: { 'text/plain': ['.htm', '.html', '.md', '.markdown', '.rtf', '.txt'] } },
-];
-const ACCEPT = ['.odt', '.ott', ...IMPORT_EXTENSIONS].join(',');
 
 export function createSession({ editor, onLoad, onChange, toast }) {
   let untitledCounter = 0;
+  const hooks = {}; // set by the app: formatEnv, lossyPrompt, fileConversion, passwordUnsupported, openSaveAsPage
   const s = {
     docId: uid(),
     state: null, // DocumentState minus the live doc (the editor holds it)
     name: '',
     handle: null,
+    format: null, // format id of the file the document is (null: not saved yet)
+    options: {}, // that format's options (text encoding and line endings, web page options…)
+    fileName: '',
     dirty: false,
     autosaveDirty: false,
   };
@@ -50,13 +45,18 @@ export function createSession({ editor, onLoad, onChange, toast }) {
     onChange?.(info());
   }
 
-  function info() { return { name: s.name, dirty: s.dirty, hasHandle: !!s.handle, mime: s.state?.mime }; }
+  function info() { return { name: s.name, dirty: s.dirty, hasHandle: !!s.handle, mime: s.state?.mime, format: s.format, fileName: s.fileName, options: s.options }; }
 
-  function load(state, { name, handle = null, dirty = false, docId = uid() }) {
+  function load(state, { name, handle = null, dirty = false, docId = uid(), format = null, options = {}, fileName = '' }) {
     s.password = null;
+    s.lossyOk = null;
+    s.recoveredFormat = null;
     s.state = state;
     s.name = name;
     s.handle = handle;
+    s.format = format;
+    s.options = options;
+    s.fileName = fileName;
     s.docId = docId;
     s.dirty = dirty;
     s.autosaveDirty = dirty;
@@ -121,73 +121,60 @@ export function createSession({ editor, onLoad, onChange, toast }) {
     return true;
   }
 
-  /** Opens bytes as a document. Templates (.ott) open as a new untitled document. */
-  async function openBytes(bytes, { name, handle = null, skipGuard = false, remember = true }) {
-    let state;
-    let password = null;
-    const original = bytes;
-    // A password-protected document: ask for the password (again if it's wrong).
-    if (isEncrypted(bytes)) {
-      let error = '';
-      for (;;) {
-        password = await passwordDialog({ title: t('protect.openTitle'), message: t('protect.openPrompt', { name }), error });
-        if (password == null) return false;
-        try { bytes = await decryptPackage(bytes, password); break; } catch (e) {
-          if (e.code !== 'wrong-password') { await alertDialog(t('file.openFailedTitle'), t('file.openFailed', { name, reason: e.message })); return false; }
-          error = t('protect.wrong');
-        }
-      }
-    }
+  /**
+   * Opens a file's bytes. DOCX, ODT, Word XML / flat ODT, HTML and text open
+   * as that file (Save writes back in the same format); RTF and Markdown
+   * open as a new document named after the file; templates (.dotx, .ott) as
+   * a new untitled document.
+   */
+  async function openBytes(bytes, { name, handle = null, skipGuard = false, remember = true, generated = false }) {
+    let result;
     try {
-      state = importOdt(bytes);
+      result = await readFile(name, bytes, {
+        askPassword: (error) => passwordDialog({ title: t('protect.openTitle'), message: t('protect.openPrompt', { name }), error: error ? t('protect.wrong') : '' }),
+        convertLib,
+      });
     } catch (e) {
       console.warn('Open failed:', e);
       await alertDialog(t('file.openFailedTitle'), t('file.openFailed', { name, reason: e.message }));
       return false;
     }
+    if (!result) return false;
     if (!skipGuard && !(await confirmDiscard())) return false;
     await discardAutosave();
-    const isTemplate = state.mime === 'template' || /\.ott$/i.test(name);
-    if (isTemplate) {
+    const { state, format, options, asNew, password } = result;
+    const fmt = formatById(format);
+    if (generated) {
+      // A document the app made (mail merge, compare): new and unsaved; Save uses the default format.
+      load(state, { name: stripExt(name) });
+    } else if (asNew && fmt?.kind === 'import') {
+      // RTF, Markdown: a new document named after the file; its first Save goes to Save As.
+      load(state, { name: stripExt(name), dirty: true });
+      s.importedFrom = name;
+      toast?.(t('file.imported', { name }));
+    } else if (asNew) {
       state.mime = 'text';
       load(state, { name: untitledName() });
     } else {
-      load(state, { name: name.replace(/\.odt$/i, ''), handle });
-      s.fileName = name;
+      load(state, { name: stripExt(name), handle, format, options, fileName: name });
       s.password = password;
     }
-    if (remember) addRecent({ name, bytes: original, handle }).then(() => onChange?.(info()));
+    if (remember) addRecent({ name, bytes, handle, format }).then(() => onChange?.(info()));
     return true;
   }
 
   async function openFile(file, handle = null) {
     const bytes = new Uint8Array(await file.arrayBuffer());
-    if (isImportable(file.name)) return importBytes(bytes, file.name);
     return openBytes(bytes, { name: file.name, handle });
   }
 
-  /** DOCX, HTML, Markdown, RTF, TXT: a new document named after the file (saving writes ODT). */
-  async function importBytes(bytes, name) {
-    let result;
-    try {
-      result = await importFile(name, bytes);
-    } catch (e) {
-      console.warn('Import failed:', e);
-      await alertDialog(t('file.openFailedTitle'), t('file.openFailed', { name, reason: e.message }));
-      return false;
-    }
-    if (!(await confirmDiscard())) return false;
-    await discardAutosave();
-    load(result.state, { name: name.replace(/\.[^.]+$/, ''), dirty: true });
-    s.importedFrom = name;
-    toast?.(t('file.imported', { name }));
-    return true;
-  }
+  /** Kept for callers that import a file as a new document. */
+  async function importBytes(bytes, name) { return openBytes(bytes, { name }); }
 
   async function openDialog() {
     if (getSetting('fileSystemAccess') !== false && typeof window.showOpenFilePicker === 'function') {
       try {
-        const [handle] = await window.showOpenFilePicker({ types: OPEN_TYPES, multiple: false, excludeAcceptAllOption: false });
+        const [handle] = await window.showOpenFilePicker({ types: openTypes((f) => t(f.labelKey), t('fmt.allDocuments')), multiple: false, excludeAcceptAllOption: false });
         return openFile(await handle.getFile(), handle);
       } catch (e) {
         if (e.name !== 'AbortError') console.warn(e);
@@ -195,7 +182,7 @@ export function createSession({ editor, onLoad, onChange, toast }) {
       }
     }
     return new Promise((resolve) => {
-      const input = Object.assign(document.createElement('input'), { type: 'file', accept: `${ACCEPT},application/vnd.oasis.opendocument.text,application/vnd.oasis.opendocument.text-template` });
+      const input = Object.assign(document.createElement('input'), { type: 'file', accept: OPEN_ACCEPT.join(',') });
       input.addEventListener('change', () => resolve(input.files[0] ? openFile(input.files[0]) : false));
       input.addEventListener('cancel', () => resolve(false));
       input.click();
@@ -217,17 +204,27 @@ export function createSession({ editor, onLoad, onChange, toast }) {
 
   // ------------------------------------------------------------ save
 
+  const defaultFormat = () => (DEFAULT_FORMAT_CHOICES.includes(getSetting('defaultFormat')) ? getSetting('defaultFormat') : 'docx');
+  /** The format Save writes: the document's own, else the default. */
+  const currentFormat = () => (canWriteBack(s.format) ? s.format : canWriteBack(s.recoveredFormat) ? s.recoveredFormat : defaultFormat());
+
+  /** The document as ODT bytes (internal uses: mail merge, compare, Copy). */
   async function serialize({ asTemplate = false } = {}) {
     const state = currentState();
     let thumbnail;
     try { thumbnail = await renderThumbnail(state, buildStyleIndex(state)); } catch (e) { console.warn('Thumbnail failed:', e); }
-    const bytes = exportOdt(state, { thumbnail, asTemplate }).bytes;
-    // Encrypt with Password (File ▸ Info ▸ Protect Document).
-    return s.password ? encryptPackage(bytes, s.password) : bytes;
+    return exportOdt(state, { thumbnail, asTemplate }).bytes;
   }
 
-  function download(bytes, fileName) {
-    const blob = new Blob([bytes], { type: 'application/vnd.oasis.opendocument.text' });
+  /** The document's bytes in a format (with the session's password when the format keeps one). */
+  async function serializeAs(id, options = {}) {
+    const env = { ...(hooks.formatEnv?.() || {}), state: currentState(), odt: (st, o) => serialize(o) };
+    const fmt = formatById(id);
+    return writeFile(id, env, { ...options, password: fmt?.encrypts || formatById(fmt?.base)?.encrypts ? s.password : null });
+  }
+
+  function download(bytes, fileName, mime = 'application/octet-stream') {
+    const blob = new Blob([bytes], { type: mime });
     const url = URL.createObjectURL(blob);
     const a = Object.assign(document.createElement('a'), { href: url, download: fileName });
     document.body.append(a);
@@ -248,55 +245,131 @@ export function createSession({ editor, onLoad, onChange, toast }) {
   function markSaved(name) {
     s.dirty = false;
     s.autosaveDirty = false;
-    if (name) s.name = name.replace(/\.odt$/i, '');
+    if (name) { s.fileName = name; s.name = stripExt(name); }
     updateTitle();
     discardAutosave();
   }
 
+  /**
+   * Checks before writing a format: the lossy prompt (HTML, TXT), a password
+   * the format can't keep, the File Conversion options on a first save to
+   * TXT. Resolves { format, options } to write, a request to go to Save As
+   * as Word Document ({ saveAs: 'docx' }), or null to cancel.
+   */
+  async function prepareWrite(id, options, { first }) {
+    const fmt = formatById(id);
+    let opts = { ...defaultOptions(id), ...options };
+    if (s.password && !fmt.encrypts && fmt.kind !== 'fixed') {
+      const choice = await hooks.passwordUnsupported?.(fmt) ?? 'cancel';
+      if (choice === 'cancel') return null;
+      if (choice !== 'drop') return { saveAs: choice };
+      s.password = null;
+    }
+    if (fmt.kind === 'lossy' && !s.lossyOk?.[id]) {
+      const choice = await hooks.lossyPrompt?.({ format: fmt, name: s.name, state: currentState() }) ?? { choice: 'keep' };
+      if (choice.choice === 'cancel') return null;
+      if (choice.choice === 'docx') return { saveAs: 'docx' };
+      if (choice.dontAsk) s.lossyOk = { ...s.lossyOk, [id]: true };
+    }
+    if (id === 'txt' && first && hooks.fileConversion) {
+      const o = await hooks.fileConversion(opts, currentState());
+      if (!o) return null;
+      opts = { ...opts, ...o };
+    }
+    return { format: id, options: opts };
+  }
+
+  const defaultOptions = (id) => ({ txt: { encoding: 'utf-8', lineEnding: 'crlf', substitute: false }, html: { keepSource: true, title: '' } }[id] || {});
+
   async function save() {
-    if (s.handle && s.handle.createWritable) {
+    const id = currentFormat();
+    if (s.handle && s.handle.createWritable && canWriteBack(s.format)) {
+      const prep = await prepareWrite(id, s.options, { first: false });
+      if (!prep) return false;
+      if (prep.saveAs) return saveAs({ format: prep.saveAs });
       try {
-        const bytes = await serialize();
+        const bytes = await serializeAs(prep.format, prep.options);
         await writeHandle(s.handle, bytes);
+        s.options = prep.options;
         markSaved();
-        addRecent({ name: s.handle.name, bytes, handle: s.handle });
+        addRecent({ name: s.handle.name, bytes, handle: s.handle, format: s.format });
         toast?.(t('file.saved', { name: s.handle.name }));
         return true;
       } catch (e) {
         console.warn('Write-back failed, falling back to Save As:', e);
       }
     }
-    return saveAs();
+    return saveAs({ format: id });
   }
 
-  async function saveAs({ asTemplate = false, forceDownload = false } = {}) {
-    const ext = asTemplate ? '.ott' : '.odt';
-    const suggested = `${s.name || 'Document'}${ext}`;
-    const bytes = await serialize({ asTemplate });
-    if (!forceDownload && fsAccess()) {
+  /**
+   * Save As. With File System Access the save picker opens (the format comes
+   * from the chosen name's extension); without it, File ▸ Save As shows the
+   * name and type fields, which call this with `direct: true` to download.
+   * @param {{ format?: string, name?: string, options?: object, asTemplate?: boolean, direct?: boolean, forceDownload?: boolean }} [o]
+   */
+  async function saveAs(o = {}) {
+    if (o.asTemplate && !o.format) o.format = 'dotx';
+    let id = o.format || currentFormat();
+    const usePicker = !o.forceDownload && fsAccess();
+    if (!usePicker && !o.direct && hooks.openSaveAsPage) { hooks.openSaveAsPage({ format: id }); return false; }
+    const fmt = formatById(id);
+    if (!fmt || fmt.available === false) { await alertDialog(t('fmt.unavailableTitle'), t('fmt.unavailable', { format: t(fmt?.labelKey || 'fmt.docx') })); return false; }
+    const base = (o.name || s.name || 'Document').replace(/[\\/:*?"<>|]+/g, '_');
+    const isTemplate = fmt.kind === 'template';
+    const fixed = fmt.kind === 'fixed';
+    let handle = null;
+    let fileName = `${stripExt(base)}${fmt.exts[0]}`;
+    if (usePicker) {
       try {
-        const handle = await window.showSaveFilePicker({ suggestedName: suggested, types: ODT_TYPES });
-        await writeHandle(handle, bytes);
-        if (!asTemplate) { s.handle = handle; markSaved(handle.name); }
-        addRecent({ name: handle.name, bytes, handle });
-        toast?.(t('file.saved', { name: handle.name }));
-        return true;
+        const types = isTemplate ? TEMPLATE_FORMATS.filter((f) => f.id === id).concat(TEMPLATE_FORMATS.filter((f) => f.id !== id)).map((f) => pickerType(f, t(f.labelKey))) : saveTypes(id, (f) => t(f.labelKey));
+        handle = await window.showSaveFilePicker({ suggestedName: fileName, types, excludeAcceptAllOption: false });
+        const chosen = formatForName(handle.name);
+        if (chosen && isWritable(chosen) && chosen.kind !== 'import') id = chosen.id;
+        fileName = handle.name;
       } catch (e) {
         if (e.name === 'AbortError') return false;
         console.warn('Save picker failed, downloading instead:', e);
+        handle = null;
       }
     }
-    download(bytes, suggested);
-    if (!asTemplate) markSaved(suggested);
-    addRecent({ name: suggested, bytes });
-    toast?.(t('file.downloaded', { name: suggested }));
+    const first = id !== s.format;
+    const prep = await prepareWrite(id, { ...(id === s.format ? s.options : {}), ...o.options }, { first: first && !o.optionsChosen });
+    if (!prep) return false;
+    if (prep.saveAs) return saveAs({ ...o, format: prep.saveAs, options: undefined });
+    const f2 = formatById(prep.format);
+    let bytes;
+    try { bytes = await serializeAs(prep.format, prep.options); } catch (e) {
+      console.warn('Save failed:', e);
+      await alertDialog(t('file.saveFailedTitle'), t('file.saveFailed', { name: fileName, reason: e.message || String(e) }));
+      return false;
+    }
+    if (handle) {
+      try { await writeHandle(handle, bytes); } catch (e) {
+        console.warn('Write failed, downloading instead:', e);
+        handle = null;
+      }
+    }
+    if (!handle) download(bytes, fileName, f2.mime);
+    addRecent({ name: fileName, bytes, handle, format: prep.format });
+    if (fixed || isTemplate) {
+      // A copy: the document stays attached to its file.
+      toast?.(t(fixed ? 'fmt.exported' : (handle ? 'file.saved' : 'file.downloaded'), { name: fileName }));
+      return true;
+    }
+    s.handle = handle;
+    s.format = prep.format;
+    s.options = prep.options;
+    markSaved(fileName);
+    toast?.(t(handle ? 'file.saved' : 'file.downloaded', { name: fileName }));
     return true;
   }
 
-  /** Downloads a copy without changing the document's name or file. */
+  /** Downloads a copy (current format, or the default for an unsaved document) without changing the document's file. */
   async function downloadCopy() {
-    const name = `${s.name || 'Document'}.odt`;
-    download(await serialize(), name);
+    const fmt = formatById(currentFormat());
+    const name = `${s.name || 'Document'}${fmt.exts[0]}`;
+    download(await serializeAs(fmt.id, s.format === fmt.id ? s.options : {}), name, fmt.mime);
     toast?.(t('file.downloaded', { name }));
     return true;
   }
@@ -314,7 +387,7 @@ export function createSession({ editor, onLoad, onChange, toast }) {
     if (!s.autosaveDirty || !s.state) return;
     s.autosaveDirty = false;
     const json = stateToJSON(currentState());
-    await storage.put('autosave', { id: s.docId, sessionId: SESSION_ID, name: s.name, savedAt: Date.now(), json });
+    await storage.put('autosave', { id: s.docId, sessionId: SESSION_ID, name: s.name, format: s.format, fileName: s.fileName, savedAt: Date.now(), json });
     // Password-protected documents keep no history in the browser.
     if (!s.password && getSetting('keepVersions') !== false) await addVersion({ docId: s.docId, name: s.name, json });
   }
@@ -345,7 +418,9 @@ export function createSession({ editor, onLoad, onChange, toast }) {
       await alertDialog(t('file.openFailedTitle'), e.message);
       return false;
     }
+    // Recovered documents have no file: Save goes to Save As, in the format they had.
     load(state, { name: entry.name, dirty: true, docId: entry.id });
+    if (entry.format) s.recoveredFormat = entry.format;
     await storage.put('autosave', { ...entry, sessionId: SESSION_ID });
     return true;
   }
@@ -370,6 +445,11 @@ export function createSession({ editor, onLoad, onChange, toast }) {
     downloadCopy,
     close,
     serialize,
+    serializeAs,
+    hooks,
+    fsAccess,
+    defaultFormat,
+    currentFormat,
     markDirty,
     autosaveNow,
     recoverable,

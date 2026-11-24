@@ -28,6 +28,9 @@ import { exportOdt } from './core/odt/export.js';
 import { stateToJSON, createBlankState, documentStats } from './core/document.js';
 import { createEditor } from './core/editor.js';
 import { createSession } from './core/session.js';
+import { formatEnv } from './features/file/export.js';
+import { formatForName } from './core/formats.js';
+import { lossyPrompt, fileConversion, passwordUnsupported } from './ui/save-dialogs.js';
 import { createClipboardActions } from './core/clipboard-actions.js';
 import { editingPlugins, AUTOCORRECT_DEFAULTS } from './core/editing-plugins.js';
 import { searchPlugin } from './core/search.js';
@@ -517,9 +520,17 @@ function boot() {
       if (state.updateFieldsOnOpen) queueMicrotask(() => updateTocsAfterOpen(ctx()));
       updateStyleSamples();
     },
-    onChange(info) { store.set({ docTitle: info.name, dirty: info.dirty }); queueMicrotask(() => ui.windows?.hub.announce()); },
+    onChange(info) { store.set({ docTitle: info.name, dirty: info.dirty, docFormat: info.format }); queueMicrotask(() => ui.windows?.hub.announce()); },
   });
 
+  // Save / Save As need the live editor (DOCX styles, the web page) and dialogs.
+  Object.assign(session.hooks, {
+    formatEnv: () => formatEnv(ctx()),
+    lossyPrompt: (o) => lossyPrompt(o),
+    fileConversion: (o, st) => fileConversion(o, st),
+    passwordUnsupported: (f) => passwordUnsupported(f),
+    openSaveAsPage: ({ format }) => store.set({ backstageOpen: true, backstagePage: 'saveAs', saveAsFormat: format }),
+  });
   const backstage = createBackstage({ registry, store, toast, session });
   const search = createCommandSearch({ registry, tabs: TABS, toast });
   const keytips = createKeyTips({ ribbon, store, openCommandSearch: () => search.open() });
@@ -648,13 +659,13 @@ function boot() {
   ui.handleEditorKey = (e) => !!appKey(e);
   document.addEventListener('keydown', (e) => { if (!e.defaultPrevented) appKey(e); });
 
-  // Drag and drop an .odt anywhere to open it.
+  // Drag and drop a document anywhere to open it.
   const hasFiles = (e) => [...(e.dataTransfer?.types || [])].includes('Files');
   addEventListener('dragover', (e) => { if (hasFiles(e)) { e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; } });
   addEventListener('drop', (e) => {
     if (!hasFiles(e) || e.defaultPrevented) return;
     e.preventDefault();
-    const file = [...e.dataTransfer.files].find((f) => /\.(odt|ott|docx|html?|md|markdown|rtf|txt)$/i.test(f.name));
+    const file = [...e.dataTransfer.files].find((f) => formatForName(f.name) || /\.fodt$/i.test(f.name));
     if (file) editorEnv.openFiles([file]);
   });
 

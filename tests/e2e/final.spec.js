@@ -74,20 +74,22 @@ test.describe('final', () => {
     expect(problems.networkRequests).toEqual([]);
   });
 
-  test('imports DOCX, RTF, HTML, Markdown and plain text as new documents', async ({ page }) => {
+  // M15: DOCX, HTML and text open as that file (not dirty, Save writes the same format); RTF and Markdown import as new documents.
+  test('opens DOCX, HTML and plain text as that file; RTF and Markdown as new documents', async ({ page }) => {
+    const info = () => page.evaluate(() => { const i = window.odtEditor.session.info; return { format: i.format, dirty: i.dirty, name: i.name }; });
     await openFile(page, 'lo-formatting-zoo.docx', readFileSync(path.join(FIX, 'lo-formatting-zoo.docx')));
     await expect.poll(() => docText(page)).not.toBe('');
     const docx = await page.evaluate(() => { const o = { headings: 0, bold: 0, italic: 0 }; window.odtEditor.editor.view.state.doc.descendants((n) => { if (n.type.name === 'heading') o.headings++; for (const m of n.marks || []) { const a = m.attrs.auto?.props?.['style:text-properties']?.a || {}; if (a['fo:font-weight'] === 'bold') o.bold++; if (a['fo:font-style'] === 'italic') o.italic++; } return true; }); return o; });
     expect(docx.bold + docx.italic).toBeGreaterThan(0);
     expect(await page.title()).toContain('lo-formatting-zoo');
-    // Tables survive a DOCX import.
+    expect(await info()).toEqual({ format: 'docx', dirty: false, name: 'lo-formatting-zoo' });
+    // Tables survive a DOCX import (the clean document is replaced without a prompt).
     await openFile(page, 'lo-tables.docx', readFileSync(path.join(FIX, 'lo-tables.docx')));
-    await page.locator('.dlg button', { hasText: 'Don’t Save' }).click();
     await expect.poll(() => page.evaluate(() => { let n = 0; window.odtEditor.editor.view.state.doc.descendants((x) => { if (x.type.name === 'table') n++; return true; }); return n; })).toBeGreaterThan(0);
-    // RTF from LibreOffice: tables and formatting.
+    // RTF from LibreOffice: tables and formatting; a new, unsaved document.
     await openFile(page, 'lo-tables.rtf', readFileSync(path.join(FIX, 'lo-tables.rtf')));
-    await page.locator('.dlg button', { hasText: 'Don’t Save' }).click();
     await expect.poll(() => page.evaluate(() => { let n = 0; window.odtEditor.editor.view.state.doc.descendants((x) => { if (x.type.name === 'table') n++; return true; }); return n; })).toBeGreaterThan(0);
+    expect(await info()).toEqual({ format: null, dirty: true, name: 'lo-tables' });
     await openFile(page, 'lo-formatting-zoo.rtf', readFileSync(path.join(FIX, 'lo-formatting-zoo.rtf')));
     await page.locator('.dlg button', { hasText: 'Don’t Save' }).click();
     await expect.poll(() => docText(page)).not.toBe('');
@@ -96,13 +98,17 @@ test.describe('final', () => {
     await page.locator('.dlg button', { hasText: 'Don’t Save' }).click();
     await expect.poll(() => docText(page)).toBe('Web titleHello webonetwo');
     expect(await page.evaluate(() => window.bad)).toBeUndefined();
+    expect(await info()).toEqual({ format: 'html', dirty: false, name: 'page' });
     await openFile(page, 'notes.md', Buffer.from('# Notes\n\nSome *emphasis* and **strong** text.\n\n1. First\n2. Second\n\n| A | B |\n|---|---|\n| 1 | 2 |\n'));
-    await page.locator('.dlg button', { hasText: 'Don’t Save' }).click();
     await expect.poll(() => page.evaluate(() => { const o = []; window.odtEditor.editor.view.state.doc.forEach((b) => o.push(b.type.name)); return o; })).toEqual(['heading', 'paragraph', 'list', 'table']);
+    expect((await info()).format).toBe(null);
     await openFile(page, 'plain.txt', Buffer.from('Line one\nLine\ttwo\n\nLine four\n'));
     await page.locator('.dlg button', { hasText: 'Don’t Save' }).click();
+    await expect.poll(async () => (await info()).name).toBe('plain');
     await expect.poll(() => page.evaluate(() => window.odtEditor.editor.view.state.doc.childCount)).toBe(4);
-    // Saving an imported document writes ODT.
+    expect(await info()).toEqual({ format: 'txt', dirty: false, name: 'plain' });
+    expect(await page.evaluate(() => window.odtEditor.session.info.options)).toEqual({ encoding: 'utf-8', lineEnding: 'lf', substitute: false });
+    // The internal ODT serialisation still works for any document.
     const bytes = await page.evaluate(async () => Array.from(await window.odtEditor.session.serialize()));
     expect(readZipText(new Uint8Array(bytes)).mimetype).toBe('application/vnd.oasis.opendocument.text');
   });
@@ -262,7 +268,7 @@ test.describe('final', () => {
     await inputs.nth(0).fill('s3cret');
     await inputs.nth(1).fill('s3cret');
     await page.locator('.dlg button.primary').click();
-    const enc = Buffer.from(await page.evaluate(async () => Array.from(await window.odtEditor.session.serialize())));
+    const enc = Buffer.from(await page.evaluate(async () => Array.from(await window.odtEditor.session.serializeAs('odt'))));
     const file = path.join(OUT, 'protected.odt');
     writeFileSync(file, enc);
     const zip = readZipText(new Uint8Array(enc));

@@ -56,7 +56,7 @@ export async function compareDocuments(c) {
     const revState = io.importOdt(revised.bytes);
     revState.doc = compareDocs(origDoc, revState.doc, { author: label.value.trim() || userName() });
     const { bytes } = io.exportOdt(revState);
-    await c.session.openBytes(bytes, { name: t('cmp.resultName'), remember: false });
+    await c.session.openBytes(bytes, { name: t('cmp.resultName'), remember: false, generated: true });
     c.store.set({ reviewDisplay: 'all' });
   } catch (e) {
     await alertDialog(t('cmp.title'), `${t('cmp.failed')} ${e.message || e}`);
