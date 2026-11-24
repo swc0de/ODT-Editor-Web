@@ -18,7 +18,9 @@ The memory between sessions. Statuses: `todo`, `in progress`, `awaiting approval
 | M11 — Mailings and Developer | approved |
 | M12 — View tab and windows | approved |
 | M13 — Import/export, Options, polish and final audit | approved |
-| M14 — Word DOCX fidelity and exact interface match | awaiting approval |
+| M14 — Word DOCX fidelity and exact interface match | approved |
+| M15 — DOCX as the default format, Save As in seven formats | in progress |
+| M16 — Native PDF and XPS writers | todo |
 
 ## Environment
 
@@ -414,7 +416,7 @@ Decisions:
 Known limitations: see README ▸ Known limitations (v1.0).
 
 
-## M14 — Word DOCX fidelity and exact interface match (awaiting approval)
+## M14 — Word DOCX fidelity and exact interface match (approved)
 
 Instructions: the M14 block in MILESTONES.md; reference spec `reference/docx/DOCX-Fidelity-Reference.docx` (defects D1–D14, layout rules L1–L15, export checklist, UI measurements in section 6, Appendix A per-paragraph values).
 

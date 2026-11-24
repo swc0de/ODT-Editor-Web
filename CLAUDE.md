@@ -1,6 +1,8 @@
 # ODT Editor — project brief
 
-A full word processor for **OpenDocument Text (.odt)**, delivered as ONE self-contained static HTML file (`dist/odt-editor.html`) that works offline by opening it in a browser. No server, no uploads, no analytics. Everything happens locally.
+A full word processor whose **default format is Word's `.docx`**, delivered as ONE self-contained static HTML file (`dist/odt-editor.html`) that works offline by opening it in a browser. No server, no uploads, no analytics. Everything happens locally.
+
+**Formats (from M15):** new documents save as `.docx` by default (Options ▸ Save can make it `.odt`). OpenDocument Text (`.odt`) stays fully supported for open and save, and ODF stays the internal document model. Save As offers Word Document (*.docx), OpenDocument Text (*.odt), Word XML Document (*.xml), Web Page (*.htm; *.html), Plain Text (*.txt), PDF (*.pdf) and XPS Document (*.xps); every format is defined once in `src/core/formats.js`. A `.docx` the app didn't create must never lose content on Save: unowned package parts and unknown elements are kept and written back.
 
 **Product name:** "ODT Editor". It is defined once in `src/config.js`, so it can be changed in one place.
 
@@ -87,7 +89,7 @@ The light theme mirrors this with a white/#f3f3f3 ribbon and a #e9e9e9 canvas.
 **Top row (tab bar):** File, Home, Insert, Draw, Design, Layout, References, Mailings, Review, View, Developer, Help.
 - The active tab has accent text and a 2–3px accent underline.
 - File opens the backstage instead of a ribbon.
-- Right side: a "Comments" button (with icon), an "Editing ▾" mode dropdown (Editing / Reviewing = track changes on / Viewing = read-only), and a filled accent "Share" button (Web Share API with the .odt file, otherwise a menu of Download .odt / Export PDF / Copy as HTML).
+- Right side: a "Comments" button (with icon), an "Editing ▾" mode dropdown (Editing / Reviewing = track changes on / Viewing = read-only), and a filled accent "Share" button (Web Share API with the document's file in its current format, otherwise a menu of Download a copy / Export PDF / Copy as HTML).
 
 **Ribbon:**
 - A single row of **groups**, each with its label centred underneath (Clipboard, Font, Paragraph…). Groups are separated by thin vertical dividers.
@@ -165,7 +167,8 @@ The light theme mirrors this with a white/#f3f3f3 ribbon and a #e9e9e9 canvas.
 - **Info:** document properties (title, subject, author, keywords, comments, stats), Inspect Document, Protect (password-protected ODT if feasible, otherwise Coming soon), Version history (autosaves).
 - **Recover:** autosaved/unsaved documents.
 - **Print:** a print preview with settings.
-- **Export:** ODT, PDF (via print with tagged headings/links where the browser allows), DOCX, HTML, Markdown, RTF, TXT; also "Export page as PNG".
+- **Save As:** Word's layout: file name, "Save as type" (the seven formats of `src/core/formats.js`), More options…, Save.
+- **Export:** the registry's formats plus Markdown, RTF and "Export page as PNG"; Create PDF/XPS Document.
 - **Options:** General (name/initials, theme), Display, Proofing (AutoCorrect options), Save (autosave interval), Language, Advanced (units), Customise Ribbon (show/hide tabs), Quick Access Toolbar.
 
 **Other UI:**
@@ -188,7 +191,7 @@ The light theme mirrors this with a white/#f3f3f3 ribbon and a #e9e9e9 canvas.
 
 ## Non-negotiables
 
-- **ODT fidelity first:** files saved by this app open correctly in LibreOffice Writer and keep everything the user made. Unknown content survives round-trips.
+- **Fidelity first:** `.docx` files saved by this app open correctly in Word and LibreOffice, `.odt` files in LibreOffice Writer, and both keep everything the user made. Unknown content (unowned DOCX parts, unknown OOXML elements, unknown ODF content) survives round-trips.
 - **No fake features:** if something can't be done properly, its control is disabled with a "Coming soon" tooltip, and the gap is listed in the README.
 - **Never lose work:** autosave to IndexedDB (every 30s plus on blur), crash recovery via Backstage → Recover, unsaved-change prompts, and a beforeunload guard.
 - **Accessibility:** fully keyboard operable (KeyTips, F6 cycles regions), ARIA roles for the ribbon/tabs/menus/dialogs, visible focus, and WCAG AA contrast in both themes.
