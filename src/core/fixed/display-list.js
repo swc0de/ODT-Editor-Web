@@ -325,9 +325,10 @@ export async function buildPages(o) {
       const x2 = last.x + last.w;
       for (const d of deco) {
         const m = face.metrics;
-        const y = d.line === 'underline' ? run.item.y - (m.underlinePosition * size) / m.upm : d.line === 'line-through' ? run.item.y - (m.strikePosition * size) / m.upm : run.item.y - (m.ascent * size) / m.upm;
         // text-decoration-thickness when set, else the font's underline thickness.
         const width = d.thickness || Math.max(0.5, (m.underlineThickness * size) / m.upm);
+        // The font's underline position is the line's top edge: the thickness hangs below it.
+        const y = d.line === 'underline' ? run.item.y - (m.underlinePosition * size) / m.upm + width / 2 : d.line === 'line-through' ? run.item.y - (m.strikePosition * size) / m.upm : run.item.y - (m.ascent * size) / m.upm;
         const dash = d.style === 'dotted' ? [width, width] : d.style === 'dashed' ? [width * 3, width * 2] : null;
         const c = d.color?.hex || color.hex;
         if (d.style === 'wavy') {

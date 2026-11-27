@@ -346,7 +346,9 @@ test.describe('final', () => {
     await run(page, 'help.about');
     await expect(page.locator('.about-page')).toContainText('UI inspired by the open-source WordCraft project (MIT/Apache-2.0).');
     // M14: the docx library is no longer bundled (DOCX is written by the editor's own writer); Selawik joined the font row.
-    await expect(page.locator('.about-licences tr')).toHaveCount(13);
+    // M16: fontkit (PDF / XPS fonts) joined.
+    await expect(page.locator('.about-licences tr')).toHaveCount(14);
+    await expect(page.locator('.about-licences')).toContainText('fontkit');
     // Version history: autosaves keep earlier versions; one opens as a new document.
     await page.evaluate(() => window.odtEditor.session.autosaveNow());
     await run(page, 'file.infoPage');

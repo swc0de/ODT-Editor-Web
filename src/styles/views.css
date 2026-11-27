@@ -244,3 +244,5 @@ kbd { font: 12px var(--font-ui); padding: 1px 6px; border: 1px solid var(--contr
 .sv-fieldset legend { padding: 0 4px; color: var(--text-muted); }
 .sv-pages { display: flex; align-items: center; gap: 6px; }
 .sv-pages .fm-num { width: 64px; }
+.sv-dlg.sv-fixed { min-width: min(440px, 80vw); }
+.sv-fieldset { min-width: 0; box-sizing: border-box; }
