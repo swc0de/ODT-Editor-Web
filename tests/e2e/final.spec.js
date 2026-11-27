@@ -88,8 +88,9 @@ test.describe('final', () => {
     await expect.poll(() => page.evaluate(() => { let n = 0; window.odtEditor.editor.view.state.doc.descendants((x) => { if (x.type.name === 'table') n++; return true; }); return n; })).toBeGreaterThan(0);
     // RTF from LibreOffice: tables and formatting; a new, unsaved document.
     await openFile(page, 'lo-tables.rtf', readFileSync(path.join(FIX, 'lo-tables.rtf')));
+    // Wait for the RTF itself (the DOCX before it has tables too).
+    await expect.poll(info).toEqual({ format: null, dirty: true, name: 'lo-tables' });
     await expect.poll(() => page.evaluate(() => { let n = 0; window.odtEditor.editor.view.state.doc.descendants((x) => { if (x.type.name === 'table') n++; return true; }); return n; })).toBeGreaterThan(0);
-    expect(await info()).toEqual({ format: null, dirty: true, name: 'lo-tables' });
     await openFile(page, 'lo-formatting-zoo.rtf', readFileSync(path.join(FIX, 'lo-formatting-zoo.rtf')));
     await page.locator('.dlg button', { hasText: 'Don’t Save' }).click();
     await expect.poll(() => docText(page)).not.toBe('');
