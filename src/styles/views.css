@@ -240,3 +240,7 @@ kbd { font: 12px var(--font-ui); padding: 1px 6px; border: 1px solid var(--contr
 .sv-preview { white-space: pre-wrap; font-family: var(--font-mono, Consolas, monospace); font-size: 12px; max-height: 160px; overflow: auto; padding: 8px; border: 1px solid var(--control-border, #777); border-radius: 4px; background: var(--control-bg); }
 .sv-bad { color: #fff; background: #c42b1c; border-radius: 2px; }
 .status-format { padding: 0 8px; }
+.sv-fieldset { border: 1px solid var(--divider, #555); border-radius: 4px; padding: 6px 10px 8px; margin: 0; display: flex; flex-direction: column; gap: 4px; }
+.sv-fieldset legend { padding: 0 4px; color: var(--text-muted); }
+.sv-pages { display: flex; align-items: center; gap: 6px; }
+.sv-pages .fm-num { width: 64px; }

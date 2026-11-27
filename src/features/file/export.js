@@ -16,6 +16,14 @@ import { toPx } from '../../layout/units.js';
 import { APP_NAME, APP_VERSION } from '../../config.js';
 import { t } from '../../i18n/index.js';
 import { metaTitle } from '../../core/document.js';
+import { exportFixed } from '../../core/fixed/index.js';
+import { refreshView } from '../review/track.js';
+
+/** Default options of the PDF and XPS writers (Word's Options for PDF / XPS). */
+export const FIXED_DEFAULTS = {
+  pdf: { range: 'all', markup: false, bookmarks: true, properties: true, tagged: true, pdfa: false, minimumSize: false },
+  xps: { range: 'all', markup: false },
+};
 
 /**
  * File ▸ Export: the Save as type formats from core/formats.js (as copies:
@@ -24,8 +32,7 @@ import { metaTitle } from '../../core/document.js';
  */
 const EXPORT_IDS = { txt: 'text' }; // command ids kept from earlier versions (file.export_text)
 export const EXPORTS = [
-  ...SAVE_FORMATS.filter((f) => f.kind !== 'fixed').map((f) => ({ id: EXPORT_IDS[f.id] || f.id, format: f.id, ext: f.exts[0].slice(1), icon: f.icon, mime: f.mime })),
-  { id: 'pdf', ext: 'pdf', icon: 'fmt-pdf' },
+  ...SAVE_FORMATS.map((f) => ({ id: EXPORT_IDS[f.id] || f.id, format: f.id, ext: f.exts[0].slice(1), icon: f.icon, mime: f.mime })),
   ...IMPORT_FORMATS.map((f) => ({ id: f.id === 'md' ? 'markdown' : f.id, ext: f.exts[0].slice(1), icon: f.icon, mime: f.mime })),
   { id: 'png', ext: 'png', icon: 'image', mime: 'image/png' },
 ];
@@ -59,6 +66,20 @@ export function formatEnv(c) {
       return writeDocxParts(state, index, { nodeFromJSON: (j) => schema.nodeFromJSON(j), partDoc: (tree) => partToDoc(state, index, tree), generator: `${APP_NAME} ${APP_VERSION}`, asTemplate: !!o.asTemplate, framePicture: (n) => pictures.get(n) });
     },
     html: (state, o = {}) => documentHtml(c, o),
+    fixed: async (id, o = {}) => {
+      const st = c.session.state;
+      const meta = (n) => (st.meta?.c || []).filter((t) => typeof t !== 'string' && t.n === n).map((t) => (t.c || []).filter((x) => typeof x === 'string').join(''));
+      const pictures = { ...(st.extraFiles || {}), ...(st.pictures || {}) };
+      const byUrl = new Map(Object.keys(pictures).filter((p) => /^Pictures\/|\.(png|jpe?g|gif|svg|webp|bmp)$/i.test(p)).map((p) => [c.ui.pictureUrl(p), pictures[p]]));
+      const r = await exportFixed({
+        docArea: c.ui.docArea, view: c.mainEditor.view, store: c.store, refreshView: () => refreshView(c), currentPage: c.state.page || 1,
+        pictureLookup: (src) => byUrl.get(src) || null, producer: `${APP_NAME} ${APP_VERSION}`,
+        meta: { title: meta('dc:title')[0] || c.session.info.name, author: meta('meta:initial-creator')[0] || meta('dc:creator')[0] || '', subject: meta('dc:subject')[0] || '', keywords: meta('meta:keyword').join(', '), lang: document.documentElement.lang || 'en-GB' },
+      }, id, { ...FIXED_DEFAULTS[id], ...o });
+      // A font that had to be replaced is reported ("Calibri was replaced by Carlito").
+      if (r.substitutions.length) c.ui.toast(t('fixed.substituted', { list: r.substitutions.map(([a, b]) => t('fixed.replacedBy', { requested: a, used: b })).join(', ') }));
+      return r.bytes;
+    },
   };
 }
 
@@ -102,7 +123,6 @@ export async function exportData(c, id) {
 
 export async function exportAs(c, id) {
   const fmt = EXPORTS.find((f) => f.id === id);
-  if (id === 'pdf') { c.ui.print?.run({ pdf: true }); return true; }
   try {
     const data = await exportData(c, id);
     const suffix = id === 'png' ? `-page${c.state.page || 1}` : '';

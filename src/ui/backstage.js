@@ -10,9 +10,9 @@ import { iconSvg } from './icons.js';
 import { t } from '../i18n/index.js';
 import { setPinned, removeRecent } from '../core/storage.js';
 import { TEMPLATES, templateDoc } from '../features/file/templates.js';
-import { EXPORTS } from '../features/file/export.js';
+import { EXPORTS, FIXED_DEFAULTS } from '../features/file/export.js';
 import { SAVE_FORMATS, formatById, formatForName } from '../core/formats.js';
-import { fileConversion, webOptions } from './save-dialogs.js';
+import { fileConversion, webOptions, fixedOptions } from './save-dialogs.js';
 import { alertDialog } from './dialog.js';
 import { renderInfo } from './info-page.js';
 import { renderAbout } from './help.js';
@@ -200,6 +200,7 @@ export function createBackstage({ registry, store, toast, session }) {
       let o = null;
       if (f.id === 'txt') o = await fileConversion({ encoding: 'utf-8', lineEnding: 'crlf', ...cur }, session.currentState());
       else if (f.id === 'html') o = await webOptions(cur, info.name);
+      else if (f.kind === 'fixed') o = await fixedOptions(f.id, { ...FIXED_DEFAULTS[f.id], ...cur }, registry.context().ui.docArea.pages.length);
       else { await alertDialog(t('saveas.moreOptions'), t('saveas.noOptions')); return; }
       if (o) pendingOptions[f.id] = o;
     });
@@ -285,9 +286,7 @@ export function createBackstage({ registry, store, toast, session }) {
       h('h2', { class: 'bs-h2' }, t('print.settings')),
       h('label', { class: 'bs-field' }, h('span', {}, t('print.pages')), rangeSel),
       pagesInput,
-      h('p', { class: 'bs-empty' }, setup), pageSetup,
-      h('h2', { class: 'bs-h2' }, t('export.pdf')),
-      h('p', { class: 'bs-empty' }, t('export.pdfDesc')));
+      h('p', { class: 'bs-empty' }, setup), pageSetup);
     // Preview: a copy of the page at a size that fits.
     const frame = h('div', { class: 'bs-print-page' });
     const label = h('span', { class: 'bs-print-label', role: 'status' });

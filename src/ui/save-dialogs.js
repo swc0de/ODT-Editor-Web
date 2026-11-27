@@ -111,3 +111,38 @@ export async function compatibilityDialog({ state, name, format = 'docx' }) {
   await showDialog({ title: t('compat.title'), message: body, wide: true, buttons: [{ label: t('common.ok'), value: true, primary: true }], cancelValue: true });
   return formatById(sel.value);
 }
+
+/** Word's Options for PDF / XPS: page range, what to publish and (PDF) bookmarks, properties, tags, PDF/A, size. */
+export async function fixedOptions(kind, cur, pageCount = 1) {
+  const radio = (name, value, label, checked) => {
+    const input = h('input', { type: 'radio', name, value, 'data-option': `${name}-${value}` });
+    input.checked = !!checked;
+    return h('label', { class: 'fm-check' }, input, label);
+  };
+  const from = h('input', { type: 'number', class: 'fm-input fm-num', min: '1', max: String(pageCount), value: String(cur.from || 1), 'aria-label': t('fixed.rangePages'), 'data-option': 'from' });
+  const to = h('input', { type: 'number', class: 'fm-input fm-num', min: '1', max: String(pageCount), value: String(cur.to || pageCount), 'aria-label': t('fixed.to'), 'data-option': 'to' });
+  const rangeBox = h('fieldset', { class: 'sv-fieldset' }, h('legend', {}, t('fixed.pageRange')),
+    radio('range', 'all', t('fixed.rangeAll'), cur.range === 'all' || !cur.range), radio('range', 'current', t('fixed.rangeCurrent'), cur.range === 'current'), radio('range', 'selection', t('fixed.rangeSelection'), cur.range === 'selection'),
+    h('div', { class: 'sv-pages' }, radio('range', 'pages', t('fixed.rangePages'), cur.range === 'pages'), from, h('span', {}, t('fixed.to')), to));
+  for (const x of [from, to]) x.addEventListener('input', () => { rangeBox.querySelector('[value="pages"]').checked = true; });
+  const what = h('fieldset', { class: 'sv-fieldset' }, h('legend', {}, t('fixed.publishWhat')), radio('what', 'document', t('fixed.document'), !cur.markup), radio('what', 'markup', t('fixed.markup'), cur.markup));
+  const parts = [rangeBox, what];
+  const checks = {};
+  if (kind === 'pdf') {
+    checks.bookmarks = check(t('fixed.bookmarks'), cur.bookmarks !== false, { 'data-option': 'bookmarks' });
+    checks.properties = check(t('fixed.properties'), cur.properties !== false, { 'data-option': 'properties' });
+    checks.tagged = check(t('fixed.tagged'), cur.tagged !== false, { 'data-option': 'tagged' });
+    checks.pdfa = check(t('fixed.pdfa'), !!cur.pdfa, { 'data-option': 'pdfa' });
+    const opt = h('fieldset', { class: 'sv-fieldset' }, h('legend', {}, t('fixed.optimize')), radio('opt', 'standard', t('fixed.standard'), !cur.minimumSize), radio('opt', 'minimum', t('fixed.minimum'), cur.minimumSize));
+    parts.push(h('fieldset', { class: 'sv-fieldset' }, h('legend', {}, t('fixed.include')), checks.bookmarks, checks.properties, checks.tagged, checks.pdfa), opt);
+    // PDF/A needs the tags' companions: properties and embedded fonts (always).
+    checks.pdfa.input.addEventListener('change', () => { if (checks.pdfa.input.checked) checks.properties.input.checked = true; });
+  }
+  const body = h('div', { class: 'sv-dlg sv-fixed' }, ...parts);
+  const ok = await showDialog({ title: t(kind === 'pdf' ? 'fixed.pdfTitle' : 'fixed.xpsTitle'), message: body, buttons: [{ label: t('common.ok'), value: true, primary: true }, { label: t('common.cancel'), value: false }], cancelValue: false });
+  if (!ok) return null;
+  const val = (name) => body.querySelector(`input[name="${name}"]:checked`)?.value;
+  const out = { range: val('range') || 'all', from: Number(from.value) || 1, to: Number(to.value) || pageCount, markup: val('what') === 'markup' };
+  if (kind === 'pdf') Object.assign(out, { bookmarks: checks.bookmarks.input.checked, properties: checks.properties.input.checked, tagged: checks.tagged.input.checked, pdfa: checks.pdfa.input.checked, minimumSize: val('opt') === 'minimum' });
+  return out;
+}

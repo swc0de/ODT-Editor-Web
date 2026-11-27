@@ -36,8 +36,8 @@ export const SAVE_FORMATS = [
   { id: 'xml', labelKey: 'fmt.xml', exts: ['.xml'], mime: 'application/xml', kind: 'native', icon: 'fmt-xml', statusKey: 'fmt.status.xml' },
   { id: 'html', labelKey: 'fmt.html', exts: ['.html', '.htm'], mime: 'text/html', kind: 'lossy', options: 'html', icon: 'fmt-html', statusKey: 'fmt.status.html' },
   { id: 'txt', labelKey: 'fmt.txt', exts: ['.txt'], mime: 'text/plain', kind: 'lossy', options: 'txt', icon: 'fmt-txt', statusKey: 'fmt.status.txt' },
-  { id: 'pdf', labelKey: 'fmt.pdf', exts: ['.pdf'], mime: 'application/pdf', kind: 'fixed', options: 'pdf', icon: 'fmt-pdf', available: false },
-  { id: 'xps', labelKey: 'fmt.xps', exts: ['.xps'], mime: 'application/vnd.ms-xpsdocument', kind: 'fixed', options: 'xps', icon: 'fmt-xps', available: false },
+  { id: 'pdf', labelKey: 'fmt.pdf', exts: ['.pdf'], mime: 'application/pdf', kind: 'fixed', options: 'pdf', icon: 'fmt-pdf' },
+  { id: 'xps', labelKey: 'fmt.xps', exts: ['.xps'], mime: 'application/vnd.ms-xpsdocument', kind: 'fixed', options: 'xps', icon: 'fmt-xps' },
 ];
 
 export const TEMPLATE_FORMATS = [
@@ -232,6 +232,8 @@ export async function writeFile(id, env, options = {}) {
       return strToU8(html);
     }
     case 'txt': return encodeText(toText(state), options).bytes;
+    // PDF and XPS: drawn from the laid-out pages (core/fixed).
+    case 'pdf': case 'xps': return env.fixed(id, options);
     default: throw new FormatError(`Saving as ${id} isn't available yet.`, 'unavailable');
   }
 }

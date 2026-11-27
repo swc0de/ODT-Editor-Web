@@ -41,6 +41,7 @@
     "dictionary-en": "^4.0.0",
     "dictionary-en-gb": "^3.0.0",
     "esbuild": "^0.28.2",
+    "fontkit": "^3.0.0",
     "hyphen": "^1.10.6",
     "mathlive": "0.111.4",
     "nspell": "^2.1.5",
