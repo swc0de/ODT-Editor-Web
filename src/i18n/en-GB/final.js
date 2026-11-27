@@ -40,7 +40,6 @@ export default {
   'print.pageOf': '{n} of {count}',
   'cmd.file.printNow': 'Print Now',
   'print.badRange': 'Type the pages to print as numbers and ranges, for example 1-3, 5.',
-  'print.pdfHint': 'To make a PDF, choose “Save as PDF” as the printer.',
   'protect.openTitle': 'Password',
   'protect.openPrompt': '“{name}” is protected. Enter the password to open it.',
   'protect.password': 'Password',

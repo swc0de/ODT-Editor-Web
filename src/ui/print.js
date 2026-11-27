@@ -1,5 +1,5 @@
 /**
- * Printing (and PDF through the browser's "Save as PDF"): the pages are laid
+ * Printing (PDF and XPS have their own writers, core/fixed): the pages are laid
  * out once more with no gaps between them, then a copy of the page stack is
  * placed in a print-only container. A page range is a window onto that copy;
  * every page size gets its own named @page rule, so landscape sections print
@@ -88,13 +88,12 @@ export function createPrint({ docArea, store, toast, t }) {
     await docArea.setPrinting(false);
   }
 
-  /** Print (or Save as PDF) with the browser's print dialog. */
+  /** Print with the browser's print dialog. */
   async function run(opts = {}) {
     const n = await prepare(opts);
     if (!n) { toast(t('print.badRange')); await cleanup(); return false; }
     const done = () => { removeEventListener('afterprint', done); cleanup(); };
     addEventListener('afterprint', done);
-    if (opts.pdf) toast(t('print.pdfHint'));
     window.print();
     return true;
   }

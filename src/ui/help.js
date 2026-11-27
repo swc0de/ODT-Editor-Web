@@ -23,6 +23,7 @@ export const LICENCES = [
   ['SheetJS Community Edition', 'Apache-2.0'],
   ['mammoth', 'BSD-2-Clause'],
   ['marked', 'MIT'],
+  ['fontkit (PDF / XPS font reading), with brotli, restructure, unicode-properties, unicode-trie, dfa and base64-js', 'MIT'],
   ['Lucide icons', 'ISC'],
   ['Fonts: Carlito, Caladea, Liberation Sans, Liberation Serif, Liberation Mono, Selawik', 'SIL Open Font License 1.1'],
 ];

@@ -171,7 +171,7 @@ export async function buildPages(o) {
     if (inline && el.parentElement && el.parentElement !== stack) list = [...decorationsOf(el.parentElement)];
     const lines = s.textDecorationLine;
     if (lines && lines !== 'none' && !SCREEN_DECORATION.some((c) => el.classList.contains(c))) {
-      for (const l of lines.split(/\s+/)) if (l === 'underline' || l === 'line-through' || l === 'overline') list.push({ line: l, color: rgba(s.textDecorationColor || s.color), style: s.textDecorationStyle });
+      for (const l of lines.split(/\s+/)) if (l === 'underline' || l === 'line-through' || l === 'overline') list.push({ line: l, color: rgba(s.textDecorationColor || s.color), style: s.textDecorationStyle, thickness: /px$/.test(s.textDecorationThickness || '') ? parseFloat(s.textDecorationThickness) : 0 });
     }
     decoCache.set(el, list);
     return list;
@@ -326,14 +326,17 @@ export async function buildPages(o) {
       for (const d of deco) {
         const m = face.metrics;
         const y = d.line === 'underline' ? run.item.y - (m.underlinePosition * size) / m.upm : d.line === 'line-through' ? run.item.y - (m.strikePosition * size) / m.upm : run.item.y - (m.ascent * size) / m.upm;
-        const width = Math.max(0.5, (m.underlineThickness * size) / m.upm);
-        const dash = d.style === 'dotted' ? [width, width * 2] : d.style === 'dashed' ? [width * 3, width * 2] : null;
+        // text-decoration-thickness when set, else the font's underline thickness.
+        const width = d.thickness || Math.max(0.5, (m.underlineThickness * size) / m.upm);
+        const dash = d.style === 'dotted' ? [width, width] : d.style === 'dashed' ? [width * 3, width * 2] : null;
         const c = d.color?.hex || color.hex;
         if (d.style === 'wavy') {
           // A wave of half-periods 2 × thickness, as the browser draws it.
-          const amp = Math.max(1, width * 1.5); const half = Math.max(2, width * 3);
-          const dd = [['M', x1, y]];
-          for (let x = x1, up = true; x < x2; x += half, up = !up) { const xe = Math.min(x2, x + half); dd.push(['C', x + (xe - x) / 2, y + (up ? -amp : amp), x + (xe - x) / 2, y + (up ? -amp : amp), xe, y]); }
+          // Chrome's wave: about 2.5 px from crest to trough per px of thickness, hanging below the underline position.
+          const amp = Math.max(1, width) * 1.1; const half = Math.max(2, width * 2.2);
+          const wy = y + amp * 0.75 + size * 0.12;
+          const dd = [['M', x1, wy]];
+          for (let x = x1, up = true; x < x2; x += half, up = !up) { const xe = Math.min(x2, x + half); dd.push(['C', x + (xe - x) / 2, wy + (up ? -amp : amp), x + (xe - x) / 2, wy + (up ? -amp : amp), xe, wy]); }
           run.sink.push({ t: 'path', d: dd, fill: null, fillAlpha: 0, stroke: c, strokeAlpha: 1, width });
           continue;
         }
@@ -372,7 +375,9 @@ export async function buildPages(o) {
         run.item.glyphs = run.glyphs;
       }
       void half;
-      run.glyphs.push({ ch, gid: f.use(ch), x: gx, w: w || (f.advance(ch) * size * k) });
+      // A glyph from another font than the browser's: centred in the browser's box (the widths differ).
+      const fx = f !== face && w ? gx + (w - f.advance(ch) * size * k) / 2 : gx;
+      run.glyphs.push({ ch, gid: f.use(ch), x: fx, w: w || (f.advance(ch) * size * k) });
     }
     flush();
   }
@@ -427,6 +432,7 @@ export async function buildPages(o) {
     const bg = rgba(s.backgroundColor);
     const bw = ['Top', 'Right', 'Bottom', 'Left'].map((k) => (s[`border${k}Style`] !== 'none' && s[`border${k}Style`] !== 'hidden' ? parseFloat(s[`border${k}Width`]) || 0 : 0));
     columnRules(el, s);
+    if (el.classList?.contains('odt-tab') && el.dataset.leader) tabLeader(el, s);
     if ((!bg || bg.a === 0) && !bw.some((w) => w > 0)) return;
     const rects = /^inline/.test(s.display) ? [...el.getClientRects()] : [el.getBoundingClientRect()];
     // Collapsed table borders straddle the cell edge and are shared by neighbouring cells: drawn once, on the edge.
@@ -468,6 +474,33 @@ export async function buildPages(o) {
             sink.push({ t: 'line', x1: a + o2[0], y1: b + o2[1], x2: c + o2[0], y2: d + o2[1], width: t3, color: col.hex });
           } else sink.push({ t: 'line', x1: a + off[0], y1: b + off[1], x2: c + off[0], y2: d + off[1], width: w, color: col.hex, dash });
         });
+      }
+    }
+  }
+
+  /** Tab leaders (content.css draws them as background gradients): dots, dashes or a rule along the tab. */
+  function tabLeader(el, s) {
+    const col = rgba(s.color);
+    if (!col || col.a === 0) return;
+    const kind = el.dataset.leader;
+    for (const r of el.getClientRects()) {
+      if (r.width < 1) continue;
+      const place = placeFor(el, (r.left + r.right) / 2, (r.top + r.bottom) / 2);
+      if (!place) continue;
+      const [x1, y1] = place.map(r.left, r.top);
+      const [x2, y2] = place.map(r.right, r.bottom);
+      const h = y2 - y1;
+      if (kind === 'dotted') {
+        // 4 px tiles at 92 %, a dot in the middle of each whole tile: the gradient's dot fills
+        // about 2 × 1 px (that is how the browser draws it at 100 %).
+        // The browser snaps background tiles to whole pixels: so do the dots (≤ ½ px).
+        const y = Math.round(y1 + (h - 3) * 0.92 + 1) + 0.5;
+        const d = [];
+        for (let x = Math.round(x1); x + 4 <= x2 + 0.51; x += 4) d.push(['M', x + 1, y - 0.5], ['L', x + 3, y - 0.5], ['L', x + 3, y + 0.5], ['L', x + 1, y + 0.5], ['Z']);
+        if (d.length) place.sink.push({ t: 'path', d, fill: col.hex, fillAlpha: col.a, stroke: null, artifact: true });
+      } else {
+        const y = y1 + (h - 1) * 0.92 + 0.5;
+        place.sink.push({ t: 'line', x1, y1: y, x2, y2: y, width: 1, color: col.hex, dash: kind === 'dash' ? [3.6, 2.4] : null, artifact: true });
       }
     }
   }

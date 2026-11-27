@@ -66,7 +66,7 @@ test.describe('save formats', () => {
       const offered = await page.evaluate(() => window.__fs.offered[0]);
       expect(offered.suggestedName).toBe('Document1.docx');
       expect(Object.values(offered.types[0].accept)[0]).toEqual(['.docx']);
-      expect(offered.types.map((x) => Object.values(x.accept)[0][0])).toEqual(['.docx', '.odt', '.xml', '.html', '.txt']);
+      expect(offered.types.map((x) => Object.values(x.accept)[0][0])).toEqual(['.docx', '.odt', '.xml', '.html', '.txt', '.pdf', '.xps']);
       await expect.poll(() => info(page)).toMatchObject({ format: 'docx', dirty: false, hasHandle: true, fileName: 'Document1.docx' });
       expect(isDocx(await written(page, 'Document1.docx'))).toBe(true);
       // Shift+F12 saves too, writing back without a picker.
@@ -91,7 +91,7 @@ test.describe('save formats', () => {
       expect(strFromU8(unzipSync(new Uint8Array(out))['word/document.xml'])).toContain('Changed');
     });
 
-    test('Save As picks the format from the chosen extension; PDF / XPS are not offered yet', async ({ page }) => {
+    test('Save As picks the format from the chosen extension; PDF / XPS are offered as copies', async ({ page }) => {
       await type(page, 'Formats');
       for (const [name, format] of [['a.odt', 'odt'], ['b.xml', 'xml'], ['c.docx', 'docx']]) {
         await page.evaluate((n) => { window.__fs.nextName = n; }, name);
@@ -102,7 +102,7 @@ test.describe('save formats', () => {
       // The document's current format comes first (Word XML when c.docx was chosen).
       const types = await page.evaluate(() => window.__fs.offered.at(-1).types.map((x) => Object.values(x.accept)[0][0]));
       expect(types[0]).toBe('.xml');
-      expect(types).not.toContain('.pdf');
+      expect(types.slice(-2)).toEqual(['.pdf', '.xps']);
       // The Backstage Save As page fills the picker from its name and type.
       await page.evaluate(() => window.odtEditor.registry.run('file.saveAsPage'));
       await page.locator('[data-saveas-name]').fill('Renamed');
@@ -227,10 +227,10 @@ test.describe('save formats', () => {
         await expect.poll(() => docText(page)).toContain('Seven formats');
         expect((await info(page)).format).toBe(format);
       }
-      // PDF and XPS are listed but not available until the PDF/XPS writers exist.
+      // PDF and XPS are listed and available (M16).
       await page.keyboard.press('F12');
       const opts = await page.locator('[data-saveas-type] option').evaluateAll((os) => os.map((o) => [o.textContent, o.disabled]));
-      expect(opts).toEqual([['Word Document (*.docx)', false], ['OpenDocument Text (*.odt)', false], ['Word XML Document (*.xml)', false], ['Web Page (*.htm; *.html)', false], ['Plain Text (*.txt)', false], ['PDF (*.pdf)', true], ['XPS Document (*.xps)', true]]);
+      expect(opts).toEqual([['Word Document (*.docx)', false], ['OpenDocument Text (*.odt)', false], ['Word XML Document (*.xml)', false], ['Web Page (*.htm; *.html)', false], ['Plain Text (*.txt)', false], ['PDF (*.pdf)', false], ['XPS Document (*.xps)', false]]);
     });
 
     test('keyboard: Alt+F, A opens Save As; the status bar names Web Page / Plain Text / Word XML; Recent shows format icons', async ({ page }) => {

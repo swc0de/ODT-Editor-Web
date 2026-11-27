@@ -20,10 +20,21 @@ offline) and everything happens locally.
 - **Formats** (File ▸ Save As ▸ Save as type, the same list as Word for
   Windows): Word Document (*.docx, the default), OpenDocument Text (*.odt),
   Word XML Document (*.xml, Flat OPC), Web Page (*.htm; *.html), Plain Text
-  (*.txt), PDF (*.pdf) and XPS Document (*.xps). PDF and XPS are listed but
-  dimmed until their writers arrive (the next milestone); File ▸ Print makes
-  a PDF meanwhile. Options ▸ Save ▸ "Save files in this format" makes new
-  documents save as `.odt` instead.
+  (*.txt), PDF (*.pdf) and XPS Document (*.xps). Options ▸ Save ▸ "Save
+  files in this format" makes new documents save as `.odt` instead.
+- **PDF and XPS** are written by the app itself from the laid-out pages (no
+  print dialog): real, searchable text in embedded subset fonts, vector
+  lines and shapes, the original pictures, links, bookmarks from the
+  headings, document properties and, for PDF, tags for screen readers and
+  an optional PDF/A-2b archive mode. Save As ▸ More options… chooses the
+  pages (all, current, selection, from–to), "Document" or "Document
+  showing markup" (comments as PDF notes), and for PDF bookmarks,
+  properties, tags, PDF/A and Minimum size (pictures at 150 dpi). Saving as
+  PDF or XPS writes a copy: the document stays attached to its .docx/.odt.
+  Fonts that can't be embedded (a system font the browser may not read) are
+  replaced by their metric-compatible bundled font, and a message says so
+  ("Calibri was replaced by Carlito"); allow "local fonts" for the page in
+  Chromium to embed your installed fonts instead.
 - **Open**: Ctrl+O, drag a file onto the window, or File ▸ Open / Recent.
   `.docx`, `.odt`, Word XML / flat ODT `.xml`, web pages and text files open
   *as that file*: Save writes back to it in the same format (through the
@@ -55,7 +66,7 @@ offline) and everything happens locally.
   system share sheet where the browser has one, Download a copy, Export PDF
   and Copy as HTML.
 - **Print**: Ctrl+P opens File ▸ Print with a preview and page ranges; the
-  browser's print dialog does the rest (choose "Save as PDF" for a PDF).
+  browser's print dialog does the rest. For a PDF, use Save As ▸ PDF.
 - **Protect**: File ▸ Info ▸ Protect Document encrypts the file with a
   password: Word documents with AES-256 (as Word does, readable by Word and
   LibreOffice), ODT the way LibreOffice does it. Web pages, text and Word XML
@@ -394,9 +405,15 @@ Other limitations:
   kept in the file so this app reopens them editable; image watermarks aren't
   written for Word (text watermarks are). HTML and Markdown keep the content,
   not the page layout.
-- PDF and XPS in Save As are dimmed until their writers exist (M16).
+- PDF and XPS (see PROGRESS.md, M16): text is placed glyph by glyph where
+  the browser drew it, but complex-script shaping (Arabic joining, Indic
+  conjuncts, ligatures) isn't redone: such text uses the font's plain
+  glyphs. Characters no bundled font has (CJK, colour emoji) are drawn as
+  300 dpi pictures carrying their text. Blurred text shadows are drawn
+  sharp. XPS can't stroke text, so outlined text becomes outline paths over
+  invisible text.
 - Printing uses the first page size for the browser's default and named page
-  sizes for others; PDF bookmarks depend on the browser.
+  sizes for others.
 - Windows: Arrange All and Side by Side can only move windows the app opened
   (New Window); settings such as Restrict Editing aren't shared between
   windows.

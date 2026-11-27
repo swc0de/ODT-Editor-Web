@@ -3,7 +3,9 @@
  * xpstopdf) renderings at 96 dpi. For each page: the share of pixels that
  * differ by more than 40 (with a 1-pixel antialiasing tolerance), and a
  * picture: editor | PDF | heat map → reference/compare/m16-pdf-<doc>-p<n>.png
- * (and m16-xps-…). Prints JSON results; used by tests/e2e/fixed.spec.js.
+ * (and m16-xps-…). `floor`: the same PDF drawn by pdftoppm vs mutool — how much
+ * two rasterisers disagree on that page by themselves. Prints JSON results;
+ * used by tests/e2e/fixed.spec.js.
  *
  *   node tests/fixed-compare.mjs [fixture…] [--no-images]
  */
@@ -28,6 +30,7 @@ const page = await (await browser.newContext({ viewport: { width: 1400, height: 
 await page.addInitScript(() => { window.__ODT_TEST_DEFAULTS__ = { fileSystemAccess: false, checkSpelling: false }; });
 await page.goto(pathToFileURL(path.resolve('dist/odt-editor.html')).href);
 await page.waitForFunction(() => window.odtEditor && document.getElementById('app').getAttribute('aria-busy') === 'false');
+await page.addStyleTag({ content: '.toast { display: none !important; }' });
 await page.evaluate(() => { window.odtEditor.registry.run('app.setZoom', 100); window.odtEditor.store.set({ ribbonCollapsed: true, showRuler: false }); });
 
 const side = (imgs) => {
@@ -49,13 +52,24 @@ for (const file of FIX) {
   await page.waitForTimeout(800);
   await page.evaluate(() => window.odtEditor.docArea.relayout());
   await page.waitForTimeout(600);
-  // The pages as shown (screen-only aids off, as in the export).
+  // Export first: the export lays the document out afresh, and the screen shows that layout from then on.
+  const t0 = Date.now();
+  const pdf = Buffer.from(await page.evaluate(async () => Array.from(await window.odtEditor.session.serializeAs('pdf'))));
+  const pdfMs = Date.now() - t0;
+  const xps = Buffer.from(await page.evaluate(async () => Array.from(await window.odtEditor.session.serializeAs('xps'))));
+  // The pages as shown, in the export's default "Document" display (no markup, screen-only aids off).
+  await page.evaluate(() => window.odtEditor.registry.run('review.displayNone'));
+  await page.evaluate(() => window.odtEditor.docArea.relayout());
+  await page.waitForTimeout(400);
   await page.evaluate(() => { const v = window.odtEditor.editor.view; v.dom.blur(); window.getSelection().removeAllRanges(); window.odtEditor.docArea.view.stack.classList.add('png-export'); });
   const count = await page.evaluate(() => window.odtEditor.docArea.pages.length);
   const shots = [];
   const shotFiles = [];
   for (let i = 0; i < count; i++) {
     const box = await page.evaluate((i) => { const el = window.odtEditor.docArea.view.pageElement(i); el.scrollIntoView({ block: 'start' }); window.scrollTo(0, 0); document.scrollingElement.scrollTop = 0; const r = el.getBoundingClientRect(); return { x: r.left, y: r.top, width: r.width, height: r.height }; }, i);
+    // Pages sit at fractional pixels (A4 is 793.7 px wide): move the page onto whole pixels, as the
+    // renderers draw it, so a sub-pixel offset of the capture doesn't count as a difference.
+    await page.evaluate((i) => { const st = window.odtEditor.docArea.view.stack; st.style.translate = ''; const r = window.odtEditor.docArea.view.pageElement(i).getBoundingClientRect(); st.style.translate = `${Math.round(r.left) - r.left}px 0px`; }, i);
     await page.waitForTimeout(150);
     const b2 = await page.evaluate((i) => { const r = window.odtEditor.docArea.view.pageElement(i).getBoundingClientRect(); return { x: Math.round(r.left + window.scrollX), y: Math.round(r.top + window.scrollY), width: Math.round(r.width), height: Math.round(r.height) }; }, i);
     void box;
@@ -63,11 +77,7 @@ for (const file of FIX) {
     shots.push(decodePng(shot));
     shotFiles.push(shot);
   }
-  await page.evaluate(() => window.odtEditor.docArea.view.stack.classList.remove('png-export'));
-  const t0 = Date.now();
-  const pdf = Buffer.from(await page.evaluate(async () => Array.from(await window.odtEditor.session.serializeAs('pdf'))));
-  const pdfMs = Date.now() - t0;
-  const xps = Buffer.from(await page.evaluate(async () => Array.from(await window.odtEditor.session.serializeAs('xps'))));
+  await page.evaluate(() => { window.odtEditor.docArea.view.stack.classList.remove('png-export'); window.odtEditor.docArea.view.stack.style.translate = ''; window.odtEditor.registry.run('review.displayAll'); });
   const pdfFile = path.join(OUT, `${name}.pdf`);
   const xpsFile = path.join(OUT, `${name}.xps`);
   writeFileSync(pdfFile, pdf);
@@ -77,20 +87,23 @@ for (const file of FIX) {
   mkdirSync(dir, { recursive: true });
   execFileSync('pdftoppm', ['-r', '96', '-png', pdfFile, path.join(dir, 'pdf')]);
   execFileSync('mutool', ['draw', '-q', '-r', '96', '-o', path.join(dir, 'xps-%d.png'), xpsFile], { stdio: 'pipe' });
+  // The same PDF drawn by a second renderer: how much two rasterisers disagree on this page (the noise floor).
+  execFileSync('mutool', ['draw', '-q', '-r', '96', '-o', path.join(dir, 'mupdf-%d.png'), pdfFile], { stdio: 'pipe' });
   let gxps = false;
   try { execFileSync('xpstopdf', [xpsFile, path.join(dir, 'gxps.pdf')], { stdio: 'pipe' }); execFileSync('pdftoppm', ['-r', '96', '-png', path.join(dir, 'gxps.pdf'), path.join(dir, 'gxps')]); gxps = true; } catch { gxps = false; }
   shotFiles.forEach((b, i) => writeFileSync(path.join(dir, `editor-${i + 1}.png`), b));
   const pngs = readdirSync(dir);
   const find = (prefix, i) => { const f = pngs.filter((p) => p.startsWith(prefix) && p.endsWith('.png')).sort((a, b) => Number(a.match(/(\d+)\.png$/)[1]) - Number(b.match(/(\d+)\.png$/)[1]))[i]; return f ? decodePng(readFileSync(path.join(dir, f))) : null; };
-  const res = { file, pages: count, pdfMs, pdf: [], xps: [], gxps: [] };
+  const res = { file, pages: count, pdfMs, pdf: [], mupdf: [], xps: [], gxps: [], floor: [] };
+  for (let i = 0; i < count; i++) { const a = find('pdf-', i); const b = find('mupdf-', i); res.floor.push(a && b ? +(pixelDiff(a, b).ratio * 100).toFixed(3) : null); }
   for (let i = 0; i < count; i++) {
-    for (const [kind, prefix] of [['pdf', 'pdf-'], ['xps', 'xps-'], ['gxps', 'gxps-']]) {
+    for (const [kind, prefix] of [['pdf', 'pdf-'], ['mupdf', 'mupdf-'], ['xps', 'xps-'], ['gxps', 'gxps-']]) {
       if (kind === 'gxps' && !gxps) continue;
       const r = find(prefix, i);
       if (!r) { res[kind].push(null); continue; }
       const d = pixelDiff(shots[i], r);
       res[kind].push(+(d.ratio * 100).toFixed(3));
-      if (writeImages && kind !== 'gxps') writeFileSync(path.join(CMP, `m16-${kind}-${name}-p${i + 1}.png`), side([shots[i], r, { width: d.width, height: d.height, data: d.heat }]));
+      if (writeImages && (kind === 'pdf' || kind === 'xps')) writeFileSync(path.join(CMP, `m16-${kind}-${name}-p${i + 1}.png`), side([shots[i], r, { width: d.width, height: d.height, data: d.heat }]));
     }
   }
   results.push(res);

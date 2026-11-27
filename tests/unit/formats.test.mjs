@@ -20,11 +20,13 @@ test('formats by name, extensions, write-back', () => {
   assert.equal(stripExt('My.Report.odt'), 'My.Report');
   assert.equal(stripExt('notes.v2'), 'notes.v2');
   assert.ok(canWriteBack('txt') && canWriteBack('xml') && !canWriteBack('pdf') && !canWriteBack('rtf') && !canWriteBack(null));
-  assert.equal(formatById('xps').available, false);
+  // M16: PDF and XPS are written (as copies: Save never writes back to them).
+  assert.notEqual(formatById('xps').available, false);
+  assert.notEqual(formatById('pdf').available, false);
 });
 
-test('picker types: current format first; PDF/XPS not offered until available; Open lists every readable type', () => {
-  assert.deepEqual(saveTypes('txt').map((t) => Object.values(t.accept)[0][0]), ['.txt', '.docx', '.odt', '.xml', '.html']);
+test('picker types: current format first; PDF/XPS offered last; Open lists every readable type', () => {
+  assert.deepEqual(saveTypes('txt').map((t) => Object.values(t.accept)[0][0]), ['.txt', '.docx', '.odt', '.xml', '.html', '.pdf', '.xps']);
   const open = openTypes();
   assert.deepEqual(Object.values(open[0].accept)[0], ['.docx', '.dotx', '.xml', '.odt', '.ott', '.htm', '.html', '.txt', '.rtf', '.md']);
 });

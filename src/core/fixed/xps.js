@@ -94,9 +94,18 @@ export async function writeXps(pages, o) {
   pages.forEach((page, pi) => {
     const used = new Set();
     const body = [];
+    let pendingRaster = null;
+    const flushRaster = () => {
+      const r = pendingRaster;
+      pendingRaster = null;
+      if (!r) return;
+      const text = r.chars.map((c) => c.ch).join('');
+      const idx = r.chars.map((c, k) => { const next = r.chars[k + 1]; const adv = next ? next.x - c.x : c.w; return `${[...c.ch].length === 1 && c.ch.length > 1 ? `(${c.ch.length}:1)` : ''}0,${n((adv / r.size) * 100)}`; });
+      r.sink[r.at] = `<Glyphs Fill="#00000000" FontUri="${r.fr.uri}" FontRenderingEmSize="${n(r.size)}" OriginX="${n(r.chars[0].x)}" OriginY="${n(r.baseline)}" UnicodeString="${esc(text.startsWith('{') ? `{}${text}` : text)}" Indices="${idx.join(';')}"/>`;
+    };
     const emit = (items, sink) => {
       for (const it of items) {
-        if (it.t === 'group') { const inner = []; emit(it.items, inner); sink.push(`<Canvas RenderTransform="${it.matrix.map(n).join(',')}">${inner.join('')}</Canvas>`); } else if (it.t === 'rect') {
+        if (it.t === 'group') { const inner = []; emit(it.items, inner); flushRaster(); sink.push(`<Canvas RenderTransform="${it.matrix.map(n).join(',')}">${inner.join('')}</Canvas>`); } else if (it.t === 'rect') {
           sink.push(`<Path Fill="${argb(it.fill, it.alpha ?? 1)}" Data="M ${n(it.x)},${n(it.y)} L ${n(it.x + it.w)},${n(it.y)} ${n(it.x + it.w)},${n(it.y + it.h)} ${n(it.x)},${n(it.y + it.h)} Z"/>`);
         } else if (it.t === 'line') {
           const dash = it.dash ? ` StrokeDashArray="${it.dash.map((v) => n(v / it.width)).join(' ')}"` : '';
@@ -112,8 +121,20 @@ export async function writeXps(pages, o) {
           used.add(im.uri);
           sink.push(`<Path${it.alpha != null && it.alpha < 0.999 ? ` Opacity="${n(it.alpha)}"` : ''} Data="M ${n(it.x)},${n(it.y)} L ${n(it.x + it.w)},${n(it.y)} ${n(it.x + it.w)},${n(it.y + it.h)} ${n(it.x)},${n(it.y + it.h)} Z"${it.alt ? ` AutomationProperties.Name="${esc(it.alt)}"` : ''}><Path.Fill><ImageBrush ImageSource="${im.uri}" Viewbox="0,0,${n(im.w)},${n(im.h)}" ViewboxUnits="Absolute" Viewport="${n(it.x)},${n(it.y)},${n(it.w)},${n(it.h)}" ViewportUnits="Absolute" TileMode="None"/></Path.Fill></Path>`);
           // A character drawn as a picture: its text, invisible, for searching and copying.
+          // Neighbours on the same line share one run, so the text reads as a word.
           const fr = it.actualText ? fontUri.get(it.face) : null;
-          if (fr) { used.add(fr.uri); sink.push(`<Glyphs Fill="#00000000" FontUri="${fr.uri}" FontRenderingEmSize="${n(it.size)}" OriginX="${n(it.x)}" OriginY="${n(it.baseline)}" UnicodeString="${esc(it.actualText.startsWith('{') ? `{}${it.actualText}` : it.actualText)}" Indices="${[...it.actualText].length === 1 && it.actualText.length > 1 ? `(${it.actualText.length}:1)` : ''}0,${n((it.w / it.size) * 100)}"/>`); }
+          if (fr) {
+            used.add(fr.uri);
+            const last = pendingRaster;
+            if (last && last.sink === sink && last.fr === fr && last.size === it.size && Math.abs(last.baseline - it.baseline) < 0.5 && Math.abs(last.end - it.x) < 1) {
+              last.chars.push({ ch: it.actualText, x: it.x, w: it.w });
+              last.end = it.x + it.w;
+            } else {
+              flushRaster();
+              pendingRaster = { sink, fr, size: it.size, baseline: it.baseline, end: it.x + it.w, at: sink.length, chars: [{ ch: it.actualText, x: it.x, w: it.w }] };
+              sink.push('');
+            }
+          }
         } else if (it.t === 'text') {
           const fr = fontUri.get(it.face);
           if (!fr || !it.glyphs.length) continue;
@@ -135,7 +156,7 @@ export async function writeXps(pages, o) {
             const k = em / upm;
             for (const g of it.glyphs) {
               let d = '';
-              try { d = fr.face.font.getGlyph(g.gid).path.toSVG(); } catch { d = ''; }
+              try { d = glyphPathData(fr.face.font.getGlyph(g.gid).path); } catch { d = ''; }
               if (d) sink.push(`<Path RenderTransform="${n(k)},0,0,${n(-k)},${n(g.x)},${n(it.y)}" Data="F 1 ${d}" Stroke="${argb(it.color, it.alpha ?? 1)}" StrokeThickness="${n(it.outline / k)}"/>`);
             }
           }
@@ -145,6 +166,7 @@ export async function writeXps(pages, o) {
       }
     };
     emit(page.items, body);
+    flushRaster();
     // Links: a transparent area that navigates.
     for (const a of page.annots) {
       if (a.t !== 'link') continue;
@@ -178,4 +200,17 @@ export async function writeXps(pages, o) {
   const ct = `<?xml version="1.0" encoding="UTF-8"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="fdseq" ContentType="application/vnd.ms-package.xps-fixeddocumentsequence+xml"/><Default Extension="fdoc" ContentType="application/vnd.ms-package.xps-fixeddocument+xml"/><Default Extension="fpage" ContentType="application/vnd.ms-package.xps-fixedpage+xml"/><Default Extension="odttf" ContentType="application/vnd.ms-package.obfuscated-opentype"/><Default Extension="png" ContentType="image/png"/><Default Extension="jpg" ContentType="image/jpeg"/><Default Extension="struct" ContentType="application/vnd.ms-package.xps-documentstructure+xml"/><Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/></Types>`;
   // [Content_Types].xml first, as XPS consumers expect.
   return zipSync({ '[Content_Types].xml': strToU8(ct), ...files }, { level: 6 });
+}
+
+/** A glyph outline (fontkit path, font units) in XPS path syntax: points as x,y pairs. */
+function glyphPathData(path) {
+  const k = { moveTo: 'M', lineTo: 'L', quadraticCurveTo: 'Q', bezierCurveTo: 'C', closePath: 'Z' };
+  let d = '';
+  for (const c of path.commands) {
+    const a = c.args.map((v) => +v.toFixed(2));
+    const pts = [];
+    for (let i = 0; i < a.length; i += 2) pts.push(`${a[i]},${a[i + 1]}`);
+    d += `${k[c.command] || ''}${pts.length ? ` ${pts.join(' ')} ` : ' '}`;
+  }
+  return d.trim();
 }

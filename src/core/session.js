@@ -317,7 +317,6 @@ export function createSession({ editor, onLoad, onChange, toast }) {
     if (!fmt || fmt.available === false) { await alertDialog(t('fmt.unavailableTitle'), t('fmt.unavailable', { format: t(fmt?.labelKey || 'fmt.docx') })); return false; }
     const base = (o.name || s.name || 'Document').replace(/[\\/:*?"<>|]+/g, '_');
     const isTemplate = fmt.kind === 'template';
-    const fixed = fmt.kind === 'fixed';
     let handle = null;
     let fileName = `${stripExt(base)}${fmt.exts[0]}`;
     if (usePicker) {
@@ -351,7 +350,9 @@ export function createSession({ editor, onLoad, onChange, toast }) {
       }
     }
     if (!handle) download(bytes, fileName, f2.mime);
-    addRecent({ name: fileName, bytes, handle, format: prep.format });
+    // The format written decides (the picker's extension may have changed it): PDF / XPS are copies.
+    const fixed = f2.kind === 'fixed';
+    if (!fixed) addRecent({ name: fileName, bytes, handle, format: prep.format });
     if (fixed || isTemplate) {
       // A copy: the document stays attached to its file.
       toast?.(t(fixed ? 'fmt.exported' : (handle ? 'file.saved' : 'file.downloaded'), { name: fileName }));
