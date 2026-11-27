@@ -19,8 +19,8 @@ The memory between sessions. Statuses: `todo`, `in progress`, `awaiting approval
 | M12 — View tab and windows | approved |
 | M13 — Import/export, Options, polish and final audit | approved |
 | M14 — Word DOCX fidelity and exact interface match | approved |
-| M15 — DOCX as the default format, Save As in seven formats | awaiting approval |
-| M16 — Native PDF and XPS writers | todo |
+| M15 — DOCX as the default format, Save As in seven formats | approved |
+| M16 — Native PDF and XPS writers | in progress |
 
 ## Environment
 
@@ -463,7 +463,7 @@ Decisions / differences that can't match exactly:
 - Screenshots: `reference/compare/*-compare.png` and `*-light.png` regenerated (`node tests/screenshots.mjs`); `m14-ui-<tab>-diff.png` heat-maps; `m14-docx-synthetic-p1…8.png` (after) and `m14-docx-synthetic-before-p1…8.png` (the build before M14), LibreOffice on the left, the editor's PDF on the right.
 - To finish verifying against Word: put `docx-editor-test.docx` in `tests/fixtures/word-fidelity/`, then run `npx playwright test tests/e2e/docx-fidelity.spec.js` and `node tests/docx-compare.mjs` (writes `m14-docx-p1…8.png`).
 
-## M15 — DOCX as the default format, Save As in seven formats (awaiting approval)
+## M15 — DOCX as the default format, Save As in seven formats (approved)
 
 Instructions: the M15 block in MILESTONES.md (from the user's `CLAUDE-CODE-PROMPT-docx-default.md`). Brief updated: CLAUDE.md and README.md describe a word processor whose default format is `.docx`; ODT stays fully supported and the internal model; the product name is unchanged.
 
