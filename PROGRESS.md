@@ -20,7 +20,7 @@ The memory between sessions. Statuses: `todo`, `in progress`, `awaiting approval
 | M13 — Import/export, Options, polish and final audit | approved |
 | M14 — Word DOCX fidelity and exact interface match | approved |
 | M15 — DOCX as the default format, Save As in seven formats | approved |
-| M16 — Native PDF and XPS writers | awaiting approval |
+| M16 — Native PDF and XPS writers | approved |
 
 ## Environment
 
@@ -495,7 +495,7 @@ Verified:
 - Whole suite: 97 unit + 232 e2e pass, 10 skipped (the missing user document). The 300-page typing check is noisy in this container: p95 13.4–19.4 ms for this build and 13.5–25.6 ms for the M14 build measured alternately the same way, so no regression, but it can fail on a slow run. 50 pages: p95 3.8–6.7 ms; 100 pages: median 4.1–4.5 ms, p95 4.8–6.6 ms; open 0.08 s (100 pages) / 0.19–0.26 s (300), as before.
 - Screenshots: `reference/compare/m15-saveas-{dark,light}.png`, `m15-file-conversion-*.png`, `m15-compatibility-*.png`; the standard comparisons regenerated.
 
-## M16 — Native PDF and XPS writers (awaiting approval)
+## M16 — Native PDF and XPS writers (approved)
 
 Instructions: the M16 block in MILESTONES.md (from the user's `CLAUDE-CODE-PROMPT-docx-default.md`).
 
